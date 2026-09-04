@@ -83,3 +83,27 @@ private JsonNode pageData;
 
 - 백엔드: `./gradlew test` (JUnit 5). 리포지토리 계층은 `@DataJpaTest`, 컨트롤러는 `@WebMvcTest` 우선 — 굳이 `@SpringBootTest` 풀 컨텍스트를 매번 띄우지 않는다.
 - 로컬 DB는 `docker compose up -d`로 PostgreSQL을 먼저 띄운 뒤 백엔드를 실행한다.
+
+## Git 컨벤션
+
+**저장소**: [github.com/h-like/invi](https://github.com/h-like/invi) (private). 로컬 git 계정은 이 저장소에만 로컬로 설정돼 있다(`git config user.name/email`, 전역 설정 아님) — 다른 저장소를 새로 클론하면 다시 설정해야 한다.
+
+**브랜치**
+- `main`: 항상 빌드/컴파일이 되는 상태로 유지한다. Phase 0 스캐폴딩 이후로는 여기 직접 커밋하지 않는다.
+- 기능 단위로 `phase-N/기능명` 형식의 브랜치를 판다. 예: `phase-1/invitation-editor`, `phase-1/rsvp-api`.
+- 완료되면 PR을 올리고 `/code-review` 통과 후 머지한다. 1인 개발이라 리뷰해줄 사람은 없지만, PR을 남겨두면 변경 이력이 기능 단위로 정리되고 나중에 포트폴리오에서 보여주기도 좋다.
+
+**커밋 메시지**: Conventional Commits 형식.
+```
+<type>(<scope>): <설명>
+```
+- type: `feat` `fix` `refactor` `test` `chore` `docs`
+- scope: 모듈명(`invitation`, `rsvp`, `editor` 등) — 애매하면 생략
+- 예: `feat(invitation): add slug uniqueness check`, `test(rsvp): cover guest-count validation`
+
+**커밋 단위**: 항상 빌드가 되고 테스트가 통과하는 상태에서 커밋한다. "일단 커밋하고 나중에 고치기"는 하지 않는다 — 에이전트 루프가 자동으로 커밋할 때는 특히 이 원칙이 더 중요해진다(아래 참고).
+
+**에이전트 루프와 git** — 아키텍처 문서 08번 "에이전트 루프 사용 원칙"의 연장:
+- 로컬 커밋(`git add` + `git commit`)까지는 루프가 자동으로 남겨도 된다. 단, 테스트 통과·빌드 성공 상태에서만 — 원칙 3(검증 가능한 산출물)과 직결된다.
+- `git push`, PR 생성/머지, `main`으로의 직접 반영, force-push는 루프가 자동으로 하지 않는다. 사람이 직접 트리거한다 — 원칙 2(되돌리기 어려운 액션은 자동 실행에서 제외)와 같은 논리다.
+- 루프가 반복 작업 중에 남긴 커밋은 메시지에 그 사실을 남긴다. 예: `test(rsvp): tighten guest-count validation via TDD loop` — 나중에 이 커밋이 루프 산출물인지 직접 짠 건지 구분할 수 있게.
