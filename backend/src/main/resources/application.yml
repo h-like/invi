@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: invi-api
+  datasource:
+    url: jdbc:postgresql://localhost:5432/invi
+    username: invi
+    password: invi
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

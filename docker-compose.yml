@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: invi
+      POSTGRES_USER: invi
+      POSTGRES_PASSWORD: invi
+    ports:
+      - "5432:5432"
+    volumes:
+      - invi-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  invi-postgres-data:

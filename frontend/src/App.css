@@ -1,0 +1,24 @@
+.status-card {
+  max-width: 32rem;
+  margin: 4rem auto;
+  padding: 2rem;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+}
+
+.status-ok {
+  color: #2f6f62;
+  font-weight: 600;
+}
+
+.status-error {
+  color: #b5405a;
+  font-weight: 600;
+}
+
+.status-time {
+  color: #666;
+  font-size: 0.9rem;
+}
