@@ -34,7 +34,8 @@ class InvitationServiceTest {
 
     @BeforeEach
     void setUp() {
-        invitationService = new InvitationService(invitationRepository, memberRepository, templateRepository);
+        invitationService =
+                new InvitationService(invitationRepository, memberRepository, templateRepository, objectMapper);
     }
 
     @Test
@@ -56,8 +57,23 @@ class InvitationServiceTest {
         assertThat(result.slug()).isEqualTo("our-wedding");
         assertThat(result.status()).isEqualTo(InvitationStatus.DRAFT);
         assertThat(result.plan()).isEqualTo(Plan.FREE);
-        assertThat(result.pageData()).isEqualTo(defaultPageData);
-        assertThat(result.pageData()).isNotSameAs(defaultPageData);
+        assertThat(result.pageData()).isEqualTo(defaultPageData.toString());
+    }
+
+    @Test
+    void updatePageData_bridgesJackson3RequestNodeIntoJackson2EntityField() {
+        UUID id = UUID.randomUUID();
+        Template template = Template.builder().name("클래식").category("classic").build();
+        Invitation invitation =
+                Invitation.builder().slug("s").weddingDate(LocalDate.now()).template(template).build();
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+
+        tools.jackson.databind.JsonNode incoming =
+                tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"blocks\":[{\"id\":\"hero-1\"}]}");
+
+        InvitationDto result = invitationService.updatePageData(id, incoming);
+
+        assertThat(result.pageData()).isEqualTo("{\"blocks\":[{\"id\":\"hero-1\"}]}");
     }
 
     @Test

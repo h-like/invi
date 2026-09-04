@@ -1,6 +1,6 @@
 package com.invi.api.invitation;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -11,6 +11,6 @@ public record InvitationDto(
         LocalDate weddingDate,
         Plan plan,
         InvitationStatus status,
-        JsonNode pageData,
-        JsonNode langVariants) {
+        @JsonRawValue String pageData,
+        @JsonRawValue String langVariants) {
 }

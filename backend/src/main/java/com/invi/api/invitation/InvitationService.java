@@ -1,6 +1,8 @@
 package com.invi.api.invitation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.invi.api.account.Member;
 import com.invi.api.account.MemberRepository;
 import com.invi.api.common.ConflictException;
@@ -19,6 +21,9 @@ public class InvitationService {
     private final InvitationRepository invitationRepository;
     private final MemberRepository memberRepository;
     private final TemplateRepository templateRepository;
+
+    /** Jackson 2 — matches Hibernate's JSON column mapping. See JacksonConfig. */
+    private final ObjectMapper entityJsonMapper;
 
     @Transactional
     public InvitationDto create(CreateInvitationRequest request) {
@@ -62,8 +67,8 @@ public class InvitationService {
                 invitation.getId(),
                 invitation.getSlug(),
                 invitation.getWeddingDate(),
-                invitation.getPageData(),
-                invitation.getLangVariants());
+                toRawJson(invitation.getPageData()),
+                toRawJson(invitation.getLangVariants()));
     }
 
     public boolean isSlugAvailable(String slug) {
@@ -71,10 +76,19 @@ public class InvitationService {
     }
 
     @Transactional
-    public InvitationDto updatePageData(UUID id, JsonNode pageData) {
+    public InvitationDto updatePageData(UUID id, tools.jackson.databind.JsonNode pageData) {
         Invitation invitation = getOrThrow(id);
-        invitation.updatePageData(pageData);
+        invitation.updatePageData(toEntityJson(pageData));
         return toDto(invitation);
+    }
+
+    /** Jackson 3 (HTTP request) -> Jackson 2 (entity/Hibernate) via the JSON text they both agree on. */
+    private JsonNode toEntityJson(tools.jackson.databind.JsonNode pageData) {
+        try {
+            return entityJsonMapper.readTree(pageData.toString());
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("A JsonNode's own toString() should always be valid JSON", e);
+        }
     }
 
     @Transactional
@@ -98,7 +112,11 @@ public class InvitationService {
                 invitation.getWeddingDate(),
                 invitation.getPlan(),
                 invitation.getStatus(),
-                invitation.getPageData(),
-                invitation.getLangVariants());
+                toRawJson(invitation.getPageData()),
+                toRawJson(invitation.getLangVariants()));
+    }
+
+    private static String toRawJson(JsonNode node) {
+        return node != null ? node.toString() : null;
     }
 }
