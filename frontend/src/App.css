@@ -1,24 +1,287 @@
-.status-card {
-  max-width: 32rem;
-  margin: 4rem auto;
-  padding: 2rem;
-  border: 1px solid #ddd;
+:root {
+  --ink: #241f2e;
+  --ink-soft: #5b5468;
+  --line: #e2dee6;
+  --surface: #ffffff;
+  --surface-2: #faf8fa;
+  --accent: #b5405a;
+  --decided: #2f6f62;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+h1 {
+  font-size: 24px;
+  margin: 0 0 24px;
+}
+
+h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+}
+
+label {
+  display: block;
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin-bottom: 16px;
+}
+
+input,
+textarea,
+button {
+  font: inherit;
+}
+
+input[type='text'],
+input[type='date'],
+input[type='number'],
+input:not([type]),
+textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  background: var(--ink);
+  color: white;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.publish-button {
+  background: var(--accent);
+}
+
+.form-error,
+.block-error {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.publish-success {
+  color: var(--decided);
+  font-size: 14px;
+}
+
+/* ---------- template picker ---------- */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.template-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: center;
+  cursor: pointer;
+}
+
+.template-card input {
+  display: none;
+}
+
+.template-card.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---------- editor layout ---------- */
+.editor-page {
+  max-width: 1080px;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.editor-panel {
+  position: sticky;
+  top: 24px;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.editor-preview {
+  border: 1px solid var(--line);
   border-radius: 12px;
-  font-family: system-ui, sans-serif;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+@media (max-width: 800px) {
+  .editor-page {
+    grid-template-columns: 1fr;
+  }
+  .editor-panel {
+    position: static;
+  }
+}
+
+/* ---------- guest page / blocks ---------- */
+.guest-page {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.block {
+  padding: 32px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hero-block {
+  text-align: center;
+  padding: 64px 24px;
+}
+
+.hero-date {
+  color: var(--ink-soft);
+  margin: 0 0 12px;
+}
+
+.hero-names {
+  font-size: 28px;
+  margin: 0;
+}
+
+.countdown-block {
+  text-align: center;
+  font-weight: 600;
+}
+
+.block-placeholder {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.gallery-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.block-sub {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.account-group {
+  margin-top: 12px;
+}
+
+.account-group-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 6px;
+}
+
+.account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.account-row button {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.rsvp-attending {
+  display: flex;
+  gap: 16px;
+  margin: 10px 0;
+  font-size: 14px;
+}
+
+.rsvp-attending label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.rsvp-block form,
+.guestbook-block form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.block-success {
+  color: var(--decided);
+  font-weight: 600;
   text-align: center;
 }
 
-.status-ok {
-  color: #2f6f62;
-  font-weight: 600;
+.guestbook-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.status-error {
-  color: #b5405a;
-  font-weight: 600;
+.guestbook-list li {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  font-size: 14px;
 }
 
-.status-time {
-  color: #666;
-  font-size: 0.9rem;
+.guestbook-list li p {
+  margin: 4px 0 0;
 }
