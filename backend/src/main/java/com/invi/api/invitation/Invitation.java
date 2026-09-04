@@ -63,4 +63,20 @@ public class Invitation extends BaseEntity {
     private JsonNode langVariants;
 
     private Instant expiresAt;
+
+    public void updatePageData(JsonNode pageData) {
+        this.pageData = pageData;
+    }
+
+    public void updateLangVariants(JsonNode langVariants) {
+        this.langVariants = langVariants;
+    }
+
+    public void updateWeddingDate(LocalDate weddingDate) {
+        this.weddingDate = weddingDate;
+    }
+
+    public void publish() {
+        this.status = InvitationStatus.PUBLISHED;
+    }
 }
