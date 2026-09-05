@@ -45,14 +45,14 @@ class InvitationServiceTest {
         JsonNode defaultPageData = objectMapper.readTree("{\"blocks\":[]}");
         Member member = Member.builder().provider(com.invi.api.account.AuthProvider.KAKAO).providerId("1").email("a@b.com").name("A").build();
         Template template = Template.builder().name("클래식").category("classic").defaultPageData(defaultPageData).build();
-        CreateInvitationRequest request = new CreateInvitationRequest(memberId, templateId, "our-wedding", LocalDate.now().plusMonths(1));
+        CreateInvitationRequest request = new CreateInvitationRequest(templateId, "our-wedding", LocalDate.now().plusMonths(1));
 
         when(invitationRepository.existsBySlug("our-wedding")).thenReturn(false);
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(templateRepository.findById(templateId)).thenReturn(Optional.of(template));
         when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        InvitationDto result = invitationService.create(request);
+        InvitationDto result = invitationService.create(memberId, request);
 
         assertThat(result.slug()).isEqualTo("our-wedding");
         assertThat(result.status()).isEqualTo(InvitationStatus.DRAFT);
@@ -79,10 +79,11 @@ class InvitationServiceTest {
     @Test
     void create_throwsConflict_whenSlugAlreadyTaken() {
         CreateInvitationRequest request =
-                new CreateInvitationRequest(UUID.randomUUID(), UUID.randomUUID(), "taken", LocalDate.now());
+                new CreateInvitationRequest(UUID.randomUUID(), "taken", LocalDate.now());
         when(invitationRepository.existsBySlug("taken")).thenReturn(true);
 
-        assertThatThrownBy(() -> invitationService.create(request)).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> invitationService.create(UUID.randomUUID(), request))
+                .isInstanceOf(ConflictException.class);
     }
 
     @Test

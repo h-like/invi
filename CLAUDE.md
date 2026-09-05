@@ -80,9 +80,21 @@ private JsonNode pageData;
 | `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message | 로그인 없이 제출 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
 
+## 인증 (Kakao / Google 로그인)
+
+`com.invi.api.account`에 있다. 세션이 아니라 JWT 기반 — SPA가 API를 호출할 때마다 `Authorization: Bearer <token>`을 보낸다.
+
+- **로그인 흐름**: 프론트가 `GET /oauth2/authorization/{kakao|google}`로 이동 → Spring Security의 `oauth2Login()`이 제공자 로그인 페이지로 리다이렉트 → 콜백에서 `CustomOAuth2UserService`가 Kakao/Google의 서로 다른 유저 정보 응답을 공통 `(provider, providerId, email, name)`으로 매핑하고 `Member`를 find-or-create → `OAuth2LoginSuccessHandler`가 JWT를 발급해 `{FRONTEND_BASE_URL}/oauth/callback?token=...`로 리다이렉트 → 프론트의 `OAuthCallbackPage`가 토큰을 저장하고 `/api/auth/me`를 호출해 로그인 완료.
+- **이후 모든 API 호출**: `JwtAuthenticationFilter`가 `Authorization` 헤더를 검증해서 `Authentication#getName()`에 `Member.id`(문자열 UUID)를 심는다. 컨트롤러는 `CurrentMember.requireId(authentication)`으로 꺼내 쓴다 — `Invitation` 생성 시 `memberId`를 요청 바디로 받지 않는 이유가 이거다(과거엔 받았지만 로그인이 생기면서 제거함).
+- **공개 엔드포인트**(로그인 불필요, `SecurityConfig` 참고): `GET /api/templates/**`, `GET /api/invitations/slug/**`, `GET /api/invitations/slug-available`, RSVP/방명록 제출·조회(`GET`/`POST` `/api/invitations/*/rsvps`, `/api/invitations/*/guestbook`). 그 외 `/api/**`는 로그인 필요.
+- **비밀값**: Kakao/Google client-id·secret과 JWT 서명 키는 `backend/src/main/resources/application-local.yml`에 있다 — **git에 안 올라간다**(`.gitignore` 참고). 새로 clone한 환경에서는 이 파일을 직접 만들어야 하고, JWT 시크릿이 없으면 `application.yml`의 개발용 기본값(`dev-only-insecure-default-...`)으로 폴백한다 — 운영 배포 전에는 반드시 실제 값으로 교체.
+- **외부 콘솔 설정** (코드로 못 하는 부분, 사람이 직접): Kakao Developers/Google Cloud Console 양쪽에 리다이렉트 URI를 `http://localhost:8080/login/oauth2/code/{kakao|google}`로 등록해야 로그인이 동작한다. Kakao는 추가로 "카카오 로그인" 활성화 + 동의항목(닉네임, 카카오계정(이메일))을 켜둬야 `account_email` 스코프가 실제 이메일을 준다 — 동의 안 하면 `Member.email`은 `{providerId}@kakao.invi.local` 같은 대체값으로 채워진다.
+- **로그인 없이 테스트하던 시절의 흔적**: `MemberController.dev` / `MemberSeeder`는 실제 로그인이 붙으면서 삭제했다. 새 임시 우회가 필요해지면 만들지 말고 로컬 계정으로 실제 로그인해서 테스트할 것.
+
 ## 프론트엔드 컨벤션 (frontend/)
 
-- Vite + React + TypeScript, 아직 라우터/상태관리 라이브러리는 도입하지 않음(Phase 1에서 필요해지면 추가)
+- Vite + React + TypeScript + `react-router-dom`(`/`, `/oauth/callback`, `/e/:id`, `/i/:slug`)
+- 로그인 상태는 `src/auth/AuthContext.tsx`(Context) + `src/auth/token.ts`(localStorage 저장)로 관리한다. `api/client.ts`의 모든 요청이 토큰이 있으면 자동으로 `Authorization` 헤더를 붙인다.
 - 백엔드 API 베이스는 `http://localhost:8080`, 개발 중에는 직접 fetch(프록시 설정 없음 — CORS는 백엔드 `SecurityConfig`에서 `localhost:5173` 허용)
 
 ## 테스트

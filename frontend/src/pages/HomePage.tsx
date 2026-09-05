@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
+import { useAuth } from '../auth/AuthContext'
 import type { Template } from '../api/types'
 
 export function HomePage() {
   const navigate = useNavigate()
+  const { member, loading, loginWithKakao, loginWithGoogle, logout } = useAuth()
   const [templates, setTemplates] = useState<Template[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [slug, setSlug] = useState('')
@@ -25,13 +27,7 @@ export function HomePage() {
     setSubmitting(true)
     setError(null)
     try {
-      const member = await api.getDevMember()
-      const invitation = await api.createInvitation({
-        memberId: member.id,
-        templateId: selectedId,
-        slug,
-        weddingDate,
-      })
+      const invitation = await api.createInvitation({ templateId: selectedId, slug, weddingDate })
       navigate(`/e/${invitation.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : '청첩장 생성에 실패했습니다')
@@ -40,9 +36,35 @@ export function HomePage() {
     }
   }
 
+  if (loading) {
+    return <main className="page">불러오는 중...</main>
+  }
+
+  if (!member) {
+    return (
+      <main className="page login-page">
+        <h1>모바일 청첩장 만들기</h1>
+        <p className="login-lede">시작하려면 로그인해주세요.</p>
+        <div className="login-buttons">
+          <button type="button" className="login-kakao" onClick={loginWithKakao}>
+            카카오로 시작하기
+          </button>
+          <button type="button" className="login-google" onClick={loginWithGoogle}>
+            Google로 시작하기
+          </button>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="page">
-      <h1>모바일 청첩장 만들기</h1>
+      <div className="page-header">
+        <h1>모바일 청첩장 만들기</h1>
+        <button type="button" className="logout-button" onClick={logout}>
+          {member.name}님 · 로그아웃
+        </button>
+      </div>
       <form onSubmit={handleSubmit} className="create-form">
         <h2>템플릿 선택</h2>
         <div className="template-grid">

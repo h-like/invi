@@ -26,15 +26,15 @@ public class InvitationService {
     private final ObjectMapper entityJsonMapper;
 
     @Transactional
-    public InvitationDto create(CreateInvitationRequest request) {
+    public InvitationDto create(UUID memberId, CreateInvitationRequest request) {
         if (invitationRepository.existsBySlug(request.slug())) {
             throw new ConflictException("이미 사용 중인 슬러그입니다: " + request.slug());
         }
 
         Member member =
                 memberRepository
-                        .findById(request.memberId())
-                        .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다: " + request.memberId()));
+                        .findById(memberId)
+                        .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다: " + memberId));
         Template template =
                 templateRepository
                         .findById(request.templateId())

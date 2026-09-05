@@ -36,3 +36,8 @@ out/
 ### VS Code ###
 .vscode/
 .bootrun.log
+
+### secrets ###
+application-local.yml
+application-local.yaml
+application-local.properties

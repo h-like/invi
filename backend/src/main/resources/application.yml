@@ -12,6 +12,15 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  security:
+    oauth2:
+      client:
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
 
 server:
   port: 8080
@@ -21,3 +30,12 @@ management:
     web:
       exposure:
         include: health,info
+
+invi:
+  jwt:
+    # Local-dev-only fallback. application-local.yml (gitignored) overrides this
+    # with a real secret — never commit an actual signing key.
+    secret: ${JWT_SECRET:dev-only-insecure-default-0123456789abcdef0123456789abcdef}
+    expiration-minutes: 43200
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}

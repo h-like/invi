@@ -1,28 +1,64 @@
 package com.invi.api.common;
 
+import com.invi.api.account.CustomOAuth2UserService;
+import com.invi.api.account.JwtAuthenticationFilter;
+import com.invi.api.account.OAuth2LoginSuccessHandler;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * Phase 0 placeholder: permits every request so the hello-world round trip works
- * without a login flow. Replaced by real OAuth2 + JWT rules when the account
- * module (Phase 1) lands.
+ * Kakao/Google login via oauth2Login() issues our own JWT on success
+ * (OAuth2LoginSuccessHandler) instead of relying on the session — every
+ * subsequent API call is authenticated by JwtAuthenticationFilter reading
+ * "Authorization: Bearer <token>". Guest-facing endpoints (templates, a
+ * published invitation by slug, RSVP/guestbook submission) stay public since
+ * hakgek never log in.
  */
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        http.csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .authorizeHttpRequests(
+                        auth ->
+                                auth.requestMatchers(HttpMethod.GET, "/api/hello", "/actuator/**", "/api/templates/**")
+                                        .permitAll()
+                                        .requestMatchers(
+                                                HttpMethod.GET,
+                                                "/api/invitations/slug/**",
+                                                "/api/invitations/slug-available")
+                                        .permitAll()
+                                        .requestMatchers(
+                                                HttpMethod.GET, "/api/invitations/*/rsvps", "/api/invitations/*/guestbook")
+                                        .permitAll()
+                                        .requestMatchers(
+                                                HttpMethod.POST, "/api/invitations/*/rsvps", "/api/invitations/*/guestbook")
+                                        .permitAll()
+                                        .requestMatchers("/oauth2/**", "/login/**")
+                                        .permitAll()
+                                        .anyRequest()
+                                        .authenticated())
+                .oauth2Login(
+                        oauth2 ->
+                                oauth2.userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                                        .successHandler(oAuth2LoginSuccessHandler))
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

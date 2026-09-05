@@ -8,7 +8,6 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public record CreateInvitationRequest(
-        @NotNull UUID memberId,
         @NotNull UUID templateId,
         @NotBlank
                 @Pattern(regexp = "^[a-z0-9-]{3,50}$", message = "영문 소문자, 숫자, 하이픈만 3~50자로 입력하세요")

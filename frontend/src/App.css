@@ -92,6 +92,55 @@ button.publish-button {
   font-size: 14px;
 }
 
+/* ---------- login ---------- */
+.login-page {
+  text-align: center;
+  padding-top: 96px;
+}
+
+.login-lede {
+  color: var(--ink-soft);
+  margin-bottom: 24px;
+}
+
+.login-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.login-kakao {
+  background: #fee500;
+  color: #191600;
+}
+
+.login-google {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+.logout-button {
+  background: none;
+  color: var(--ink-soft);
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+}
+
 /* ---------- template picker ---------- */
 .template-grid {
   display: grid;
