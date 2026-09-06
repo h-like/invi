@@ -17,7 +17,7 @@ jobs:
           POSTGRES_USER: invi
           POSTGRES_PASSWORD: invi
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd "pg_isready -U invi"
           --health-interval 10s
