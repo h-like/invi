@@ -2,7 +2,17 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
-import type { AccountInfo, Invitation } from '../api/types'
+import {
+  ACCOUNT_ROLE_LABELS,
+  emptyAccountContent,
+  type AccountContent,
+  type AccountEntry,
+  type AccountRole,
+  type Invitation,
+} from '../api/types'
+
+const GROOM_ROLES: AccountRole[] = ['groom', 'groomFather', 'groomMother']
+const BRIDE_ROLES: AccountRole[] = ['bride', 'brideFather', 'brideMother']
 
 export function EditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -12,8 +22,7 @@ export function EditorPage() {
   const [venueName, setVenueName] = useState('')
   const [address, setAddress] = useState('')
   const [galleryImages, setGalleryImages] = useState<string[]>([])
-  const [groomAccounts, setGroomAccounts] = useState<AccountInfo[]>([])
-  const [brideAccounts, setBrideAccounts] = useState<AccountInfo[]>([])
+  const [accounts, setAccounts] = useState<AccountContent>(emptyAccountContent())
   const [saving, setSaving] = useState(false)
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -39,11 +48,8 @@ export function EditorPage() {
       const gallery = blocks.find((b) => b.type === 'gallery')?.content as { images?: string[] } | undefined
       setGalleryImages(gallery?.images ?? [])
 
-      const account = blocks.find((b) => b.type === 'account')?.content as
-        | { groomAccounts?: AccountInfo[]; brideAccounts?: AccountInfo[] }
-        | undefined
-      setGroomAccounts(account?.groomAccounts ?? [])
-      setBrideAccounts(account?.brideAccounts ?? [])
+      const account = blocks.find((b) => b.type === 'account')?.content as Partial<AccountContent> | undefined
+      setAccounts({ ...emptyAccountContent(), ...account })
     }).catch((err) => setError(err instanceof Error ? err.message : '청첩장을 불러오지 못했습니다'))
   }, [id])
 
@@ -65,11 +71,15 @@ export function EditorPage() {
           if (b.type === 'hero') return { ...b, content: { ...b.content, groomName, brideName } }
           if (b.type === 'map') return { ...b, content: { ...b.content, venueName, address } }
           if (b.type === 'gallery') return { ...b, content: { ...b.content, images: galleryImages } }
-          if (b.type === 'account') return { ...b, content: { ...b.content, groomAccounts, brideAccounts } }
+          if (b.type === 'account') return { ...b, content: { ...b.content, ...accounts } }
           return b
         }),
       }
     : null
+
+  function updateAccount(role: AccountRole, patch: Partial<AccountEntry>) {
+    setAccounts((prev) => ({ ...prev, [role]: { ...prev[role], ...patch } }))
+  }
 
   async function handleSave() {
     if (!invitation || !previewPageData) return null
@@ -141,10 +151,27 @@ export function EditorPage() {
 
         <section className="editor-section">
           <h2>마음 전하실 곳</h2>
+          <p className="editor-section-hint">
+            계좌번호가 없는 분은 계좌 대신 보여줄 메시지를 입력해주세요. 둘 다 비워두면 표시되지 않습니다.
+          </p>
           <p className="editor-section-sub">신랑측</p>
-          <AccountListEditor accounts={groomAccounts} onChange={setGroomAccounts} />
+          {GROOM_ROLES.map((role) => (
+            <AccountRoleEditor
+              key={role}
+              label={ACCOUNT_ROLE_LABELS[role]}
+              entry={accounts[role]}
+              onChange={(patch) => updateAccount(role, patch)}
+            />
+          ))}
           <p className="editor-section-sub">신부측</p>
-          <AccountListEditor accounts={brideAccounts} onChange={setBrideAccounts} />
+          {BRIDE_ROLES.map((role) => (
+            <AccountRoleEditor
+              key={role}
+              label={ACCOUNT_ROLE_LABELS[role]}
+              entry={accounts[role]}
+              onChange={(patch) => updateAccount(role, patch)}
+            />
+          ))}
         </section>
 
         {error && <p className="form-error">{error}</p>}
@@ -201,40 +228,32 @@ function ImageListEditor({ images, onChange }: { images: string[]; onChange: (im
   )
 }
 
-function AccountListEditor({
-  accounts,
+function AccountRoleEditor({
+  label,
+  entry,
   onChange,
 }: {
-  accounts: AccountInfo[]
-  onChange: (accounts: AccountInfo[]) => void
+  label: string
+  entry: AccountEntry
+  onChange: (patch: Partial<AccountEntry>) => void
 }) {
-  function update(i: number, patch: Partial<AccountInfo>) {
-    onChange(accounts.map((acc, idx) => (idx === i ? { ...acc, ...patch } : acc)))
-  }
-
   return (
-    <div className="list-editor">
-      {accounts.map((acc, i) => (
-        <div key={i} className="account-editor-row">
-          <input value={acc.bank} onChange={(e) => update(i, { bank: e.target.value })} placeholder="은행" />
-          <input
-            value={acc.accountNumber}
-            onChange={(e) => update(i, { accountNumber: e.target.value })}
-            placeholder="계좌번호"
-          />
-          <input value={acc.holder} onChange={(e) => update(i, { holder: e.target.value })} placeholder="예금주" />
-          <button type="button" onClick={() => onChange(accounts.filter((_, idx) => idx !== i))}>
-            삭제
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        className="list-editor-add"
-        onClick={() => onChange([...accounts, { bank: '', accountNumber: '', holder: '' }])}
-      >
-        + 계좌 추가
-      </button>
+    <div className="account-role-editor">
+      <p className="account-role-label">{label}</p>
+      <div className="account-editor-row">
+        <input value={entry.holder} onChange={(e) => onChange({ holder: e.target.value })} placeholder="예금주" />
+        <input value={entry.bank} onChange={(e) => onChange({ bank: e.target.value })} placeholder="은행" />
+        <input
+          value={entry.accountNumber}
+          onChange={(e) => onChange({ accountNumber: e.target.value })}
+          placeholder="계좌번호"
+        />
+      </div>
+      <input
+        value={entry.message}
+        onChange={(e) => onChange({ message: e.target.value })}
+        placeholder="계좌 대신 표시할 메시지 (예: 마음만 감사히 받겠습니다)"
+      />
     </div>
   )
 }

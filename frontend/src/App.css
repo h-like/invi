@@ -211,6 +211,26 @@ button.publish-button {
   margin: 12px 0 6px;
 }
 
+.editor-section-hint {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0 0 4px;
+}
+
+.account-role-editor {
+  margin-bottom: 10px;
+}
+
+.account-role-label {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0 0 4px;
+}
+
+.account-role-editor input[placeholder*='메시지'] {
+  margin-top: 6px;
+}
+
 .list-editor {
   display: flex;
   flex-direction: column;
@@ -228,7 +248,7 @@ button.publish-button {
 
 .account-editor-row {
   display: grid;
-  grid-template-columns: 1fr 1.4fr 1fr auto;
+  grid-template-columns: 1fr 1fr 1.4fr;
   gap: 6px;
 }
 

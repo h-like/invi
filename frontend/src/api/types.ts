@@ -69,8 +69,46 @@ export interface Member {
   name: string
 }
 
-export interface AccountInfo {
+export interface AccountEntry {
+  holder: string
   bank: string
   accountNumber: string
-  holder: string
+  message: string
+}
+
+export const ACCOUNT_ROLES = [
+  'groom',
+  'groomFather',
+  'groomMother',
+  'bride',
+  'brideFather',
+  'brideMother',
+] as const
+
+export type AccountRole = (typeof ACCOUNT_ROLES)[number]
+
+export const ACCOUNT_ROLE_LABELS: Record<AccountRole, string> = {
+  groom: '신랑',
+  groomFather: '신랑측 아버님',
+  groomMother: '신랑측 어머님',
+  bride: '신부',
+  brideFather: '신부측 아버님',
+  brideMother: '신부측 어머님',
+}
+
+export type AccountContent = Record<AccountRole, AccountEntry>
+
+export function emptyAccountEntry(): AccountEntry {
+  return { holder: '', bank: '', accountNumber: '', message: '' }
+}
+
+export function emptyAccountContent(): AccountContent {
+  return {
+    groom: emptyAccountEntry(),
+    groomFather: emptyAccountEntry(),
+    groomMother: emptyAccountEntry(),
+    bride: emptyAccountEntry(),
+    brideFather: emptyAccountEntry(),
+    brideMother: emptyAccountEntry(),
+  }
 }

@@ -61,7 +61,14 @@ public class TemplateSeeder implements CommandLineRunner {
                     { "id": "map-1", "type": "map", "order": 3, "visible": true,
                       "content": { "venueName": "", "address": "" }, "style": {} },
                     { "id": "account-1", "type": "account", "order": 4, "visible": true,
-                      "content": { "groomAccounts": [], "brideAccounts": [] }, "style": {} },
+                      "content": {
+                        "groom": { "holder": "", "bank": "", "accountNumber": "", "message": "" },
+                        "groomFather": { "holder": "", "bank": "", "accountNumber": "", "message": "" },
+                        "groomMother": { "holder": "", "bank": "", "accountNumber": "", "message": "" },
+                        "bride": { "holder": "", "bank": "", "accountNumber": "", "message": "" },
+                        "brideFather": { "holder": "", "bank": "", "accountNumber": "", "message": "" },
+                        "brideMother": { "holder": "", "bank": "", "accountNumber": "", "message": "" }
+                      }, "style": {} },
                     { "id": "rsvp-1", "type": "rsvp", "order": 5, "visible": true,
                       "content": {}, "style": { "accentColor": "%3$s" } },
                     { "id": "guestbook-1", "type": "guestbook", "order": 6, "visible": true,

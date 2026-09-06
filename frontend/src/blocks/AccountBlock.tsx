@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import type { AccountInfo, Block } from '../api/types'
+import { ACCOUNT_ROLES, ACCOUNT_ROLE_LABELS, type AccountEntry, type AccountRole, type Block } from '../api/types'
+
+const GROOM_ROLES: AccountRole[] = ['groom', 'groomFather', 'groomMother']
+const BRIDE_ROLES: AccountRole[] = ['bride', 'brideFather', 'brideMother']
 
 export function AccountBlock({ block }: { block: Block }) {
-  const content = block.content as { groomAccounts?: AccountInfo[]; brideAccounts?: AccountInfo[] }
-  const groom = content.groomAccounts ?? []
-  const bride = content.brideAccounts ?? []
+  const content = block.content as Partial<Record<AccountRole, AccountEntry>>
+  const hasAny = ACCOUNT_ROLES.some((role) => isFilled(content[role]))
 
-  if (groom.length === 0 && bride.length === 0) {
+  if (!hasAny) {
     return (
       <section className="block account-block">
         <p className="block-placeholder">계좌번호를 아직 추가하지 않았습니다</p>
@@ -17,36 +19,64 @@ export function AccountBlock({ block }: { block: Block }) {
   return (
     <section className="block account-block">
       <h3>마음 전하실 곳</h3>
-      <AccountGroup title="신랑측" accounts={groom} />
-      <AccountGroup title="신부측" accounts={bride} />
+      <AccountGroup title="신랑측" roles={GROOM_ROLES} content={content} />
+      <AccountGroup title="신부측" roles={BRIDE_ROLES} content={content} />
     </section>
   )
 }
 
-function AccountGroup({ title, accounts }: { title: string; accounts: AccountInfo[] }) {
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
-  if (accounts.length === 0) return null
+function isFilled(entry?: AccountEntry): entry is AccountEntry {
+  if (!entry) return false
+  return Boolean(entry.holder || entry.bank || entry.accountNumber || entry.message)
+}
+
+function AccountGroup({
+  title,
+  roles,
+  content,
+}: {
+  title: string
+  roles: AccountRole[]
+  content: Partial<Record<AccountRole, AccountEntry>>
+}) {
+  const [copiedRole, setCopiedRole] = useState<AccountRole | null>(null)
+  const filledRoles = roles.filter((role) => isFilled(content[role]))
+  if (filledRoles.length === 0) return null
 
   return (
     <div className="account-group">
       <p className="account-group-title">{title}</p>
-      {accounts.map((acc, i) => (
-        <div key={`${acc.bank}-${acc.accountNumber}`} className="account-row">
-          <span>
-            {acc.bank} {acc.accountNumber} ({acc.holder})
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              navigator.clipboard.writeText(acc.accountNumber)
-              setCopiedIndex(i)
-              setTimeout(() => setCopiedIndex(null), 1500)
-            }}
-          >
-            {copiedIndex === i ? '복사됨' : '복사'}
-          </button>
-        </div>
-      ))}
+      {filledRoles.map((role) => {
+        const entry = content[role] as AccountEntry
+        const hasAccount = Boolean(entry.bank.trim() && entry.accountNumber.trim())
+
+        return (
+          <div key={role} className="account-row">
+            {hasAccount ? (
+              <>
+                <span>
+                  {ACCOUNT_ROLE_LABELS[role]} · {entry.bank} {entry.accountNumber}
+                  {entry.holder ? ` (${entry.holder})` : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(entry.accountNumber)
+                    setCopiedRole(role)
+                    setTimeout(() => setCopiedRole(null), 1500)
+                  }}
+                >
+                  {copiedRole === role ? '복사됨' : '복사'}
+                </button>
+              </>
+            ) : (
+              <span>
+                {ACCOUNT_ROLE_LABELS[role]} · {entry.message}
+              </span>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
