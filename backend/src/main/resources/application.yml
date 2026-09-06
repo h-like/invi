@@ -2,7 +2,7 @@ spring:
   application:
     name: invi-api
   datasource:
-    url: jdbc:postgresql://localhost:5432/invi
+    url: jdbc:postgresql://localhost:5433/invi
     username: invi
     password: invi
   jpa:

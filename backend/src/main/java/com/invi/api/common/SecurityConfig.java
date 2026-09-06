@@ -5,10 +5,12 @@ import com.invi.api.account.JwtAuthenticationFilter;
 import com.invi.api.account.OAuth2LoginSuccessHandler;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -22,6 +24,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * "Authorization: Bearer <token>". Guest-facing endpoints (templates, a
  * published invitation by slug, RSVP/guestbook submission) stay public since
  * hakgek never log in.
+ *
+ * oauth2Login() is wired only when a ClientRegistrationRepository bean exists —
+ * i.e. when application-local.yml (gitignored, real Kakao/Google secrets) is on
+ * the active profile. Without it (CI, contextLoads(), a fresh clone before
+ * secrets are set up), the app still boots — just without login capability —
+ * instead of failing on a missing bean.
  */
 @Configuration
 @RequiredArgsConstructor
@@ -30,6 +38,7 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ObjectProvider<ClientRegistrationRepository> clientRegistrations;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -53,12 +62,16 @@ public class SecurityConfig {
                                         .requestMatchers("/oauth2/**", "/login/**")
                                         .permitAll()
                                         .anyRequest()
-                                        .authenticated())
-                .oauth2Login(
-                        oauth2 ->
-                                oauth2.userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
-                                        .successHandler(oAuth2LoginSuccessHandler))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                                        .authenticated());
+
+        if (clientRegistrations.getIfAvailable() != null) {
+            http.oauth2Login(
+                    oauth2 ->
+                            oauth2.userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                                    .successHandler(oAuth2LoginSuccessHandler));
+        }
+
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

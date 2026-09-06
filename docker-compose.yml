@@ -6,7 +6,10 @@ services:
       POSTGRES_USER: invi
       POSTGRES_PASSWORD: invi
     ports:
-      - "5432:5432"
+      # Host port 5433, not 5432 — this machine already runs a native
+      # PostgreSQL Windows service on 5432, and it wins the port. See
+      # CLAUDE.md's "로컬 개발 환경" note.
+      - "5433:5432"
     volumes:
       - invi-postgres-data:/var/lib/postgresql/data
 
