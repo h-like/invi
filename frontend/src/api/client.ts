@@ -74,4 +74,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  deleteGuestbookEntry: (invitationId: string, entryId: string) =>
+    request<void>(`/api/invitations/${invitationId}/guestbook/${entryId}`, { method: 'DELETE' }),
 }

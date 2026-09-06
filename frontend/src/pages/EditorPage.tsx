@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
 import type { AccountInfo, Invitation } from '../api/types'
@@ -103,7 +103,12 @@ export function EditorPage() {
   return (
     <main className="page editor-page">
       <div className="editor-panel">
-        <h1>기본 정보</h1>
+        <div className="page-header">
+          <h1>기본 정보</h1>
+          <Link to={`/e/${invitation.id}/guests`} className="logout-button">
+            응답 관리
+          </Link>
+        </div>
 
         <section className="editor-section">
           <h2>신랑 · 신부</h2>
