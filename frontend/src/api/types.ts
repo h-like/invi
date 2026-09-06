@@ -68,3 +68,9 @@ export interface Member {
   email: string
   name: string
 }
+
+export interface AccountInfo {
+  bank: string
+  accountNumber: string
+  holder: string
+}

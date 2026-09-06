@@ -1,11 +1,5 @@
 import { useState } from 'react'
-import type { Block } from '../api/types'
-
-interface AccountInfo {
-  bank: string
-  accountNumber: string
-  holder: string
-}
+import type { AccountInfo, Block } from '../api/types'
 
 export function AccountBlock({ block }: { block: Block }) {
   const content = block.content as { groomAccounts?: AccountInfo[]; brideAccounts?: AccountInfo[] }
