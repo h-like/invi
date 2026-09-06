@@ -31,19 +31,19 @@ public class InvitationController {
     }
 
     @GetMapping("/{id}")
-    public InvitationDto get(@PathVariable UUID id) {
-        return invitationService.findById(id);
+    public InvitationDto get(Authentication authentication, @PathVariable UUID id) {
+        return invitationService.findById(currentMember.requireId(authentication), id);
     }
 
     @PutMapping("/{id}/page-data")
     public InvitationDto updatePageData(
-            @PathVariable UUID id, @Valid @RequestBody UpdatePageDataRequest request) {
-        return invitationService.updatePageData(id, request.pageData());
+            Authentication authentication, @PathVariable UUID id, @Valid @RequestBody UpdatePageDataRequest request) {
+        return invitationService.updatePageData(currentMember.requireId(authentication), id, request.pageData());
     }
 
     @PostMapping("/{id}/publish")
-    public InvitationDto publish(@PathVariable UUID id) {
-        return invitationService.publish(id);
+    public InvitationDto publish(Authentication authentication, @PathVariable UUID id) {
+        return invitationService.publish(currentMember.requireId(authentication), id);
     }
 
     @GetMapping("/slug/{slug}")

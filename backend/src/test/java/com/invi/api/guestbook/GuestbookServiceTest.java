@@ -5,7 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.invi.api.account.AuthProvider;
+import com.invi.api.account.Member;
+import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
+import com.invi.api.common.TestEntityIds;
 import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
 import java.time.LocalDate;
@@ -28,6 +32,12 @@ class GuestbookServiceTest {
     @BeforeEach
     void setUp() {
         guestbookService = new GuestbookService(guestbookEntryRepository, invitationRepository);
+    }
+
+    private static Member ownerWithId(UUID id) {
+        Member owner = Member.builder().provider(AuthProvider.KAKAO).providerId("owner").email("o@b.com").name("O").build();
+        TestEntityIds.setId(owner, id);
+        return owner;
     }
 
     @Test
@@ -55,25 +65,59 @@ class GuestbookServiceTest {
     }
 
     @Test
-    void delete_throwsNotFound_whenEntryBelongsToDifferentInvitation() throws Exception {
+    void delete_removesEntry_whenCallerIsOwner() {
+        UUID ownerId = UUID.randomUUID();
+        UUID invitationId = UUID.randomUUID();
         UUID entryId = UUID.randomUUID();
-        UUID actualInvitationId = UUID.randomUUID();
-        UUID otherInvitationId = UUID.randomUUID();
-        Invitation actualInvitation = Invitation.builder().slug("s").weddingDate(LocalDate.now()).build();
-        setId(actualInvitation, actualInvitationId);
+        Invitation invitation =
+                Invitation.builder().slug("s").weddingDate(LocalDate.now()).member(ownerWithId(ownerId)).build();
+        TestEntityIds.setId(invitation, invitationId);
         GuestbookEntry entry =
-                GuestbookEntry.builder().invitation(actualInvitation).author("A").message("B").build();
+                GuestbookEntry.builder().invitation(invitation).author("A").message("B").build();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
         when(guestbookEntryRepository.findById(entryId)).thenReturn(Optional.of(entry));
 
-        assertThatThrownBy(() -> guestbookService.delete(otherInvitationId, entryId))
-                .isInstanceOf(NotFoundException.class);
+        guestbookService.delete(ownerId, invitationId, entryId);
+
+        assertThat(entry.getDeletedAt()).isNotNull();
     }
 
-    /** BaseEntity's id is only ever assigned by Hibernate on persist, so tests that need a
-     * stable id on an unmanaged entity (like the ownership check above) set it via reflection. */
-    private static void setId(Object entity, UUID id) throws Exception {
-        var field = com.invi.api.common.BaseEntity.class.getDeclaredField("id");
-        field.setAccessible(true);
-        field.set(entity, id);
+    @Test
+    void delete_throwsForbidden_whenCallerIsNotInvitationOwner() {
+        UUID invitationId = UUID.randomUUID();
+        UUID entryId = UUID.randomUUID();
+        Invitation invitation =
+                Invitation.builder()
+                        .slug("s")
+                        .weddingDate(LocalDate.now())
+                        .member(ownerWithId(UUID.randomUUID()))
+                        .build();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
+
+        assertThatThrownBy(() -> guestbookService.delete(UUID.randomUUID(), invitationId, entryId))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void delete_throwsNotFound_whenEntryBelongsToDifferentInvitation() {
+        UUID ownerId = UUID.randomUUID();
+        UUID actualInvitationId = UUID.randomUUID();
+        UUID otherInvitationId = UUID.randomUUID();
+        UUID entryId = UUID.randomUUID();
+
+        Invitation actualInvitation =
+                Invitation.builder().slug("s").weddingDate(LocalDate.now()).member(ownerWithId(ownerId)).build();
+        TestEntityIds.setId(actualInvitation, actualInvitationId);
+        Invitation otherInvitation =
+                Invitation.builder().slug("t").weddingDate(LocalDate.now()).member(ownerWithId(ownerId)).build();
+        TestEntityIds.setId(otherInvitation, otherInvitationId);
+        GuestbookEntry entry =
+                GuestbookEntry.builder().invitation(actualInvitation).author("A").message("B").build();
+
+        when(invitationRepository.findById(otherInvitationId)).thenReturn(Optional.of(otherInvitation));
+        when(guestbookEntryRepository.findById(entryId)).thenReturn(Optional.of(entry));
+
+        assertThatThrownBy(() -> guestbookService.delete(ownerId, otherInvitationId, entryId))
+                .isInstanceOf(NotFoundException.class);
     }
 }

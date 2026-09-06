@@ -9,9 +9,11 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -22,8 +24,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * (OAuth2LoginSuccessHandler) instead of relying on the session — every
  * subsequent API call is authenticated by JwtAuthenticationFilter reading
  * "Authorization: Bearer <token>". Guest-facing endpoints (templates, a
- * published invitation by slug, RSVP/guestbook submission) stay public since
- * hakgek never log in.
+ * published invitation by slug, RSVP submission, guestbook read/submit) stay
+ * public since hakgek never log in. Everything else — including reading RSVP
+ * responses, which is an owner-only action per the 기획서 — requires a token,
+ * and the service layer additionally checks that the token's member actually
+ * owns the invitation (InvitationService/RsvpService/GuestbookService's
+ * getOwnedOrThrow-style checks).
  *
  * oauth2Login() is wired only when a ClientRegistrationRepository bean exists —
  * i.e. when application-local.yml (gitignored, real Kakao/Google secrets) is on
@@ -53,8 +59,7 @@ public class SecurityConfig {
                                                 "/api/invitations/slug/**",
                                                 "/api/invitations/slug-available")
                                         .permitAll()
-                                        .requestMatchers(
-                                                HttpMethod.GET, "/api/invitations/*/rsvps", "/api/invitations/*/guestbook")
+                                        .requestMatchers(HttpMethod.GET, "/api/invitations/*/guestbook")
                                         .permitAll()
                                         .requestMatchers(
                                                 HttpMethod.POST, "/api/invitations/*/rsvps", "/api/invitations/*/guestbook")
@@ -62,7 +67,12 @@ public class SecurityConfig {
                                         .requestMatchers("/oauth2/**", "/login/**")
                                         .permitAll()
                                         .anyRequest()
-                                        .authenticated());
+                                        .authenticated())
+                .exceptionHandling(
+                        exceptions ->
+                                exceptions.defaultAuthenticationEntryPointFor(
+                                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                                        request -> request.getRequestURI().startsWith("/api/")));
 
         if (clientRegistrations.getIfAvailable() != null) {
             http.oauth2Login(

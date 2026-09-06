@@ -1,5 +1,6 @@
 package com.invi.api.guestbook;
 
+import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
 import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
@@ -39,7 +40,15 @@ public class GuestbookService {
     }
 
     @Transactional
-    public void delete(UUID invitationId, UUID entryId) {
+    public void delete(UUID memberId, UUID invitationId, UUID entryId) {
+        Invitation invitation =
+                invitationRepository
+                        .findById(invitationId)
+                        .orElseThrow(() -> new NotFoundException("청첩장을 찾을 수 없습니다: " + invitationId));
+        if (!invitation.getMember().getId().equals(memberId)) {
+            throw new ForbiddenException("본인 소유의 청첩장만 접근할 수 있습니다.");
+        }
+
         GuestbookEntry entry =
                 guestbookEntryRepository
                         .findById(entryId)

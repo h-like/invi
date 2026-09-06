@@ -7,10 +7,13 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.invi.api.account.AuthProvider;
 import com.invi.api.account.Member;
 import com.invi.api.account.MemberRepository;
 import com.invi.api.common.ConflictException;
+import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
+import com.invi.api.common.TestEntityIds;
 import com.invi.api.template.Template;
 import com.invi.api.template.TemplateRepository;
 import java.time.LocalDate;
@@ -38,12 +41,18 @@ class InvitationServiceTest {
                 new InvitationService(invitationRepository, memberRepository, templateRepository, objectMapper);
     }
 
+    private static Member ownerWithId(UUID id) {
+        Member owner = Member.builder().provider(AuthProvider.KAKAO).providerId("owner").email("o@b.com").name("O").build();
+        TestEntityIds.setId(owner, id);
+        return owner;
+    }
+
     @Test
     void create_savesInvitation_withPageDataCopiedFromTemplateDefault() throws Exception {
         UUID memberId = UUID.randomUUID();
         UUID templateId = UUID.randomUUID();
         JsonNode defaultPageData = objectMapper.readTree("{\"blocks\":[]}");
-        Member member = Member.builder().provider(com.invi.api.account.AuthProvider.KAKAO).providerId("1").email("a@b.com").name("A").build();
+        Member member = Member.builder().provider(AuthProvider.KAKAO).providerId("1").email("a@b.com").name("A").build();
         Template template = Template.builder().name("클래식").category("classic").defaultPageData(defaultPageData).build();
         CreateInvitationRequest request = new CreateInvitationRequest(templateId, "our-wedding", LocalDate.now().plusMonths(1));
 
@@ -61,29 +70,89 @@ class InvitationServiceTest {
     }
 
     @Test
-    void updatePageData_bridgesJackson3RequestNodeIntoJackson2EntityField() {
+    void create_throwsConflict_whenSlugAlreadyTaken() {
+        CreateInvitationRequest request = new CreateInvitationRequest(UUID.randomUUID(), "taken", LocalDate.now());
+        when(invitationRepository.existsBySlug("taken")).thenReturn(true);
+
+        assertThatThrownBy(() -> invitationService.create(UUID.randomUUID(), request))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void findById_returnsInvitation_whenCallerIsOwner() {
+        UUID id = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        Template template = Template.builder().name("클래식").category("classic").build();
+        Invitation invitation =
+                Invitation.builder()
+                        .slug("s")
+                        .weddingDate(LocalDate.now())
+                        .template(template)
+                        .member(ownerWithId(ownerId))
+                        .build();
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+
+        InvitationDto result = invitationService.findById(ownerId, id);
+
+        assertThat(result.slug()).isEqualTo("s");
+    }
+
+    @Test
+    void findById_throwsForbidden_whenCallerIsNotOwner() {
         UUID id = UUID.randomUUID();
         Template template = Template.builder().name("클래식").category("classic").build();
         Invitation invitation =
-                Invitation.builder().slug("s").weddingDate(LocalDate.now()).template(template).build();
+                Invitation.builder()
+                        .slug("s")
+                        .weddingDate(LocalDate.now())
+                        .template(template)
+                        .member(ownerWithId(UUID.randomUUID()))
+                        .build();
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+
+        assertThatThrownBy(() -> invitationService.findById(UUID.randomUUID(), id))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void updatePageData_bridgesJackson3RequestNodeIntoJackson2EntityField() {
+        UUID id = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        Template template = Template.builder().name("클래식").category("classic").build();
+        Invitation invitation =
+                Invitation.builder()
+                        .slug("s")
+                        .weddingDate(LocalDate.now())
+                        .template(template)
+                        .member(ownerWithId(ownerId))
+                        .build();
         when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
 
         tools.jackson.databind.JsonNode incoming =
                 tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"blocks\":[{\"id\":\"hero-1\"}]}");
 
-        InvitationDto result = invitationService.updatePageData(id, incoming);
+        InvitationDto result = invitationService.updatePageData(ownerId, id, incoming);
 
         assertThat(result.pageData()).isEqualTo("{\"blocks\":[{\"id\":\"hero-1\"}]}");
     }
 
     @Test
-    void create_throwsConflict_whenSlugAlreadyTaken() {
-        CreateInvitationRequest request =
-                new CreateInvitationRequest(UUID.randomUUID(), "taken", LocalDate.now());
-        when(invitationRepository.existsBySlug("taken")).thenReturn(true);
+    void updatePageData_throwsForbidden_whenCallerIsNotOwner() {
+        UUID id = UUID.randomUUID();
+        Template template = Template.builder().name("클래식").category("classic").build();
+        Invitation invitation =
+                Invitation.builder()
+                        .slug("s")
+                        .weddingDate(LocalDate.now())
+                        .template(template)
+                        .member(ownerWithId(UUID.randomUUID()))
+                        .build();
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+        tools.jackson.databind.JsonNode incoming =
+                tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"blocks\":[]}");
 
-        assertThatThrownBy(() -> invitationService.create(UUID.randomUUID(), request))
-                .isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> invitationService.updatePageData(UUID.randomUUID(), id, incoming))
+                .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
@@ -113,13 +182,36 @@ class InvitationServiceTest {
     @Test
     void publish_flipsStatusToPublished() {
         UUID id = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
         Template template = Template.builder().name("클래식").category("classic").build();
         Invitation invitation =
-                Invitation.builder().slug("s").weddingDate(LocalDate.now()).template(template).build();
+                Invitation.builder()
+                        .slug("s")
+                        .weddingDate(LocalDate.now())
+                        .template(template)
+                        .member(ownerWithId(ownerId))
+                        .build();
         when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
 
-        InvitationDto result = invitationService.publish(id);
+        InvitationDto result = invitationService.publish(ownerId, id);
 
         assertThat(result.status()).isEqualTo(InvitationStatus.PUBLISHED);
+    }
+
+    @Test
+    void publish_throwsForbidden_whenCallerIsNotOwner() {
+        UUID id = UUID.randomUUID();
+        Template template = Template.builder().name("클래식").category("classic").build();
+        Invitation invitation =
+                Invitation.builder()
+                        .slug("s")
+                        .weddingDate(LocalDate.now())
+                        .template(template)
+                        .member(ownerWithId(UUID.randomUUID()))
+                        .build();
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+
+        assertThatThrownBy(() -> invitationService.publish(UUID.randomUUID(), id))
+                .isInstanceOf(ForbiddenException.class);
     }
 }

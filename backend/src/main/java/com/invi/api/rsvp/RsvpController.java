@@ -1,10 +1,12 @@
 package com.invi.api.rsvp;
 
+import com.invi.api.account.CurrentMember;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class RsvpController {
 
     private final RsvpService rsvpService;
+    private final CurrentMember currentMember;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -27,7 +30,7 @@ public class RsvpController {
     }
 
     @GetMapping
-    public List<RsvpDto> list(@PathVariable UUID invitationId) {
-        return rsvpService.findByInvitation(invitationId);
+    public List<RsvpDto> list(Authentication authentication, @PathVariable UUID invitationId) {
+        return rsvpService.findByInvitation(currentMember.requireId(authentication), invitationId);
     }
 }

@@ -1,10 +1,12 @@
 package com.invi.api.guestbook;
 
+import com.invi.api.account.CurrentMember;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class GuestbookController {
 
     private final GuestbookService guestbookService;
+    private final CurrentMember currentMember;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -35,7 +38,7 @@ public class GuestbookController {
 
     @DeleteMapping("/{entryId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID invitationId, @PathVariable UUID entryId) {
-        guestbookService.delete(invitationId, entryId);
+    public void delete(Authentication authentication, @PathVariable UUID invitationId, @PathVariable UUID entryId) {
+        guestbookService.delete(currentMember.requireId(authentication), invitationId, entryId);
     }
 }

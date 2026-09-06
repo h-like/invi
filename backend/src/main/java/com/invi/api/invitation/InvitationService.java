@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.invi.api.account.Member;
 import com.invi.api.account.MemberRepository;
 import com.invi.api.common.ConflictException;
+import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
 import com.invi.api.template.Template;
 import com.invi.api.template.TemplateRepository;
@@ -52,8 +53,8 @@ public class InvitationService {
         return toDto(invitationRepository.save(invitation));
     }
 
-    public InvitationDto findById(UUID id) {
-        return toDto(getOrThrow(id));
+    public InvitationDto findById(UUID memberId, UUID id) {
+        return toDto(getOwnedOrThrow(memberId, id));
     }
 
     public GuestInvitationDto findPublishedBySlug(String slug) {
@@ -76,8 +77,8 @@ public class InvitationService {
     }
 
     @Transactional
-    public InvitationDto updatePageData(UUID id, tools.jackson.databind.JsonNode pageData) {
-        Invitation invitation = getOrThrow(id);
+    public InvitationDto updatePageData(UUID memberId, UUID id, tools.jackson.databind.JsonNode pageData) {
+        Invitation invitation = getOwnedOrThrow(memberId, id);
         invitation.updatePageData(toEntityJson(pageData));
         return toDto(invitation);
     }
@@ -92,8 +93,8 @@ public class InvitationService {
     }
 
     @Transactional
-    public InvitationDto publish(UUID id) {
-        Invitation invitation = getOrThrow(id);
+    public InvitationDto publish(UUID memberId, UUID id) {
+        Invitation invitation = getOwnedOrThrow(memberId, id);
         invitation.publish();
         return toDto(invitation);
     }
@@ -102,6 +103,14 @@ public class InvitationService {
         return invitationRepository
                 .findById(id)
                 .orElseThrow(() -> new NotFoundException("청첩장을 찾을 수 없습니다: " + id));
+    }
+
+    private Invitation getOwnedOrThrow(UUID memberId, UUID id) {
+        Invitation invitation = getOrThrow(id);
+        if (!invitation.getMember().getId().equals(memberId)) {
+            throw new ForbiddenException("본인 소유의 청첩장만 접근할 수 있습니다.");
+        }
+        return invitation;
     }
 
     private InvitationDto toDto(Invitation invitation) {
