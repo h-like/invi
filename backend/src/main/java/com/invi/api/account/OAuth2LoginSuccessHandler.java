@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -18,13 +17,16 @@ import org.springframework.web.util.UriComponentsBuilder;
  * it, not with the OAuth2 session) and redirects to the frontend's callback route.
  */
 @Component
-@RequiredArgsConstructor
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final JwtService jwtService;
+    private final String frontendBaseUrl;
 
-    @Value("${invi.frontend.base-url}")
-    private String frontendBaseUrl;
+    public OAuth2LoginSuccessHandler(
+            JwtService jwtService, @Value("${invi.frontend.base-url}") String frontendBaseUrl) {
+        this.jwtService = jwtService;
+        this.frontendBaseUrl = frontendBaseUrl;
+    }
 
     @Override
     public void onAuthenticationSuccess(

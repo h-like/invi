@@ -41,10 +41,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 List.of(new SimpleGrantedAuthority("ROLE_USER")), attributes, MEMBER_ID_ATTRIBUTE);
     }
 
-    private record ProviderProfile(AuthProvider provider, String providerId, String email, String name) {}
+    record ProviderProfile(AuthProvider provider, String providerId, String email, String name) {}
 
     @SuppressWarnings("unchecked")
-    private ProviderProfile extractProfile(String registrationId, Map<String, Object> attributes) {
+    ProviderProfile extractProfile(String registrationId, Map<String, Object> attributes) {
         if ("kakao".equals(registrationId)) {
             String providerId = String.valueOf(attributes.get("id"));
             Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
@@ -62,7 +62,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         throw new OAuth2AuthenticationException("지원하지 않는 로그인 제공자입니다: " + registrationId);
     }
 
-    private Member findOrCreateMember(ProviderProfile profile) {
+    Member findOrCreateMember(ProviderProfile profile) {
         return memberRepository
                 .findByProviderAndProviderId(profile.provider(), profile.providerId())
                 .orElseGet(
