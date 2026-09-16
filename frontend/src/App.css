@@ -239,11 +239,20 @@ button.publish-button {
 
 .list-editor-row {
   display: flex;
+  align-items: center;
   gap: 6px;
 }
 
 .list-editor-row input {
   margin-top: 0;
+}
+
+.list-editor-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--line);
 }
 
 .account-editor-row {

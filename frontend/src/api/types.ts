@@ -63,6 +63,15 @@ export interface GuestbookEntryItem {
   message: string
 }
 
+export type MediaType = 'GALLERY' | 'OG' | 'COVER'
+
+export interface MediaAsset {
+  id: string
+  url: string
+  type: MediaType
+  sortOrder: number
+}
+
 export interface Member {
   id: string
   email: string

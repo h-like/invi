@@ -22,7 +22,8 @@ invi/
 - `template` — Template(템플릿 프리셋)
 - `rsvp` — Rsvp(참석 응답)
 - `guestbook` — GuestbookEntry(방명록)
-- `media`, `payment` — Phase 1/3에서 추가 예정, 아직 생성하지 않음
+- `media` — MediaAsset(갤러리·OG·커버 이미지), Cloudflare R2 presigned 업로드
+- `payment` — Phase 3에서 추가 예정, 아직 생성하지 않음
 
 **ID**: 모든 엔티티는 `BaseEntity`(`com.invi.api.common.BaseEntity`)를 상속한다. `UUID id`, `createdAt`, `updatedAt`을 자동으로 갖는다 — 엔티티에 다시 선언하지 않는다. PK를 UUID로 쓰는 이유는 슬러그·초대 링크처럼 외부에 노출되는 리소스라 순차 ID를 숨겨야 해서다.
 
@@ -92,6 +93,20 @@ private JsonNode pageData;
 - **비밀값**: Kakao/Google client-id·secret과 JWT 서명 키는 `backend/src/main/resources/application-local.yml`에 있다 — **git에 안 올라간다**(`.gitignore` 참고). 새로 clone한 환경에서는 이 파일을 직접 만들어야 하고, JWT 시크릿이 없으면 `application.yml`의 개발용 기본값(`dev-only-insecure-default-...`)으로 폴백한다 — 운영 배포 전에는 반드시 실제 값으로 교체.
 - **외부 콘솔 설정** (코드로 못 하는 부분, 사람이 직접): Kakao Developers/Google Cloud Console 양쪽에 리다이렉트 URI를 `http://localhost:8080/login/oauth2/code/{kakao|google}`로 등록해야 로그인이 동작한다. Kakao는 추가로 "카카오 로그인" 활성화 + 동의항목(닉네임, 카카오계정(이메일))을 켜둬야 `account_email` 스코프가 실제 이메일을 준다 — 동의 안 하면 `Member.email`은 `{providerId}@kakao.invi.local` 같은 대체값으로 채워진다.
 - **로그인 없이 테스트하던 시절의 흔적**: `MemberController.dev` / `MemberSeeder`는 실제 로그인이 붙으면서 삭제했다. 새 임시 우회가 필요해지면 만들지 말고 로컬 계정으로 실제 로그인해서 테스트할 것.
+
+## 이미지 업로드 (Cloudflare R2)
+
+`com.invi.api.media`에 있다. 백엔드를 거치지 않는 presigned URL 방식 — 아키텍처 문서 02번(오브젝트 스토리지) 결정 그대로다.
+
+- **업로드 흐름**: 프론트가 `POST /api/invitations/{id}/media/presign`으로 파일명·컨텐트타입·타입(`GALLERY`/`OG`/`COVER`)을 보냄 → `MediaService`가 소유권 확인 후 `invitations/{invitationId}/{uuid}.{ext}` 키로 R2 presigned PUT URL(5분 유효)을 발급 → 프론트가 그 URL로 파일 바이트를 **직접** PUT(우리 API를 거치지 않음) → 성공하면 `POST /api/invitations/{id}/media`로 `r2Key`를 전달해 `MediaAsset` 레코드를 생성하고 공개 URL을 돌려받음.
+- **소유권 검증**: `InvitationService`와 동일한 `getOwnedOrThrow` 패턴을 따른다.
+- **R2 미설정 시 동작**: `invi.r2.account-id`가 비어있으면 `R2StorageConfig`가 `S3Presigner`/`S3Client` 빈을 아예 만들지 않는다(`@ConditionalOnProperty` — `SecurityConfig`의 `ClientRegistrationRepository` 옵셔널 처리와 같은 이유: CI·새 clone에서도 앱이 정상 기동해야 함). `MediaService`는 `ObjectProvider`로 이 빈들을 받아, 없으면 업로드 시도 시점에 `StorageUnavailableException`(503)을 던진다 — 앱 부팅 실패가 아니라 그 기능만 막힌다.
+- **비밀값**: `invi.r2.account-id` / `access-key-id` / `secret-access-key`는 OAuth 시크릿과 동일하게 `application-local.yml`(gitignored)에 넣는다. `bucket`(기본값 `invi-media`)과 `public-base-url`은 `application.yml`에 기본값이 있어 로컬에서 굳이 안 채워도 된다.
+- **외부 콘솔 설정** (코드로 못 하는 부분, 사람이 직접):
+  1. Cloudflare 대시보드에서 R2 버킷 생성, R2 API 토큰(Object Read & Write) 발급 → account-id·access-key-id·secret-access-key 확보.
+  2. **버킷 CORS 설정 필수** — 프론트(`http://localhost:5173`)가 presigned URL로 R2에 직접 PUT하므로, 버킷의 CORS 정책에 해당 오리진의 `PUT`을 허용해두지 않으면 브라우저가 요청을 막는다. 배포 후에는 실제 프론트 도메인도 추가해야 한다.
+  3. `public-base-url`은 R2 버킷의 공개 접근 방식(R2.dev 서브도메인 또는 커스텀 도메인 연결)에 따라 결정 — 아직 도메인을 안 정했으므로 당장은 R2.dev 공개 URL이나 임시 프록시로 채워두면 된다.
+- **아직 안 한 것**: 이미지 리사이즈/최적화(원본 그대로 저장), 업로드 용량·타입 제한(프론트에서만 `accept="image/*"`로 유도, 백엔드는 검증 안 함) — 실사용자가 늘면 재검토.
 
 ## 프론트엔드 컨벤션 (frontend/)
 
