@@ -206,8 +206,9 @@ export function EditorPage() {
   )
 }
 
+// R2 버킷을 아직 연동하지 않아 업로드 UI를 잠시 꺼둔다(서비스 구현 완료 후 되살릴 예정 — CLAUDE.md 미디어
+// 섹션 참고). invitationId는 그때 다시 destructure해서 쓴다. 아래 주석 블록이 살아있던 원래 구현이다.
 function ImageListEditor({
-  invitationId,
   images,
   onChange,
 }: {
@@ -215,26 +216,26 @@ function ImageListEditor({
   images: string[]
   onChange: (images: string[]) => void
 }) {
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleFiles(files: FileList | null) {
-    if (!files || files.length === 0) return
-    setUploading(true)
-    setError(null)
-    try {
-      const uploaded: string[] = []
-      for (const file of Array.from(files)) {
-        const asset = await api.uploadImage(invitationId, file, 'GALLERY', images.length + uploaded.length)
-        uploaded.push(asset.url)
-      }
-      onChange([...images, ...uploaded])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '업로드에 실패했습니다')
-    } finally {
-      setUploading(false)
-    }
-  }
+  // const [uploading, setUploading] = useState(false)
+  // const [error, setError] = useState<string | null>(null)
+  //
+  // async function handleFiles(files: FileList | null) {
+  //   if (!files || files.length === 0) return
+  //   setUploading(true)
+  //   setError(null)
+  //   try {
+  //     const uploaded: string[] = []
+  //     for (const file of Array.from(files)) {
+  //       const asset = await api.uploadImage(invitationId, file, 'GALLERY', images.length + uploaded.length)
+  //       uploaded.push(asset.url)
+  //     }
+  //     onChange([...images, ...uploaded])
+  //   } catch (err) {
+  //     setError(err instanceof Error ? err.message : '업로드에 실패했습니다')
+  //   } finally {
+  //     setUploading(false)
+  //   }
+  // }
 
   return (
     <div className="list-editor">
@@ -246,6 +247,7 @@ function ImageListEditor({
           </button>
         </div>
       ))}
+      {/*
       <label className="list-editor-add">
         {uploading ? '업로드 중...' : '+ 사진 추가'}
         <input
@@ -261,6 +263,8 @@ function ImageListEditor({
         />
       </label>
       {error && <p className="form-error">{error}</p>}
+      */}
+      <p className="editor-section-hint">이미지 업로드는 R2 연동 후 사용할 수 있습니다 (현재 비활성화).</p>
     </div>
   )
 }
