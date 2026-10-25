@@ -48,6 +48,8 @@ export const api = {
   createInvitation: (body: { templateId: string; slug: string; weddingDate: string }) =>
     request<Invitation>('/api/invitations', { method: 'POST', body: JSON.stringify(body) }),
 
+  listMyInvitations: () => request<Invitation[]>('/api/invitations'),
+
   getInvitation: (id: string) => request<Invitation>(`/api/invitations/${id}`),
 
   updatePageData: (id: string, pageData: PageData) =>

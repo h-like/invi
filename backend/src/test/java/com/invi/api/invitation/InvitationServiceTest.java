@@ -17,6 +17,7 @@ import com.invi.api.common.TestEntityIds;
 import com.invi.api.template.Template;
 import com.invi.api.template.TemplateRepository;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,6 +154,31 @@ class InvitationServiceTest {
 
         assertThatThrownBy(() -> invitationService.updatePageData(UUID.randomUUID(), id, incoming))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void findAllOwnedBy_returnsOnlyTheCallersInvitations() {
+        UUID ownerId = UUID.randomUUID();
+        Template template = Template.builder().name("클래식").category("classic").build();
+        Invitation newer =
+                Invitation.builder()
+                        .slug("newer")
+                        .weddingDate(LocalDate.now())
+                        .template(template)
+                        .member(ownerWithId(ownerId))
+                        .build();
+        Invitation older =
+                Invitation.builder()
+                        .slug("older")
+                        .weddingDate(LocalDate.now())
+                        .template(template)
+                        .member(ownerWithId(ownerId))
+                        .build();
+        when(invitationRepository.findAllByMemberIdOrderByCreatedAtDesc(ownerId)).thenReturn(List.of(newer, older));
+
+        List<InvitationDto> result = invitationService.findAllOwnedBy(ownerId);
+
+        assertThat(result).extracting(InvitationDto::slug).containsExactly("newer", "older");
     }
 
     @Test

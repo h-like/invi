@@ -1,8 +1,22 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import type { Template } from '../api/types'
+import type { Invitation, InvitationStatus, Template } from '../api/types'
+
+const STATUS_LABELS: Record<InvitationStatus, string> = {
+  DRAFT: '작성 중',
+  PUBLISHED: '공개됨',
+  ARCHIVED: '보관됨',
+}
+
+function coupleLabel(invitation: Invitation): string {
+  const hero = invitation.pageData?.blocks.find((b) => b.type === 'hero')?.content as
+    | { groomName?: string; brideName?: string }
+    | undefined
+  const names = [hero?.groomName, hero?.brideName].filter((n) => n && n.trim())
+  return names.length > 0 ? names.join(' & ') : invitation.slug
+}
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -13,6 +27,8 @@ export function HomePage() {
   const [name, setName] = useState('')
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
   const [templates, setTemplates] = useState<Template[]>([])
+  // Keyed by member so a list fetched for a previous login never shows under the next one.
+  const [myInvitationsState, setMyInvitationsState] = useState<{ memberId: string; items: Invitation[] } | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [slug, setSlug] = useState('')
   const [weddingDate, setWeddingDate] = useState('')
@@ -25,6 +41,14 @@ export function HomePage() {
       if (list.length > 0) setSelectedId(list[0].id)
     })
   }, [])
+
+  useEffect(() => {
+    if (!member) return
+    api
+      .listMyInvitations()
+      .then((items) => setMyInvitationsState({ memberId: member.id, items }))
+      .catch(() => setMyInvitationsState({ memberId: member.id, items: [] }))
+  }, [member])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -94,6 +118,8 @@ export function HomePage() {
     )
   }
 
+  const myInvitations = myInvitationsState?.memberId === member.id ? myInvitationsState.items : null
+
   return (
     <main className="page">
       <div className="page-header">
@@ -102,7 +128,36 @@ export function HomePage() {
           {member.name}님 · 로그아웃
         </button>
       </div>
+      {myInvitations && myInvitations.length > 0 && (
+        <section className="my-invitations">
+          <h2>내 청첩장</h2>
+          <ul className="my-invitation-list">
+            {myInvitations.map((inv) => (
+              <li key={inv.id} className="my-invitation-card">
+                <div className="my-invitation-info">
+                  <strong>{coupleLabel(inv)}</strong>
+                  <span className="my-invitation-meta">
+                    {inv.weddingDate} · /i/{inv.slug}
+                  </span>
+                </div>
+                <span className={`my-invitation-status status-${inv.status.toLowerCase()}`}>
+                  {STATUS_LABELS[inv.status]}
+                </span>
+                <div className="my-invitation-actions">
+                  <Link to={`/e/${inv.id}`}>편집</Link>
+                  {inv.status === 'PUBLISHED' && (
+                    <a href={`/i/${inv.slug}`} target="_blank" rel="noreferrer">
+                      청첩장 보기
+                    </a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <form onSubmit={handleSubmit} className="create-form">
+        {myInvitations && myInvitations.length > 0 && <h2>새 청첩장 만들기</h2>}
         <h2>템플릿 선택</h2>
         <div className="template-grid">
           {templates.map((t) => (
