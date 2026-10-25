@@ -1,6 +1,10 @@
 spring:
   application:
     name: invi-api
+  sql:
+    init:
+      mode: always
+      separator: "^^^"
   datasource:
     url: jdbc:postgresql://localhost:5433/invi
     username: invi

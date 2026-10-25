@@ -50,6 +50,8 @@ button {
 }
 
 input[type='text'],
+input[type='email'],
+input[type='password'],
 input[type='date'],
 input[type='number'],
 input:not([type]),
@@ -93,6 +95,22 @@ button.publish-button {
 }
 
 /* ---------- login ---------- */
+.local-auth-form {
+  max-width: 320px;
+  margin: 0 auto 24px;
+  text-align: left;
+}
+
+.local-auth-form button {
+  width: 100%;
+}
+
+.local-auth-form .auth-switch {
+  background: transparent;
+  color: var(--ink-soft);
+  margin-top: 8px;
+}
+
 .login-page {
   text-align: center;
   padding-top: 96px;

@@ -35,4 +35,6 @@ public class Member extends BaseEntity {
 
     @Column(nullable = false)
     private String name;
+
+    private String passwordHash;
 }

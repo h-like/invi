@@ -41,6 +41,11 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    @Bean
+    public org.springframework.security.crypto.password.PasswordEncoder passwordEncoder() {
+        return new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+    }
+
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -52,7 +57,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers(HttpMethod.GET, "/api/hello", "/actuator/**", "/api/templates/**")
+                                auth.requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login")
+                                        .permitAll()
+                                        .requestMatchers(HttpMethod.GET, "/api/hello", "/actuator/**", "/api/templates/**")
                                         .permitAll()
                                         .requestMatchers(
                                                 HttpMethod.GET,
