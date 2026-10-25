@@ -1,13 +1,13 @@
 import type { Block } from '../api/types'
 
 export function MapBlock({ block }: { block: Block }) {
-  const content = block.content as { venueName?: string; address?: string }
-
+  const text = (key: string) => typeof block.content[key] === 'string' ? block.content[key] as string : ''
   return (
     <section className="block map-block">
-      <h3>오시는 길</h3>
-      <p>{content.venueName || '식장 이름을 입력해주세요'}</p>
-      <p className="block-sub">{content.address || '주소를 입력해주세요'}</p>
+      <p className="invitation-eyebrow">LOCATION</p><h3>오시는 길</h3>
+      <p>{text('venueName') || '식장 이름을 입력해 주세요'}</p>
+      <p className="block-sub">{text('address') || '주소를 입력해 주세요'}</p>
+      {text('directions') && <p className="venue-directions">{text('directions')}</p>}
     </section>
   )
 }

@@ -1,13 +1,34 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import type { Template } from '../api/types'
+import type { Invitation, InvitationStatus, Template } from '../api/types'
+
+const STATUS_LABELS: Record<InvitationStatus, string> = {
+  DRAFT: '작성 중',
+  PUBLISHED: '공개됨',
+  ARCHIVED: '보관됨',
+}
+
+function coupleLabel(invitation: Invitation): string {
+  const hero = invitation.pageData?.blocks.find((b) => b.type === 'hero')?.content as
+    | { groomName?: string; brideName?: string }
+    | undefined
+  const names = [hero?.groomName, hero?.brideName].filter((n) => n && n.trim())
+  return names.length > 0 ? names.join(' & ') : invitation.slug
+}
 
 export function HomePage() {
   const navigate = useNavigate()
-  const { member, loading, loginWithKakao, loginWithGoogle, logout } = useAuth()
+  const { member, loading, loginWithKakao, loginWithGoogle, completeLogin, logout } = useAuth()
+  const [registering, setRegistering] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [passwordConfirmation, setPasswordConfirmation] = useState('')
   const [templates, setTemplates] = useState<Template[]>([])
+  // Keyed by member so a list fetched for a previous login never shows under the next one.
+  const [myInvitationsState, setMyInvitationsState] = useState<{ memberId: string; items: Invitation[] } | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [slug, setSlug] = useState('')
   const [weddingDate, setWeddingDate] = useState('')
@@ -20,6 +41,14 @@ export function HomePage() {
       if (list.length > 0) setSelectedId(list[0].id)
     })
   }, [])
+
+  useEffect(() => {
+    if (!member) return
+    api
+      .listMyInvitations()
+      .then((items) => setMyInvitationsState({ memberId: member.id, items }))
+      .catch(() => setMyInvitationsState({ memberId: member.id, items: [] }))
+  }, [member])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -40,11 +69,43 @@ export function HomePage() {
     return <main className="page">불러오는 중...</main>
   }
 
+  async function handleAuth(e: FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (registering && password !== passwordConfirmation) {
+      setError('비밀번호가 일치하지 않습니다.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const result = registering
+        ? await api.register({ email: email.trim(), password, name: name.trim() })
+        : await api.login({ email: email.trim(), password })
+      await completeLogin(result.token)
+      setPassword('')
+      setPasswordConfirmation('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '로그인에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (!member) {
     return (
       <main className="page login-page">
         <h1>모바일 청첩장 만들기</h1>
-        <p className="login-lede">시작하려면 로그인해주세요.</p>
+        <p className="login-lede">{registering ? '회원가입하고 나만의 청첩장을 만들어보세요.' : '시작하려면 로그인해주세요.'}</p>
+        <form className="local-auth-form" onSubmit={handleAuth}>
+          {registering && <label>이름<input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} /></label>}
+          <label>이메일<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={254} /></label>
+          <label>비밀번호<input type="password" autoComplete={registering ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={registering ? 8 : undefined} maxLength={64} placeholder={registering ? '8자 이상 입력해주세요' : undefined} /></label>
+          {registering && <label>비밀번호 확인<input type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(e) => setPasswordConfirmation(e.target.value)} required maxLength={64} /></label>}
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <button type="submit" disabled={submitting}>{submitting ? '처리 중...' : registering ? '회원가입' : '로그인'}</button>
+          <button type="button" className="auth-switch" disabled={submitting} onClick={() => { setRegistering(!registering); setError(null); setPassword(''); setPasswordConfirmation('') }}>{registering ? '이미 계정이 있나요? 로그인' : '계정이 없나요? 회원가입'}</button>
+        </form>
+        <p className="login-lede">또는 소셜 계정으로 시작하기</p>
         <div className="login-buttons">
           <button type="button" className="login-kakao" onClick={loginWithKakao}>
             카카오로 시작하기
@@ -57,6 +118,8 @@ export function HomePage() {
     )
   }
 
+  const myInvitations = myInvitationsState?.memberId === member.id ? myInvitationsState.items : null
+
   return (
     <main className="page">
       <div className="page-header">
@@ -65,7 +128,36 @@ export function HomePage() {
           {member.name}님 · 로그아웃
         </button>
       </div>
+      {myInvitations && myInvitations.length > 0 && (
+        <section className="my-invitations">
+          <h2>내 청첩장</h2>
+          <ul className="my-invitation-list">
+            {myInvitations.map((inv) => (
+              <li key={inv.id} className="my-invitation-card">
+                <div className="my-invitation-info">
+                  <strong>{coupleLabel(inv)}</strong>
+                  <span className="my-invitation-meta">
+                    {inv.weddingDate} · /i/{inv.slug}
+                  </span>
+                </div>
+                <span className={`my-invitation-status status-${inv.status.toLowerCase()}`}>
+                  {STATUS_LABELS[inv.status]}
+                </span>
+                <div className="my-invitation-actions">
+                  <Link to={`/e/${inv.id}`}>편집</Link>
+                  {inv.status === 'PUBLISHED' && (
+                    <a href={`/i/${inv.slug}`} target="_blank" rel="noreferrer">
+                      청첩장 보기
+                    </a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <form onSubmit={handleSubmit} className="create-form">
+        {myInvitations && myInvitations.length > 0 && <h2>새 청첩장 만들기</h2>}
         <h2>템플릿 선택</h2>
         <div className="template-grid">
           {templates.map((t) => (

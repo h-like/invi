@@ -2,6 +2,7 @@ package com.invi.api.invitation;
 
 import com.invi.api.account.CurrentMember;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,11 @@ public class InvitationController {
     @ResponseStatus(HttpStatus.CREATED)
     public InvitationDto create(Authentication authentication, @Valid @RequestBody CreateInvitationRequest request) {
         return invitationService.create(currentMember.requireId(authentication), request);
+    }
+
+    @GetMapping
+    public List<InvitationDto> listMine(Authentication authentication) {
+        return invitationService.findAllOwnedBy(currentMember.requireId(authentication));
     }
 
     @GetMapping("/{id}")

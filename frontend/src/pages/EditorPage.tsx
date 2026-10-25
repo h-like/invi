@@ -146,7 +146,7 @@ export function EditorPage() {
 
         <section className="editor-section">
           <h2>갤러리</h2>
-          <ImageListEditor images={galleryImages} onChange={setGalleryImages} />
+          <ImageListEditor invitationId={invitation.id} images={galleryImages} onChange={setGalleryImages} />
         </section>
 
         <section className="editor-section">
@@ -206,24 +206,65 @@ export function EditorPage() {
   )
 }
 
-function ImageListEditor({ images, onChange }: { images: string[]; onChange: (images: string[]) => void }) {
+// R2 버킷을 아직 연동하지 않아 업로드 UI를 잠시 꺼둔다(서비스 구현 완료 후 되살릴 예정 — CLAUDE.md 미디어
+// 섹션 참고). invitationId는 그때 다시 destructure해서 쓴다. 아래 주석 블록이 살아있던 원래 구현이다.
+function ImageListEditor({
+  images,
+  onChange,
+}: {
+  invitationId: string
+  images: string[]
+  onChange: (images: string[]) => void
+}) {
+  // const [uploading, setUploading] = useState(false)
+  // const [error, setError] = useState<string | null>(null)
+  //
+  // async function handleFiles(files: FileList | null) {
+  //   if (!files || files.length === 0) return
+  //   setUploading(true)
+  //   setError(null)
+  //   try {
+  //     const uploaded: string[] = []
+  //     for (const file of Array.from(files)) {
+  //       const asset = await api.uploadImage(invitationId, file, 'GALLERY', images.length + uploaded.length)
+  //       uploaded.push(asset.url)
+  //     }
+  //     onChange([...images, ...uploaded])
+  //   } catch (err) {
+  //     setError(err instanceof Error ? err.message : '업로드에 실패했습니다')
+  //   } finally {
+  //     setUploading(false)
+  //   }
+  // }
+
   return (
     <div className="list-editor">
       {images.map((url, i) => (
         <div key={i} className="list-editor-row">
-          <input
-            value={url}
-            onChange={(e) => onChange(images.map((v, idx) => (idx === i ? e.target.value : v)))}
-            placeholder="이미지 URL"
-          />
+          <img src={url} alt="" className="list-editor-thumb" />
           <button type="button" onClick={() => onChange(images.filter((_, idx) => idx !== i))}>
             삭제
           </button>
         </div>
       ))}
-      <button type="button" className="list-editor-add" onClick={() => onChange([...images, ''])}>
-        + 사진 추가
-      </button>
+      {/*
+      <label className="list-editor-add">
+        {uploading ? '업로드 중...' : '+ 사진 추가'}
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          disabled={uploading}
+          onChange={(e) => {
+            void handleFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
+      </label>
+      {error && <p className="form-error">{error}</p>}
+      */}
+      <p className="editor-section-hint">이미지 업로드는 R2 연동 후 사용할 수 있습니다 (현재 비활성화).</p>
     </div>
   )
 }

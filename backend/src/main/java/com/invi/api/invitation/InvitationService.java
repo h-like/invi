@@ -10,6 +10,7 @@ import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
 import com.invi.api.template.Template;
 import com.invi.api.template.TemplateRepository;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -55,6 +56,12 @@ public class InvitationService {
 
     public InvitationDto findById(UUID memberId, UUID id) {
         return toDto(getOwnedOrThrow(memberId, id));
+    }
+
+    public List<InvitationDto> findAllOwnedBy(UUID memberId) {
+        return invitationRepository.findAllByMemberIdOrderByCreatedAtDesc(memberId).stream()
+                .map(this::toDto)
+                .toList();
     }
 
     public GuestInvitationDto findPublishedBySlug(String slug) {

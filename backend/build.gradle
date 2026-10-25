@@ -19,6 +19,11 @@ repositories {
 }
 
 dependencies {
+	implementation platform('software.amazon.awssdk:bom:2.54.14')
+	// Cloudflare R2 is S3-compatible; the AWS SDK v2 S3 client/presigner work against it
+	// unmodified once pointed at the account's R2 endpoint. See media/R2StorageConfig.
+	// S3Presigner lives in this module too (no separate s3-presigner artifact in v2).
+	implementation 'software.amazon.awssdk:s3'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-jackson'

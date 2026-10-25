@@ -37,6 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     try {
       setMember(await api.getMe())
+    } catch (err) {
+      clearToken()
+      setMember(null)
+      throw err
     } finally {
       setLoading(false)
     }
