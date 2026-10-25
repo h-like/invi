@@ -16,8 +16,22 @@ export interface Block {
   style: Record<string, unknown>
 }
 
+export type DesignTheme = 'classic' | 'minimal' | 'romantic' | 'modern'
+export type InvitationFont = 'serif' | 'sans'
+export type InvitationFontSize = 'normal' | 'large' | 'larger'
+
+export interface PageDesign {
+  theme: DesignTheme
+  backgroundColor: string
+  accentColor: string
+  fontFamily: InvitationFont
+  fontSize: InvitationFontSize
+}
+
 export interface PageData {
   blocks: Block[]
+  design?: PageDesign
+  [key: string]: unknown
 }
 
 export type Plan = 'FREE' | 'PAID'
