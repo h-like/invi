@@ -17,7 +17,9 @@ CLAUDE.md "Git 컨벤션"의 규칙을 실제 명령어와 절차로 풀어 쓴 
 
 - **비밀값은 절대 커밋하지 않는다.** OAuth 시크릿, JWT 키, R2 키는 `application-local.yml`(gitignored)이나 `.env.local`에만 둔다.
 - **실제 개인정보를 커밋하지 않는다.** 테스트 픽스처나 시드 데이터에 실제 하객 이름, 전화번호, 계좌번호를 쓰지 않는다. 가짜 값을 쓴다.
-- GitHub secret scanning push protection이 켜져 있어 알려진 서비스의 키(Google, Cloudflare 등)가 든 push는 거부된다. 하지만 **직접 만든 JWT 시크릿 같은 임의 문자열은 감지하지 못한다.** 마지막 방어선이 아니라 보조 장치로 생각한다.
+- GitHub secret scanning push protection이 켜져 있어, GitHub가 패턴을 아는 서비스의 키(Google OAuth 시크릿 등)가 든 push는 거부된다. 하지만 이 프로젝트의 비밀값 중 **Kakao client secret과 JWT 시크릿은 감지되지 않는다.** R2 액세스 키도 감지된다고 가정하지 않는다. 마지막 방어선이 아니라 보조 장치로 생각한다.
+- 비밀값 파일(`.env`, `.env.local`, `application-local.yml`, `.claude/settings.local.json`)은 저장소 루트와 각 모듈의 `.gitignore`로 무시된다. 새 비밀값 파일을 만들면 커밋 전에 `git check-ignore -v <파일>`로 무시되는지 확인한다.
+- `frontend/.env.development`, `frontend/.env.production` 같은 Vite 모드 파일은 커밋 대상이다. `VITE_` 값은 어차피 브라우저 번들에 그대로 들어가므로 공개 설정(API 주소 등)만 넣고, 비밀값은 절대 넣지 않는다.
 
 ## 3. 새 브랜치를 만드는 때
 
@@ -51,7 +53,7 @@ switch가 필요한 순간은 다음 네 가지다.
 1. 새 기능을 시작할 때: 4절대로 `origin/main`에서 새 브랜치를 만든다.
 2. PR이 머지된 직후: 다음 작업용 새 브랜치로 이동한다(8절).
 3. 리뷰 지적 사항을 고치러 돌아갈 때: `git switch phase-1/rsvp-api`
-4. 급한 수정이 끼어들 때: 하던 브랜치를 두고 hotfix 브랜치를 만든다.
+4. 급한 수정이 끼어들 때: 하던 브랜치를 두고 수정용 브랜치를 만든다. 이름도 같은 규칙을 따른다. 예: `phase-1/fix-login-redirect`
 
 **switch 직전에는 반드시 `git status`가 깨끗해야 한다.** `git switch`는 커밋 안 된 변경을, 충돌만 없으면 조용히 새 브랜치로 들고 간다. 그러면 미완성 코드가 엉뚱한 PR에 섞인다.
 
@@ -62,26 +64,38 @@ switch가 필요한 순간은 다음 네 가지다.
 git status
 git add -A
 git commit -m "wip: rsvp 폼 검증 작업 중"
-git switch -c fix/xxx origin/main
+git fetch origin
+git switch -c phase-1/fix-login-redirect origin/main
 
 # 돌아온 직후
 git switch phase-1/rsvp-api
-git reset --soft HEAD~1
+git log -1 --format=%s     # 출력이 "wip:"로 시작하는지 확인
+git reset --soft HEAD~1    # wip: 커밋일 때만 실행
 ```
 
 - `git add -A` 전에 `git status`로 비밀값 파일이 목록에 없는지 확인한다(2절).
-- `wip:` 커밋은 **push하지 않는다.** push 전에 `git log -1`로 마지막 커밋이 `wip:`인지 확인한다. 실수로 push했다면 reset하지 말고(force-push가 필요해지는데 서버에서 막힌다), 이어서 작업한 뒤 정식 커밋을 쌓는다. squash merge라 main 기록에는 남지 않는다.
+- **`reset --soft` 전에 마지막 커밋이 `wip:`인지 반드시 확인한다.** wip 커밋을 안 만들었거나, 그 뒤에 `git merge origin/main` 같은 커밋이 생겼다면 `HEAD~1`은 진짜 커밋을 되돌린다. 마지막 커밋이 `wip:`가 아니면 reset하지 않는다.
+- `wip:` 커밋은 **push하지 않는다.** push 전에 7절의 확인 명령으로, push될 커밋 중에 `wip:`가 없는지 본다. 실수로 push했다면 reset하지 말고(force-push가 필요해지는데 서버에서 막힌다), 이어서 작업한 뒤 정식 커밋을 쌓는다. squash merge라 main 기록에는 남지 않는다.
 - `reset --soft`는 커밋만 풀고 변경 내용은 스테이징된 상태로 되돌린다. 코드는 사라지지 않는다.
 - `wip:`는 Conventional Commits type이 아니다. 이 용도로만 쓰는 예외다.
 
 ## 6. 커밋하기
 
-커밋 전에 바뀐 쪽을 검증한다.
+커밋 전에 바뀐 쪽을 검증한다. 두 명령 모두 저장소 루트에서 실행한다.
 
 ```bash
-cd backend && ./gradlew test
-cd frontend && npm run build
+# Git Bash
+(cd backend && ./gradlew test)
+(cd frontend && npm run build)
 ```
+
+```powershell
+# Windows PowerShell 5.1 (&& 사용 불가)
+Push-Location backend; .\gradlew.bat test; Pop-Location
+Push-Location frontend; npm run build; Pop-Location
+```
+
+- Git Bash에서 괄호를 빼고 `cd backend && ...`를 연달아 쓰면, 두 번째 `cd frontend`가 `backend/` 안에서 실행돼 실패한다.
 
 ```bash
 git status
@@ -95,11 +109,17 @@ git commit -m "feat(rsvp): add guest-count validation"
 
 ## 7. push는 언제 하나
 
-**작업 중간에도 언제든 push해도 되고, 오히려 권장한다.** 기능 브랜치의 push는 원격 백업일 뿐이고 `main`에는 영향이 없다. 조건은 세 가지다.
+**작업 중간에도 언제든 push해도 되고, 오히려 권장한다.** 기능 브랜치의 push는 원격 백업일 뿐이고 `main`에는 영향이 없다. 조건은 네 가지다.
 
-- 마지막 커밋이 테스트 통과 상태의 정식 커밋이어야 한다. `wip:` 커밋은 push하지 않는다.
+- 마지막 커밋이 테스트 통과 상태의 정식 커밋이어야 한다.
+- push될 커밋 중에 `wip:` 커밋이 하나도 없어야 한다. 마지막 커밋만 보면 그 아래 깔린 wip 커밋을 놓치므로, 브랜치의 커밋 전체를 확인한다.
 - `main`이 아닌 내 기능 브랜치여야 한다.
 - push할 커밋에 비밀값이나 실제 개인정보가 없어야 한다. 저장소가 public이다(2절).
+
+```bash
+git branch --show-current          # main이 아닌지 확인
+git log --oneline origin/main..HEAD # 이 목록에 wip:가 없어야 한다
+```
 
 최소한 다음 시점에는 반드시 push한다.
 
@@ -128,12 +148,18 @@ gh pr create --base main --title "feat(rsvp): add RSVP submission API" --body "�
 
 1. PR을 올리고 `/code-review`를 실행한다.
 2. 지적 사항을 고치고 커밋한 뒤 다시 push한다.
-3. 리뷰를 통과하면 squash merge하고, 브랜치를 바로 지운다.
+3. 리뷰를 통과하면 squash merge한다.
 
 ```bash
-gh pr merge --squash --delete-branch
-git fetch origin
+gh pr merge <PR 번호> --squash
+git fetch origin --prune
 ```
+
+4. 머지된 브랜치를 지운다.
+   - **원격 브랜치:** 저장소 설정의 "Automatically delete head branches"를 켜두면 머지할 때 GitHub가 지운다. 꺼져 있으면 PR 화면의 "Delete branch" 버튼으로 지운다.
+   - **로컬 브랜치:** 다음 작업 브랜치로 옮긴 뒤 `git branch -D <머지된 브랜치>`로 지운다. squash merge라 git은 이 브랜치가 머지됐다고 인식하지 못해서 `-d`는 거부된다. Claude 앱 worktree의 브랜치는 세션을 정리할 때 앱이 함께 정리하므로 직접 지우지 않는다.
+
+- `gh pr merge --delete-branch`는 쓰지 않는다. 로컬 브랜치를 지우려고 `main`으로 checkout을 시도하는데, Claude 앱 worktree에서는 `main`이 다른 곳에 체크아웃돼 있어 실패한다(4절).
 
 - **머지된 브랜치는 재사용하지 않는다.** squash merge를 하면 원래 브랜치의 커밋이 `main`에 그대로 들어가지 않는다. 그 브랜치에 작업을 더 해서 PR을 다시 올리면, 이미 머지된 변경이 diff에 다시 나오고 충돌이 난다. 추가 작업은 4절대로 새 브랜치에서 한다.
 
@@ -163,7 +189,7 @@ git merge origin/main
 - 할 수 있는 것: 테스트와 빌드가 통과한 상태에서 `git add`, `git commit`, 기능 브랜치 `git push`.
 - 하지 않는 것: force-push, `main` push, 원격 브랜치 삭제, PR 생성·머지.
 - **커밋과 push 전에 `git branch --show-current`를 확인하고, `main`이면 멈춘다.**
-- push 전에 `git log -1`을 확인하고, `wip:` 커밋이면 push하지 않는다.
+- push 전에 `git log --oneline origin/main..HEAD`를 확인하고, 목록에 `wip:` 커밋이 있으면 push하지 않는다.
 - 루프가 만든 커밋은 메시지에 그 사실을 적는다. 예: `test(rsvp): tighten guest-count validation via TDD loop`
 
 ## 12. GitHub 보호 설정 (현재 상태)
@@ -173,7 +199,7 @@ git merge origin/main
 | 설정 | 대상 | 내용 |
 |---|---|---|
 | Ruleset `Protect main` | `main` | PR 필수(승인 0명), force-push 차단, 삭제 차단 |
-| Ruleset `Protect all branches` | 모든 브랜치 | force-push 차단만. 삭제 차단은 넣지 않는다(머지 후 `--delete-branch`가 막히기 때문) |
+| Ruleset `Protect all branches` | 모든 브랜치 | force-push 차단만. 삭제 차단은 넣지 않는다(머지된 브랜치를 지울 수 없게 되기 때문) |
 | Secret scanning + push protection | 저장소 전체 | 알려진 서비스 키가 든 push 거부 |
 
 설정 상태는 아래 명령으로 확인한다.

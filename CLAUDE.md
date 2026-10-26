@@ -125,7 +125,7 @@ private JsonNode pageData;
 
 **브랜치**
 - `main`: 항상 빌드/컴파일이 되는 상태로 유지한다. Phase 0 스캐폴딩 이후로는 여기 직접 커밋하지 않는다.
-- 기능 단위로 `phase-N/기능명` 형식의 브랜치를 판다. 예: `phase-1/invitation-editor`, `phase-1/rsvp-api`.
+- 기능 단위로 `phase-N/기능명` 형식의 브랜치를 판다. 예: `phase-1/invitation-editor`, `phase-1/rsvp-api`. 예외: Claude 앱이 자동으로 만든 `claude/...` 브랜치는 이름을 바꾸지 않는다(앱이 그 이름으로 브랜치·PR을 추적한다). 대신 PR 제목으로 기능을 드러낸다.
 - 완료되면 PR을 올리고 `/code-review` 통과 후 머지한다. 1인 개발이라 리뷰해줄 사람은 없지만, PR을 남겨두면 변경 이력이 기능 단위로 정리되고 나중에 포트폴리오에서 보여주기도 좋다.
 
 **커밋 메시지**: Conventional Commits 형식.
