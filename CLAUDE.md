@@ -121,11 +121,11 @@ private JsonNode pageData;
 
 ## Git 컨벤션
 
-**저장소**: [github.com/h-like/invi](https://github.com/h-like/invi) (private). 로컬 git 계정은 이 저장소에만 로컬로 설정돼 있다(`git config user.name/email`, 전역 설정 아님) — 다른 저장소를 새로 클론하면 다시 설정해야 한다.
+**저장소**: [github.com/h-like/invi](https://github.com/h-like/invi) (public — 비밀값·실제 개인정보 커밋 금지). 로컬 git 계정은 이 저장소에만 로컬로 설정돼 있다(`git config user.name/email`, 전역 설정 아님) — 다른 저장소를 새로 클론하면 다시 설정해야 한다.
 
 **브랜치**
 - `main`: 항상 빌드/컴파일이 되는 상태로 유지한다. Phase 0 스캐폴딩 이후로는 여기 직접 커밋하지 않는다.
-- 기능 단위로 `phase-N/기능명` 형식의 브랜치를 판다. 예: `phase-1/invitation-editor`, `phase-1/rsvp-api`.
+- 기능 단위로 `phase-N/기능명` 형식의 브랜치를 판다. 예: `phase-1/invitation-editor`, `phase-1/rsvp-api`. 예외: Claude 앱이 자동으로 만든 `claude/...` 브랜치는 이름을 바꾸지 않는다(앱이 그 이름으로 브랜치·PR을 추적한다). 대신 PR 제목으로 기능을 드러낸다.
 - 완료되면 PR을 올리고 `/code-review` 통과 후 머지한다. 1인 개발이라 리뷰해줄 사람은 없지만, PR을 남겨두면 변경 이력이 기능 단위로 정리되고 나중에 포트폴리오에서 보여주기도 좋다.
 
 **커밋 메시지**: Conventional Commits 형식.
@@ -140,5 +140,7 @@ private JsonNode pageData;
 
 **에이전트 루프와 git** — 아키텍처 문서 08번 "에이전트 루프 사용 원칙"의 연장:
 - 로컬 커밋(`git add` + `git commit`)까지는 루프가 자동으로 남겨도 된다. 단, 테스트 통과·빌드 성공 상태에서만 — 원칙 3(검증 가능한 산출물)과 직결된다.
-- `git push`, PR 생성/머지, `main`으로의 직접 반영, force-push는 루프가 자동으로 하지 않는다. 사람이 직접 트리거한다 — 원칙 2(되돌리기 어려운 액션은 자동 실행에서 제외)와 같은 논리다.
+- 기능 브랜치 `git push`는 루프가 해도 된다(테스트 통과 상태, `wip:` 커밋 제외). PR 생성/머지, `main`으로의 직접 반영, force-push는 루프가 하지 않는다 — 원칙 2(되돌리기 어려운 액션은 자동 실행에서 제외)와 같은 논리다. `main`과 force-push는 GitHub ruleset으로도 막혀 있다.
 - 루프가 반복 작업 중에 남긴 커밋은 메시지에 그 사실을 남긴다. 예: `test(rsvp): tighten guest-count validation via TDD loop` — 나중에 이 커밋이 루프 산출물인지 직접 짠 건지 구분할 수 있게.
+
+자세한 절차와 명령어(브랜치 생성·switch 시점, push 시점, `wip:` 커밋, GitHub 보호 설정)는 [docs/GIT.md](docs/GIT.md) 참고.

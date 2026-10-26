@@ -1,0 +1,8 @@
+# 비밀값 — 저장소가 public이다 (docs/GIT.md 2절)
+# 슬래시 없는 패턴이라 모든 하위 폴더(backend/, frontend/ 포함)에 적용된다.
+.env
+.env.local
+.env.*.local
+
+# Claude Code 개인 설정
+.claude/settings.local.json
