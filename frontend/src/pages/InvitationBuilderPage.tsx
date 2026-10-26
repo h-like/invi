@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from '
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
+import { createInvitationPersistence } from '../editor/persistence'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
 import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, patchContent, publishIssues, updateBlock } from '../editor/model'
 
@@ -25,7 +26,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const [panel, setPanel] = useState<Panel>('content')
   const [previewOnly, setPreviewOnly] = useState(false)
   const [busy, setBusy] = useState(false)
-  const busyRef = useRef(false)
+  const [persistence] = useState(() => createInvitationPersistence(api))
+  const [failedAction, setFailedAction] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [shareOpen, setShareOpen] = useState(false)
@@ -103,30 +105,44 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }
 
   async function persist(publish: boolean) {
-    if (!invitation || !draft || busyRef.current) return
+    if (!invitation || !draft || persistence.isRunning()) return
     setError(null)
+    setFailedAction(null)
     setNotice('')
     if (publish) {
       const issues = publishIssues(draft)
       if (issues.length) { setError(issues.join(' ')); setPanel('content'); setPreviewOnly(false); return }
     }
-    busyRef.current = true
+    setShareOpen(false)
     setBusy(true)
     try {
-      const saved = await api.updatePageData(invitation.id, draft)
+      const result = await persistence.run(invitation, draft, publish)
+      if (result.kind === 'busy') return
+      if (result.kind === 'save-failed') {
+        // Do not replace draft or baseline: the user's unsaved input stays intact.
+        setError('저장 완료를 확인하지 못했습니다. 입력 내용은 현재 화면에 남아 있습니다. ' + result.detail)
+        setFailedAction(publish)
+        return
+      }
+      const saved = result.kind === 'publish-failed' ? result.saved : result.invitation
       setInvitation(saved)
       setDraft(saved.pageData ?? draft)
       setBaseline(JSON.stringify(saved.pageData ?? draft))
-      if (publish) {
-        const published = saved.status === 'PUBLISHED' ? saved : await api.publishInvitation(saved.id)
-        setInvitation(published)
+      if (result.kind === 'publish-failed') {
+        setNotice('내용 저장 완료 · 공개 확인 필요')
+        setError('내용은 저장했지만 공개 완료를 확인하지 못했습니다. 다시 시도해 주세요. ' + result.detail)
+        setFailedAction(true)
+        return
+      }
+      if (result.shared) {
         setCopyStatus('')
         setShareOpen(true)
         setNotice('저장하고 공개했습니다.')
       } else setNotice('변경 사항을 저장했습니다.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '저장 또는 공개에 실패했습니다. 다시 시도해 주세요.')
-    } finally { busyRef.current = false; setBusy(false) }
+    } catch {
+      setError('처리 결과를 확인하지 못했습니다. 현재 화면의 내용을 확인하고 다시 시도해 주세요.')
+      setFailedAction(publish)
+    } finally { setBusy(false) }
   }
 
   async function copyLink() {
@@ -145,6 +161,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           <button type="button" className="publish-button" disabled={busy} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
+      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}</div></div>}
       <div className="builder-layout">
         <aside className="builder-panel" aria-label="청첩장 편집">
           <div className="builder-intro"><p className="builder-eyebrow">YOUR WEDDING, YOUR MOOD</p><h1>우리다운 초대장</h1><p>하나씩 채우면, 오른쪽에서 바로 완성돼요.</p></div>
@@ -152,7 +169,6 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           <nav className="builder-tabs" aria-label="편집 설정">
             {([['content', '내용'], ['design', '디자인'], ['sections', '섹션 구성']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={panel === value} onClick={() => setPanel(value)}>{label}</button>)}
           </nav>
-          {error && <p className="builder-error" role="alert">{error}</p>}
           <fieldset className="builder-fields" disabled={busy}>
             <legend className="sr-only">청첩장 편집 항목</legend>
             {panel === 'content' && <>
