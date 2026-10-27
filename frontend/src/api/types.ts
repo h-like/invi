@@ -44,6 +44,10 @@ export interface Template {
   thumbnailUrl: string | null
 }
 
+export interface TemplateDetail extends Template {
+  defaultPageData: PageData | null
+}
+
 export interface Invitation {
   id: string
   slug: string

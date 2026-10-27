@@ -63,7 +63,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     if (unsaved && !window.confirm('저장하지 않은 변경 사항이 있습니다. 저장하지 않고 이동할까요?')) event.preventDefault()
   }
 
-  if (!invitation || !draft) return <main className="page">{error ? <><p className="form-error" role="alert">{error}</p><Link to="/">내 청첩장으로</Link></> : '청첩장을 불러오는 중...'}</main>
+  if (!invitation || !draft) return <main className="page">{error ? <><p className="form-error" role="alert">{error}</p><Link to="/invitations">내 청첩장으로</Link></> : '청첩장을 불러오는 중...'}</main>
 
   const hero = draft.blocks.find(b => b.type === 'hero')
   const map = draft.blocks.find(b => b.type === 'map')

@@ -21,7 +21,7 @@ public class TemplateController {
     }
 
     @GetMapping("/{id}")
-    public TemplateDto get(@PathVariable UUID id) {
+    public TemplateDetailDto get(@PathVariable UUID id) {
         return templateService.findById(id);
     }
 }
