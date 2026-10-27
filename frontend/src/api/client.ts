@@ -9,6 +9,7 @@ import type {
   PageData,
   RsvpEntry,
   Template,
+  TemplateDetail,
 } from './types'
 
 const API_BASE = 'http://localhost:8080'
@@ -44,6 +45,8 @@ export const api = {
   getMe: () => request<Member>('/api/auth/me'),
 
   listTemplates: () => request<Template[]>('/api/templates'),
+
+  getTemplate: (id: string) => request<TemplateDetail>(`/api/templates/${encodeURIComponent(id)}`),
 
   createInvitation: (body: { templateId: string; slug: string; weddingDate: string }) =>
     request<Invitation>('/api/invitations', { method: 'POST', body: JSON.stringify(body) }),

@@ -1,199 +1,51 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { api } from '../api/client'
-import { useAuth } from '../auth/AuthContext'
-import type { Invitation, InvitationStatus, Template } from '../api/types'
-
-const STATUS_LABELS: Record<InvitationStatus, string> = {
-  DRAFT: '작성 중',
-  PUBLISHED: '공개됨',
-  ARCHIVED: '보관됨',
-}
-
-function coupleLabel(invitation: Invitation): string {
-  const hero = invitation.pageData?.blocks.find((b) => b.type === 'hero')?.content as
-    | { groomName?: string; brideName?: string }
-    | undefined
-  const names = [hero?.groomName, hero?.brideName].filter((n) => n && n.trim())
-  return names.length > 0 ? names.join(' & ') : invitation.slug
-}
+import { Link } from 'react-router-dom'
+import { SiteHeader } from '../discovery/SiteHeader'
+import { TemplateGallery } from '../discovery/TemplateGallery'
+import '../discovery/discovery.css'
 
 export function HomePage() {
-  const navigate = useNavigate()
-  const { member, loading, loginWithKakao, loginWithGoogle, completeLogin, logout } = useAuth()
-  const [registering, setRegistering] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
-  const [passwordConfirmation, setPasswordConfirmation] = useState('')
-  const [templates, setTemplates] = useState<Template[]>([])
-  // Keyed by member so a list fetched for a previous login never shows under the next one.
-  const [myInvitationsState, setMyInvitationsState] = useState<{ memberId: string; items: Invitation[] } | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [slug, setSlug] = useState('')
-  const [weddingDate, setWeddingDate] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  useEffect(() => {
-    api.listTemplates().then((list) => {
-      setTemplates(list)
-      if (list.length > 0) setSelectedId(list[0].id)
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!member) return
-    api
-      .listMyInvitations()
-      .then((items) => setMyInvitationsState({ memberId: member.id, items }))
-      .catch(() => setMyInvitationsState({ memberId: member.id, items: [] }))
-  }, [member])
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!selectedId) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      const invitation = await api.createInvitation({ templateId: selectedId, slug, weddingDate })
-      navigate(`/e/${invitation.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '청첩장 생성에 실패했습니다')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  if (loading) {
-    return <main className="page">불러오는 중...</main>
-  }
-
-  async function handleAuth(e: FormEvent) {
-    e.preventDefault()
-    setError(null)
-    if (registering && password !== passwordConfirmation) {
-      setError('비밀번호가 일치하지 않습니다.')
-      return
-    }
-    setSubmitting(true)
-    try {
-      const result = registering
-        ? await api.register({ email: email.trim(), password, name: name.trim() })
-        : await api.login({ email: email.trim(), password })
-      await completeLogin(result.token)
-      setPassword('')
-      setPasswordConfirmation('')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '로그인에 실패했습니다.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  if (!member) {
-    return (
-      <main className="page login-page">
-        <h1>모바일 청첩장 만들기</h1>
-        <p className="login-lede">{registering ? '회원가입하고 나만의 청첩장을 만들어보세요.' : '시작하려면 로그인해주세요.'}</p>
-        <form className="local-auth-form" onSubmit={handleAuth}>
-          {registering && <label>이름<input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} /></label>}
-          <label>이메일<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={254} /></label>
-          <label>비밀번호<input type="password" autoComplete={registering ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={registering ? 8 : undefined} maxLength={64} placeholder={registering ? '8자 이상 입력해주세요' : undefined} /></label>
-          {registering && <label>비밀번호 확인<input type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(e) => setPasswordConfirmation(e.target.value)} required maxLength={64} /></label>}
-          {error && <p className="form-error" role="alert">{error}</p>}
-          <button type="submit" disabled={submitting}>{submitting ? '처리 중...' : registering ? '회원가입' : '로그인'}</button>
-          <button type="button" className="auth-switch" disabled={submitting} onClick={() => { setRegistering(!registering); setError(null); setPassword(''); setPasswordConfirmation('') }}>{registering ? '이미 계정이 있나요? 로그인' : '계정이 없나요? 회원가입'}</button>
-        </form>
-        <p className="login-lede">또는 소셜 계정으로 시작하기</p>
-        <div className="login-buttons">
-          <button type="button" className="login-kakao" onClick={loginWithKakao}>
-            카카오로 시작하기
-          </button>
-          <button type="button" className="login-google" onClick={loginWithGoogle}>
-            Google로 시작하기
-          </button>
-        </div>
-      </main>
-    )
-  }
-
-  const myInvitations = myInvitationsState?.memberId === member.id ? myInvitationsState.items : null
-
   return (
-    <main className="page">
-      <div className="page-header">
-        <h1>모바일 청첩장 만들기</h1>
-        <button type="button" className="logout-button" onClick={logout}>
-          {member.name}님 · 로그아웃
-        </button>
-      </div>
-      {myInvitations && myInvitations.length > 0 && (
-        <section className="my-invitations">
-          <h2>내 청첩장</h2>
-          <ul className="my-invitation-list">
-            {myInvitations.map((inv) => (
-              <li key={inv.id} className="my-invitation-card">
-                <div className="my-invitation-info">
-                  <strong>{coupleLabel(inv)}</strong>
-                  <span className="my-invitation-meta">
-                    {inv.weddingDate} · /i/{inv.slug}
-                  </span>
-                </div>
-                <span className={`my-invitation-status status-${inv.status.toLowerCase()}`}>
-                  {STATUS_LABELS[inv.status]}
-                </span>
-                <div className="my-invitation-actions">
-                  <Link to={`/e/${inv.id}`}>편집</Link>
-                  {inv.status === 'PUBLISHED' && (
-                    <a href={`/i/${inv.slug}`} target="_blank" rel="noreferrer">
-                      청첩장 보기
-                    </a>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+    <div className="discovery-shell">
+      <a className="discovery-skip-link" href="#discovery-main">본문으로 건너뛰기</a>
+      <SiteHeader />
+      <main id="discovery-main">
+        <section className="discovery-hero discovery-container" aria-labelledby="discovery-hero-title">
+          <div className="discovery-hero-copy">
+            <p className="discovery-eyebrow">A LITTLE INVITATION, A NEW BEGINNING</p>
+            <h1 id="discovery-hero-title">우리다운 시작,<br />마음을 담은 초대.</h1>
+            <p className="discovery-hero-description">오래 기억하고 싶은 날을 위한 모바일 청첩장.<br />두 사람의 분위기에 어울리는 디자인을 만나보세요.</p>
+            <a className="discovery-button" href="#templates">우리의 디자인 찾기 <span aria-hidden="true">↓</span></a>
+            <p className="discovery-hero-note">천천히 둘러보고, 마음에 드는 한 장부터.</p>
+          </div>
+          <div className="discovery-hero-scene" aria-hidden="true">
+            <div className="discovery-hero-halo" />
+            <div className="discovery-hero-envelope" />
+            <div className="discovery-hero-paper discovery-hero-paper-back"><span>the beginning<br /><i>of us.</i></span></div>
+            <div className="discovery-hero-paper discovery-hero-paper-front">
+              <span className="discovery-paper-overline">TOGETHER WITH LOVE</span>
+              <svg className="discovery-hero-botanical" viewBox="0 0 180 210" fill="none">
+                <path d="M87 195C81 146 106 95 91 24M86 164C60 143 45 114 42 84M89 140C113 125 133 98 140 67" stroke="currentColor" strokeWidth="1.5" />
+                <g fill="currentColor" opacity=".75">
+                  <ellipse cx="90" cy="40" rx="8" ry="19" transform="rotate(-17 90 40)" /><ellipse cx="105" cy="68" rx="8" ry="19" transform="rotate(39 105 68)" />
+                  <ellipse cx="85" cy="87" rx="9" ry="21" transform="rotate(-38 85 87)" /><ellipse cx="106" cy="115" rx="8" ry="19" transform="rotate(45 106 115)" />
+                  <ellipse cx="54" cy="111" rx="8" ry="21" transform="rotate(-32 54 111)" /><ellipse cx="38" cy="83" rx="7" ry="17" transform="rotate(-23 38 83)" />
+                  <ellipse cx="130" cy="90" rx="7" ry="18" transform="rotate(35 130 90)" /><ellipse cx="141" cy="63" rx="6" ry="15" transform="rotate(18 141 63)" />
+                </g>
+              </svg>
+              <span className="discovery-paper-title">The Wedding<br /><i>of us</i></span>
+              <span className="discovery-paper-line" />
+              <span className="discovery-paper-bottom">소중한 당신을 초대합니다</span>
+            </div>
+            <span className="discovery-hero-caption">a moment, made yours.</span>
+          </div>
         </section>
-      )}
-      <form onSubmit={handleSubmit} className="create-form">
-        {myInvitations && myInvitations.length > 0 && <h2>새 청첩장 만들기</h2>}
-        <h2>템플릿 선택</h2>
-        <div className="template-grid">
-          {templates.map((t) => (
-            <label key={t.id} className={`template-card ${selectedId === t.id ? 'selected' : ''}`}>
-              <input
-                type="radio"
-                name="template"
-                checked={selectedId === t.id}
-                onChange={() => setSelectedId(t.id)}
-              />
-              {t.name}
-            </label>
-          ))}
-        </div>
-
-        <label>
-          서브도메인 (영문 소문자, 숫자, 하이픈)
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            placeholder="minsu-jiyoung"
-            required
-            pattern="[a-z0-9\-]{3,50}"
-          />
-        </label>
-
-        <label>
-          결혼식 날짜
-          <input type="date" value={weddingDate} onChange={(e) => setWeddingDate(e.target.value)} required />
-        </label>
-
-        {error && <p className="form-error">{error}</p>}
-        <button type="submit" disabled={submitting || !selectedId}>
-          {submitting ? '만드는 중...' : '청첩장 만들기'}
-        </button>
-      </form>
-    </main>
+        <div className="discovery-gallery-band"><div className="discovery-container"><TemplateGallery showAllLink /></div></div>
+      </main>
+      <footer className="discovery-footer discovery-container">
+        <Link className="discovery-wordmark" to="/" aria-label="invi 홈">invi<span>.</span></Link>
+        <p>소중한 날, 당신다운 초대.</p>
+        <Link to="/templates">모든 템플릿 둘러보기 <span aria-hidden="true">↗</span></Link>
+      </footer>
+    </div>
   )
 }

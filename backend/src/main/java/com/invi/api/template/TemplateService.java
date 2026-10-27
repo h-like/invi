@@ -16,8 +16,14 @@ public class TemplateService {
         return templateRepository.findAll().stream().map(this::toDto).toList();
     }
 
-    public TemplateDto findById(UUID id) {
-        return toDto(getOrThrow(id));
+    public TemplateDetailDto findById(UUID id) {
+        Template template = getOrThrow(id);
+        return new TemplateDetailDto(
+                template.getId(),
+                template.getName(),
+                template.getCategory(),
+                template.getThumbnailUrl(),
+                template.getDefaultPageData() == null ? null : template.getDefaultPageData().toString());
     }
 
     Template getOrThrow(UUID id) {

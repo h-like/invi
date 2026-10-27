@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import type { Member } from '../api/types'
 import { clearToken, getToken, setToken } from './token'
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false))
   }, [])
 
-  async function completeLogin(token: string) {
+  const completeLogin = useCallback(async (token: string) => {
     setToken(token)
     setLoading(true)
     try {
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   function logout() {
     clearToken()
