@@ -90,3 +90,7 @@ npm --prefix frontend run lint
 - 실제 HEIC 샘플의 Worker 변환도 별도로 확인했다(약 1.64MiB → 718KiB, 1920×2560). 실제 iPhone Safari의 방향·피부색·드레스 디테일 검증은 남아 있다.
 - 사용자 로컬 최종 실행 결과: npm audit 0, 프론트 테스트 41개 통과, 프로덕션 빌드 통과(Vite 8.3.5), backend media 테스트 통과. CoverPhotoEditor의 렌더 중 ref 접근을 state로 수정한 뒤 다시 lint/test/build를 실행했으며 오류 0개, 기존 AuthContext/Countdown 관련 경고 3개만 남았다.
 - 테스트 초대장에는 합성 검증 이미지를 남겼다. 운영 전에는 실제 사진, 커스텀 이미지 도메인, 운영 Origin CORS를 별도로 연결한다.
+
+## Android 실기기 연결
+
+개인 Wi-Fi의 사설 IP로 안전하게 접속하는 방법과 사진 확인 체크리스트는 [MOBILE_PHOTO_CHECK.md](MOBILE_PHOTO_CHECK.md)를 따른다. PC의 브라우저 반응형 검사와 실제 Android Chrome 확인은 별도 결과로 기록한다.

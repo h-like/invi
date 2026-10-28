@@ -1,4 +1,5 @@
 import { getToken } from '../auth/token'
+import { API_BASE } from './baseUrl'
 import { putPhoto } from '../editor/putPhoto'
 import type { PhotoUploadOptions } from '../editor/coverUpload'
 import type {
@@ -13,8 +14,6 @@ import type {
   Template,
   TemplateDetail,
 } from './types'
-
-const API_BASE = 'http://localhost:8080'
 
 class ApiError extends Error {}
 

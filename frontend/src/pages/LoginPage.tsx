@@ -6,6 +6,8 @@ import { rememberReturnTo, safeReturnTo, takeReturnTo } from '../auth/returnTo'
 import { SiteHeader } from '../discovery/SiteHeader'
 import '../discovery/flow.css'
 
+const mobilePhotoCheck = import.meta.env.MODE === 'mobile'
+
 export function LoginPage() {
   const [params] = useSearchParams()
   const returnTo = safeReturnTo(params.get('returnTo'))
@@ -65,11 +67,13 @@ export function LoginPage() {
               <button type="button" className="flow-text-button" onClick={() => { setRegistering(!registering); setError(null); setPassword(''); setConfirmation('') }}>{registering ? '이미 계정이 있나요? 로그인' : '처음 오셨나요? 회원가입'}</button>
             </fieldset>
           </form>
-          <div className="auth-divider">또는 소셜 계정으로</div>
-          <div className="flow-social">
-            <button type="button" className="login-kakao" disabled={submitting} onClick={() => socialLogin(loginWithKakao)}>카카오로 시작하기</button>
-            <button type="button" className="login-google" disabled={submitting} onClick={() => socialLogin(loginWithGoogle)}>Google로 시작하기</button>
-          </div>
+          {mobilePhotoCheck ? <p className="editor-section-hint">휴대폰 Wi-Fi 테스트에서는 이메일 계정으로 로그인해 주세요. 소셜 로그인은 기본 로컬 실행 모드에서 확인합니다.</p> : <>
+            <div className="auth-divider">또는 소셜 계정으로</div>
+            <div className="flow-social">
+              <button type="button" className="login-kakao" disabled={submitting} onClick={() => socialLogin(loginWithKakao)}>카카오로 시작하기</button>
+              <button type="button" className="login-google" disabled={submitting} onClick={() => socialLogin(loginWithGoogle)}>Google로 시작하기</button>
+            </div>
+          </>}
         </>}
         <Link className="flow-back" to="/templates">로그인 없이 템플릿 둘러보기</Link>
       </main>

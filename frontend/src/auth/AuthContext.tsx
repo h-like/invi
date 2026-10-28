@@ -1,9 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
+import { API_BASE } from '../api/baseUrl'
 import type { Member } from '../api/types'
 import { clearToken, getToken, setToken } from './token'
-
-const API_BASE = 'http://localhost:8080'
 
 interface AuthState {
   member: Member | null

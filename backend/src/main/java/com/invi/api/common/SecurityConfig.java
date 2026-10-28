@@ -3,9 +3,12 @@ package com.invi.api.common;
 import com.invi.api.account.CustomOAuth2UserService;
 import com.invi.api.account.JwtAuthenticationFilter;
 import com.invi.api.account.OAuth2LoginSuccessHandler;
+import java.net.URI;
 import java.util.List;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -52,9 +55,11 @@ public class SecurityConfig {
     private final ObjectProvider<ClientRegistrationRepository> clientRegistrations;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            @Value("${invi.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) throws Exception {
         http.csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource(frontendBaseUrl)))
                 .authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login")
@@ -92,9 +97,10 @@ public class SecurityConfig {
         return http.build();
     }
 
-    private CorsConfigurationSource corsConfigurationSource() {
+    static CorsConfigurationSource corsConfigurationSource(String frontendBaseUrl) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        // One explicit frontend origin. Never allow every site or an entire LAN subnet.
+        config.setAllowedOrigins(List.of(frontendOrigin(frontendBaseUrl)));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
@@ -102,5 +108,27 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    private static String frontendOrigin(String value) {
+        try {
+            URI uri = URI.create(value.trim());
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+            String path = uri.getRawPath();
+            if (!("http".equals(scheme) || "https".equals(scheme)) || uri.getHost() == null
+                    || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null
+                    || (path != null && !path.isEmpty() && !"/".equals(path)) || uri.getPort() > 65535) {
+                throw new IllegalArgumentException();
+            }
+            String host = uri.getHost().toLowerCase(Locale.ROOT);
+            if (host.contains(":") && !host.startsWith("[")) host = "[" + host + "]";
+            int port = uri.getPort();
+            boolean defaultPort = port == -1 || ("http".equals(scheme) && port == 80)
+                    || ("https".equals(scheme) && port == 443);
+            return scheme + "://" + host + (defaultPort ? "" : ":" + port);
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            // Do not echo a misconfigured value that might accidentally contain credentials.
+            throw new IllegalArgumentException("invi.frontend.base-url must be an absolute HTTP(S) origin without credentials, path, query or fragment.");
+        }
     }
 }
