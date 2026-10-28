@@ -112,7 +112,7 @@ private JsonNode pageData;
 
 - Vite + React + TypeScript + `react-router-dom`(`/`, `/oauth/callback`, `/e/:id`, `/i/:slug`)
 - 로그인 상태는 `src/auth/AuthContext.tsx`(Context) + `src/auth/token.ts`(localStorage 저장)로 관리한다. `api/client.ts`의 모든 요청이 토큰이 있으면 자동으로 `Authorization` 헤더를 붙인다.
-- 백엔드 API 베이스는 `http://localhost:8080`, 개발 중에는 직접 fetch(프록시 설정 없음 — CORS는 백엔드 `SecurityConfig`에서 `localhost:5173` 허용)
+- 백엔드 API 베이스는 `VITE_API_BASE_URL`로 설정하며 기본값은 `http://localhost:8080`이다. `api/baseUrl.ts`를 일반 API와 소셜 로그인에서 공유한다. Origin만 허용하고 경로·인증정보·query·fragment는 거절한다. 프록시는 사용하지 않는다. 백엔드 `SecurityConfig` CORS는 `invi.frontend.base-url`의 정확한 HTTP(S) Origin만 허용한다(기본 localhost:5173). 휴대폰 개인 Wi-Fi 테스트는 gitignored `.env.mobile.local` + Vite `--mode mobile`, Wi-Fi 사설 IP 한 개로의 명시적 바인딩을 사용한다. 이메일 로그인·실기기 체크·복구는 `docs/MOBILE_PHOTO_CHECK.md` 참고.
 
 ## 테스트
 
