@@ -19,7 +19,7 @@ export const GREETING_SAMPLES = [
   { name: '감사의 마음', text: '지금의 저희를 있게 해 주신 소중한 분들께\n감사한 마음을 담아 인사드립니다.\n따뜻한 축복 속에서 첫걸음을 내딛고 싶습니다.' },
 ]
 
-export const MAX_GALLERY_IMAGES = 100
+export const MAX_GALLERY_IMAGES = 20
 export type GalleryLayout = 'grid-2' | 'grid-3' | 'slider'
 
 export function isImageUrl(value: unknown): value is string {

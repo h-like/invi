@@ -144,3 +144,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .builder-steps li + li::before { margin-right: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { .page-renderer * { scroll-behavior: auto; } }
+
+/* Single cover photo: retain the current image until upload and public loading succeed. */
+.cover-photo-editor { display: grid; gap: 10px; margin-top: 16px; }
+.cover-photo-label { margin: 0; font-size: 12px; color: #655d51; }
+.cover-photo-thumb { display: block; width: 96px; height: 120px; object-fit: cover; border: 1px solid var(--line); border-radius: 6px; }
+.cover-photo-editor input[type='file'] { padding: 9px; max-width: 100%; }
+.photo-upload-status { display: grid; gap: 6px; font-size: 12px; color: #69573e; }
+.photo-upload-status progress { width: 100%; accent-color: #796346; }
+.photo-upload-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.photo-upload-actions button { font-size: 12px; padding: 8px 10px; }
+.cover-photo-url { margin-top: 12px; font-size: 11px; color: #7d7365; }
+.cover-photo-url summary { cursor: pointer; margin-bottom: 8px; }

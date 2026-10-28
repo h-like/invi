@@ -48,6 +48,6 @@ invi:
     # R2StorageConfig only wires its S3 beans when invi.r2.account-id resolves to a
     # non-blank value, so the app still boots without real credentials (CI, fresh clone,
     # etc). Set real values via application-local.yml (gitignored) or env vars
-    # (R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY).
+    # (INVI_R2_ACCOUNT_ID / INVI_R2_ACCESS_KEY_ID / INVI_R2_SECRET_ACCESS_KEY).
     bucket: ${R2_BUCKET:invi-media}
     public-base-url: ${R2_PUBLIC_BASE_URL:}

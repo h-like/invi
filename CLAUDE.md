@@ -98,7 +98,7 @@ private JsonNode pageData;
 
 `com.invi.api.media`에 있다. 백엔드를 거치지 않는 presigned URL 방식 — 아키텍처 문서 02번(오브젝트 스토리지) 결정 그대로다.
 
-- **업로드 흐름**: 프론트가 `POST /api/invitations/{id}/media/presign`으로 파일명·컨텐트타입·타입(`GALLERY`/`OG`/`COVER`)을 보냄 → `MediaService`가 소유권 확인 후 `invitations/{invitationId}/{uuid}.{ext}` 키로 R2 presigned PUT URL(5분 유효)을 발급 → 프론트가 그 URL로 파일 바이트를 **직접** PUT(우리 API를 거치지 않음) → 성공하면 `POST /api/invitations/{id}/media`로 `r2Key`를 전달해 `MediaAsset` 레코드를 생성하고 공개 URL을 돌려받음.
+- **업로드 흐름**: 프론트가 원본을 변환·최적화한 뒤 `POST /api/invitations/{id}/media/presign`으로 파일명·컨텐트타입·타입(`GALLERY`/`OG`/`COVER`)·실제 바이트 수(`contentLength`)를 보냄 → `MediaService`가 소유권 확인 후 `invitations/{invitationId}/{uuid}.{ext}` 키로 R2 presigned PUT URL(5분 유효)을 발급 → 프론트가 그 URL로 파일 바이트를 **직접** PUT(우리 API를 거치지 않음) → 성공하면 `POST /api/invitations/{id}/media`로 `r2Key`를 전달해 `MediaAsset` 레코드를 생성하고 공개 URL을 돌려받음.
 - **소유권 검증**: `InvitationService`와 동일한 `getOwnedOrThrow` 패턴을 따른다.
 - **R2 미설정 시 동작**: `invi.r2.account-id`가 비어있으면 `R2StorageConfig`가 `S3Presigner`/`S3Client` 빈을 아예 만들지 않는다(`@ConditionalOnProperty` — `SecurityConfig`의 `ClientRegistrationRepository` 옵셔널 처리와 같은 이유: CI·새 clone에서도 앱이 정상 기동해야 함). `MediaService`는 `ObjectProvider`로 이 빈들을 받아, 없으면 업로드 시도 시점에 `StorageUnavailableException`(503)을 던진다 — 앱 부팅 실패가 아니라 그 기능만 막힌다.
 - **비밀값**: `invi.r2.account-id` / `access-key-id` / `secret-access-key`는 OAuth 시크릿과 동일하게 `application-local.yml`(gitignored)에 넣는다. `bucket`(기본값 `invi-media`)과 `public-base-url`은 `application.yml`에 기본값이 있어 로컬에서 굳이 안 채워도 된다.
@@ -106,7 +106,7 @@ private JsonNode pageData;
   1. Cloudflare 대시보드에서 R2 버킷 생성, R2 API 토큰(Object Read & Write) 발급 → account-id·access-key-id·secret-access-key 확보.
   2. **버킷 CORS 설정 필수** — 프론트(`http://localhost:5173`)가 presigned URL로 R2에 직접 PUT하므로, 버킷의 CORS 정책에 해당 오리진의 `PUT`을 허용해두지 않으면 브라우저가 요청을 막는다. 배포 후에는 실제 프론트 도메인도 추가해야 한다.
   3. `public-base-url`은 R2 버킷의 공개 접근 방식(R2.dev 서브도메인 또는 커스텀 도메인 연결)에 따라 결정 — 아직 도메인을 안 정했으므로 당장은 R2.dev 공개 URL이나 임시 프록시로 채워두면 된다.
-- **아직 안 한 것**: 이미지 리사이즈/최적화(원본 그대로 저장), 업로드 용량·타입 제한(프론트에서만 `accept="image/*"`로 유도, 백엔드는 검증 안 함) — 실사용자가 늘면 재검토.
+- **대표 사진 업로드**: `CoverPhotoEditor`가 JPG/JPEG·PNG·WebP·HEIC/HEIF 원본을 장당 최대 30MiB까지 받는다. Worker에서 긴 변 최대 2,560px WebP(미지원 시 JPEG)로 최적화하고, 업로드·attach·공개 이미지 로드 확인이 모두 성공한 뒤에만 `hero.content.coverImage`를 바꾼다. 실패 시 기존 사진을 유지하고 재시도·취소를 제공한다. 처리 중/실패 선택이 남아 있으면 저장·공개를 막는다. 서버는 JPEG/PNG/WebP의 크기·MIME·키 소유 경로와 R2 HEAD/Range GET 시그니처를 검사한다. 갤러리 최대 20장(8~12장 권장), 갤러리 파일 업로드·자르기는 후속 범위. 설정·CORS·검증·제한은 `docs/PHOTO_UPLOAD.md` 참고.
 
 ## 프론트엔드 컨벤션 (frontend/)
 

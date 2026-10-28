@@ -2,7 +2,11 @@ package com.invi.api.media;
 
 import java.net.URI;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Condition;
+import org.springframework.context.annotation.ConditionContext;
+import org.springframework.context.annotation.Conditional;
+import org.springframework.core.type.AnnotatedTypeMetadata;
+import org.springframework.util.StringUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -16,15 +20,24 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
  * unmodified once pointed at the account's R2 endpoint (region must be "auto" — R2 has no
  * regions of its own).
  *
- * Beans only materialize when invi.r2.account-id is set (application-local.yml, gitignored,
+ * Beans only materialize when all three invi.r2 credentials are nonblank (application-local.yml, gitignored,
  * or env vars) — same pattern as SecurityConfig's ClientRegistrationRepository check, so the
  * app still boots without real R2 credentials (CI, contextLoads(), a fresh clone before
  * secrets are set up). MediaService takes these as ObjectProvider and throws
  * StorageUnavailableException on actual use instead.
  */
 @Configuration
-@ConditionalOnProperty(prefix = "invi.r2", name = "account-id")
+@Conditional(R2StorageConfig.CredentialsConfigured.class)
 public class R2StorageConfig {
+    // ConditionalOnProperty also matches empty values. Require all credentials to be nonblank.
+    static class CredentialsConfigured implements Condition {
+        @Override
+        public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+            return StringUtils.hasText(context.getEnvironment().getProperty("invi.r2.account-id"))
+                    && StringUtils.hasText(context.getEnvironment().getProperty("invi.r2.access-key-id"))
+                    && StringUtils.hasText(context.getEnvironment().getProperty("invi.r2.secret-access-key"));
+        }
+    }
 
     @Bean
     public S3Presigner r2Presigner(
@@ -58,3 +71,5 @@ public class R2StorageConfig {
         return StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKeyId, secretAccessKey));
     }
 }
+
+
