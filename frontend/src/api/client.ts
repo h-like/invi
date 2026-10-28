@@ -1,4 +1,6 @@
 import { getToken } from '../auth/token'
+import { putPhoto } from '../editor/putPhoto'
+import type { PhotoUploadOptions } from '../editor/coverUpload'
 import type {
   GuestInvitation,
   GuestbookEntryItem,
@@ -91,23 +93,25 @@ export const api = {
   deleteGuestbookEntry: (invitationId: string, entryId: string) =>
     request<void>(`/api/invitations/${invitationId}/guestbook/${entryId}`, { method: 'DELETE' }),
 
-  presignMediaUpload: (invitationId: string, fileName: string, contentType: string, type: MediaType) =>
+  presignMediaUpload: (invitationId: string, fileName: string, contentType: string, type: MediaType, contentLength: number, signal?: AbortSignal) =>
     request<{ uploadUrl: string; r2Key: string; publicUrl: string }>(
       `/api/invitations/${invitationId}/media/presign`,
-      { method: 'POST', body: JSON.stringify({ fileName, contentType, type }) },
+      { method: 'POST', body: JSON.stringify({ fileName, contentType, type, contentLength }), signal },
     ),
 
-  attachMedia: (invitationId: string, r2Key: string, type: MediaType, sortOrder: number) =>
+  attachMedia: (invitationId: string, r2Key: string, type: MediaType, sortOrder: number, signal?: AbortSignal) =>
     request<MediaAsset>(`/api/invitations/${invitationId}/media`, {
       method: 'POST',
       body: JSON.stringify({ r2Key, type, sortOrder }),
+      signal,
     }),
 
   // Uploads go straight from the browser to R2 via the presigned URL — never through our API.
-  uploadImage: async (invitationId: string, file: File, type: MediaType, sortOrder: number): Promise<MediaAsset> => {
-    const { uploadUrl, r2Key } = await api.presignMediaUpload(invitationId, file.name, file.type, type)
-    const putRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-    if (!putRes.ok) throw new ApiError('이미지 업로드에 실패했습니다')
-    return api.attachMedia(invitationId, r2Key, type, sortOrder)
+  uploadImage: async (invitationId: string, file: File, type: MediaType, sortOrder: number, options: PhotoUploadOptions = {}): Promise<MediaAsset> => {
+    options.signal?.throwIfAborted()
+    const { uploadUrl, r2Key } = await api.presignMediaUpload(invitationId, file.name, file.type, type, file.size, options.signal)
+    await putPhoto(uploadUrl, file, options)
+    options.signal?.throwIfAborted()
+    return api.attachMedia(invitationId, r2Key, type, sortOrder, options.signal)
   },
 }

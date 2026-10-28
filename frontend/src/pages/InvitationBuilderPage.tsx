@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
 import { createInvitationPersistence } from '../editor/persistence'
+import { CoverPhotoEditor } from '../editor/CoverPhotoEditor'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
 import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, patchContent, publishIssues, updateBlock } from '../editor/model'
 
@@ -26,6 +27,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const [panel, setPanel] = useState<Panel>('content')
   const [previewOnly, setPreviewOnly] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [photoPending, setPhotoPending] = useState(false)
+  const photoPendingRef = useRef(false)
+  function photoPendingChange(pending: boolean) { photoPendingRef.current = pending; setPhotoPending(pending) }
   const [persistence] = useState(() => createInvitationPersistence(api))
   const [failedAction, setFailedAction] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -48,11 +52,11 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }, [id])
 
   useEffect(() => {
-    if (!unsaved) return
+    if (!unsaved && !photoPending) return
     function warn(event: BeforeUnloadEvent) { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [unsaved])
+  }, [unsaved, photoPending])
 
   useEffect(() => {
     if (shareOpen && dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal()
@@ -60,7 +64,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }, [shareOpen])
 
   function confirmLeave(event: MouseEvent<HTMLAnchorElement>) {
-    if (unsaved && !window.confirm('저장하지 않은 변경 사항이 있습니다. 저장하지 않고 이동할까요?')) event.preventDefault()
+    if ((unsaved || photoPendingRef.current) && !window.confirm('저장하지 않은 변경 사항이나 처리 중인 사진이 있습니다. 저장하지 않고 이동할까요?')) event.preventDefault()
   }
 
   if (!invitation || !draft) return <main className="page">{error ? <><p className="form-error" role="alert">{error}</p><Link to="/invitations">내 청첩장으로</Link></> : '청첩장을 불러오는 중...'}</main>
@@ -106,6 +110,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   async function persist(publish: boolean) {
     if (!invitation || !draft || persistence.isRunning()) return
+    if (photoPendingRef.current) { setError('새 사진의 업로드를 완료하거나 선택을 취소한 뒤 저장·공개해 주세요.'); return }
     setError(null)
     setFailedAction(null)
     setNotice('')
@@ -155,10 +160,10 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       <header className="builder-header">
         <Link className="builder-brand" to="/" onClick={confirmLeave}>invi<span>우리의 시작을 담다</span></Link>
         <div className="builder-header-actions">
-          <span className="save-state" role="status">{busy ? '저장 중...' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
-          <button type="button" className="secondary-button" onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>
-          <button type="button" className="secondary-button" disabled={busy || !unsaved} onClick={() => void persist(false)}>저장</button>
-          <button type="button" className="publish-button" disabled={busy} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
+          <span className="save-state" role="status">{busy ? '저장 중...' : photoPending ? '새 사진 처리 · 확인 필요' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
+          <button type="button" className="secondary-button" disabled={photoPending} onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>
+          <button type="button" className="secondary-button" disabled={busy || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
+          <button type="button" className="publish-button" disabled={busy || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
       {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}</div></div>}
@@ -167,7 +172,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           <div className="builder-intro"><p className="builder-eyebrow">YOUR WEDDING, YOUR MOOD</p><h1>우리다운 초대장</h1><p>하나씩 채우면, 오른쪽에서 바로 완성돼요.</p></div>
           <ol className="builder-steps" aria-label="제작 순서"><li>1 디자인</li><li>2 내용 편집</li><li>3 저장 · 공유</li></ol>
           <nav className="builder-tabs" aria-label="편집 설정">
-            {([['content', '내용'], ['design', '디자인'], ['sections', '섹션 구성']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={panel === value} onClick={() => setPanel(value)}>{label}</button>)}
+            {([['content', '내용'], ['design', '디자인'], ['sections', '섹션 구성']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={panel === value} disabled={photoPending} onClick={() => setPanel(value)}>{label}</button>)}
           </nav>
           <fieldset className="builder-fields" disabled={busy}>
             <legend className="sr-only">청첩장 편집 항목</legend>
@@ -177,8 +182,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 <label>신부 이름<input value={text(hero, 'brideName')} maxLength={50} onChange={e => changeContent(hero, { brideName: e.target.value })} placeholder="신부 이름" /></label>
               </div><div className="form-columns"><label>예식일<input value={invitation.weddingDate} readOnly aria-describedby="date-hint" /></label><label>예식 시간<input type="time" value={text(hero, 'weddingTime')} onChange={e => changeContent(hero, { weddingTime: e.target.value })} /></label></div>
                 <p className="editor-section-hint" id="date-hint">예식일은 청첩장을 만들 때 선택한 날짜입니다.</p>
-                <label>대표 사진 URL<input type="url" value={text(hero, 'coverImage')} onChange={e => changeContent(hero, { coverImage: e.target.value })} placeholder="https://.../photo.jpg" /></label>
-                {text(hero, 'coverImage') && !isImageUrl(text(hero, 'coverImage')) && <p className="form-error">http 또는 https 이미지 주소를 입력해 주세요. 올바른 주소만 표시됩니다.</p>}
+                <CoverPhotoEditor invitationId={invitation.id} currentUrl={isImageUrl(text(hero, 'coverImage')) ? text(hero, 'coverImage') : ''} disabled={busy} onChange={url => changeContent(hero, { coverImage: url })} onPendingChange={photoPendingChange} />
+                <details className="cover-photo-url"><summary>이미지 주소로 직접 입력</summary><label>대표 사진 URL<input type="url" disabled={photoPending} value={text(hero, 'coverImage')} onChange={e => changeContent(hero, { coverImage: e.target.value })} placeholder="https://.../photo.jpg" /></label>
+                {text(hero, 'coverImage') && !isImageUrl(text(hero, 'coverImage')) && <p className="form-error">http 또는 https 이미지 주소를 입력해 주세요. 올바른 주소만 표시됩니다.</p>}</details>
               </section>}
               {hero && <section className="editor-section"><h2>초대의 글</h2><label>인사말<textarea rows={6} maxLength={1500} value={text(hero, 'greeting')} onChange={e => changeContent(hero, { greeting: e.target.value })} placeholder="소중한 분들께 전할 초대의 글을 써 주세요." /></label>
                 <p className="editor-section-hint">샘플 문구를 선택하면 현재 인사말을 바꿉니다.</p><div className="sample-buttons">{GREETING_SAMPLES.map(sample => <button type="button" key={sample.name} onClick={() => { if (!text(hero, 'greeting') || window.confirm('현재 인사말을 샘플 문구로 바꿀까요?')) changeContent(hero, { greeting: sample.text }) }}>{sample.name}</button>)}</div>
@@ -207,13 +213,13 @@ function ImageListEditor({ images, onChange }: { images: string[]; onChange: (im
   const [error, setError] = useState('')
   function addImage() {
     if (!isImageUrl(url.trim())) { setError('http 또는 https 이미지 주소를 입력해 주세요.'); return }
-    if (images.length >= MAX_GALLERY_IMAGES) { setError('사진은 최대 100장까지 추가할 수 있습니다.'); return }
+    if (images.length >= MAX_GALLERY_IMAGES) { setError('사진은 최대 ' + MAX_GALLERY_IMAGES + '장까지 추가할 수 있습니다.'); return }
     onChange([...images, url.trim()]); setUrl(''); setError('')
   }
   function reorder(from: number, to: number) {
     const next = [...images]; const [image] = next.splice(from, 1); next.splice(to, 0, image); onChange(next)
   }
-  return <div className="list-editor"><label>사진 URL<input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://.../photo.jpg" /></label><button type="button" className="secondary-button" onClick={addImage} disabled={images.length >= MAX_GALLERY_IMAGES}>사진 추가</button><p className="editor-section-hint">이미지 주소로 추가할 수 있습니다. 파일 업로드는 R2 연결 후 지원됩니다.</p>{error && <p className="form-error" role="alert">{error}</p>}{images.map((src, index) => <div key={index + '-' + src} className="list-editor-row"><img src={src} alt={'등록한 웨딩 사진 ' + (index + 1)} className="list-editor-thumb" loading="lazy" /><span className="photo-index">{index + 1}</span><button type="button" aria-label={'사진 ' + (index + 1) + ' 위로'} disabled={index === 0} onClick={() => reorder(index, index - 1)}>↑</button><button type="button" aria-label={'사진 ' + (index + 1) + ' 아래로'} disabled={index === images.length - 1} onClick={() => reorder(index, index + 1)}>↓</button><button type="button" aria-label={'사진 ' + (index + 1) + ' 삭제'} onClick={() => onChange(images.filter((_, i) => i !== index))}>삭제</button></div>)}</div>
+  return <div className="list-editor"><label>사진 URL<input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://.../photo.jpg" /></label><button type="button" className="secondary-button" onClick={addImage} disabled={images.length >= MAX_GALLERY_IMAGES}>사진 추가</button><p className="editor-section-hint">8~12장을 권장하며 최대 20장까지 추가할 수 있습니다. 갤러리 파일 업로드는 추후 지원됩니다.</p>{error && <p className="form-error" role="alert">{error}</p>}{images.map((src, index) => <div key={index + '-' + src} className="list-editor-row"><img src={src} alt={'등록한 웨딩 사진 ' + (index + 1)} className="list-editor-thumb" loading="lazy" /><span className="photo-index">{index + 1}</span><button type="button" aria-label={'사진 ' + (index + 1) + ' 위로'} disabled={index === 0} onClick={() => reorder(index, index - 1)}>↑</button><button type="button" aria-label={'사진 ' + (index + 1) + ' 아래로'} disabled={index === images.length - 1} onClick={() => reorder(index, index + 1)}>↓</button><button type="button" aria-label={'사진 ' + (index + 1) + ' 삭제'} onClick={() => onChange(images.filter((_, i) => i !== index))}>삭제</button></div>)}</div>
 }
 
 function AccountRoleEditor({ role, entry, onChange }: { role: AccountRole; entry: AccountEntry; onChange: (patch: Partial<AccountEntry>) => void }) {

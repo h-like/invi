@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --test src/editor/model.test.ts src/editor/persistence.test.ts src/discovery/flow.test.ts",
+    "test": "node --test src/editor/model.test.ts src/editor/persistence.test.ts src/editor/photoPolicy.test.ts src/editor/coverUpload.test.ts src/editor/putPhoto.test.ts src/discovery/flow.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
+    "heic-to": "^1.6.6",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3"
