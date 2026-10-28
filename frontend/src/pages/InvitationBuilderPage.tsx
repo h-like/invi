@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
 import { createInvitationPersistence } from '../editor/persistence'
 import { CoverPhotoEditor } from '../editor/CoverPhotoEditor'
+import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
 import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, patchContent, publishIssues, updateBlock } from '../editor/model'
 
@@ -28,8 +29,12 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const [previewOnly, setPreviewOnly] = useState(false)
   const [busy, setBusy] = useState(false)
   const [photoPending, setPhotoPending] = useState(false)
-  const photoPendingRef = useRef(false)
-  function photoPendingChange(pending: boolean) { photoPendingRef.current = pending; setPhotoPending(pending) }
+  const photoPendingRef = useRef({ cover: false, gallery: false })
+  function photoPendingChange(source: 'cover' | 'gallery', pending: boolean) {
+    photoPendingRef.current[source] = pending
+    setPhotoPending(photoPendingRef.current.cover || photoPendingRef.current.gallery)
+  }
+  function hasPendingPhotos() { return photoPendingRef.current.cover || photoPendingRef.current.gallery }
   const [persistence] = useState(() => createInvitationPersistence(api))
   const [failedAction, setFailedAction] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +69,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }, [shareOpen])
 
   function confirmLeave(event: MouseEvent<HTMLAnchorElement>) {
-    if ((unsaved || photoPendingRef.current) && !window.confirm('저장하지 않은 변경 사항이나 처리 중인 사진이 있습니다. 저장하지 않고 이동할까요?')) event.preventDefault()
+    if ((unsaved || hasPendingPhotos()) && !window.confirm('저장하지 않은 변경 사항이나 처리 중인 사진이 있습니다. 저장하지 않고 이동할까요?')) event.preventDefault()
   }
 
   if (!invitation || !draft) return <main className="page">{error ? <><p className="form-error" role="alert">{error}</p><Link to="/invitations">내 청첩장으로</Link></> : '청첩장을 불러오는 중...'}</main>
@@ -110,7 +115,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   async function persist(publish: boolean) {
     if (!invitation || !draft || persistence.isRunning()) return
-    if (photoPendingRef.current) { setError('새 사진의 업로드를 완료하거나 선택을 취소한 뒤 저장·공개해 주세요.'); return }
+    if (hasPendingPhotos()) { setError('새 사진의 업로드를 완료하거나 실패한 사진을 재시도·삭제한 뒤 저장·공개해 주세요.'); return }
     setError(null)
     setFailedAction(null)
     setNotice('')
@@ -182,7 +187,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 <label>신부 이름<input value={text(hero, 'brideName')} maxLength={50} onChange={e => changeContent(hero, { brideName: e.target.value })} placeholder="신부 이름" /></label>
               </div><div className="form-columns"><label>예식일<input value={invitation.weddingDate} readOnly aria-describedby="date-hint" /></label><label>예식 시간<input type="time" value={text(hero, 'weddingTime')} onChange={e => changeContent(hero, { weddingTime: e.target.value })} /></label></div>
                 <p className="editor-section-hint" id="date-hint">예식일은 청첩장을 만들 때 선택한 날짜입니다.</p>
-                <CoverPhotoEditor invitationId={invitation.id} currentUrl={isImageUrl(text(hero, 'coverImage')) ? text(hero, 'coverImage') : ''} disabled={busy} onChange={url => changeContent(hero, { coverImage: url })} onPendingChange={photoPendingChange} />
+                <CoverPhotoEditor invitationId={invitation.id} currentUrl={isImageUrl(text(hero, 'coverImage')) ? text(hero, 'coverImage') : ''} disabled={busy} onChange={url => changeContent(hero, { coverImage: url })} onPendingChange={pending => photoPendingChange('cover', pending)} />
                 <details className="cover-photo-url"><summary>이미지 주소로 직접 입력</summary><label>대표 사진 URL<input type="url" disabled={photoPending} value={text(hero, 'coverImage')} onChange={e => changeContent(hero, { coverImage: e.target.value })} placeholder="https://.../photo.jpg" /></label>
                 {text(hero, 'coverImage') && !isImageUrl(text(hero, 'coverImage')) && <p className="form-error">http 또는 https 이미지 주소를 입력해 주세요. 올바른 주소만 표시됩니다.</p>}</details>
               </section>}
@@ -190,7 +195,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 <p className="editor-section-hint">샘플 문구를 선택하면 현재 인사말을 바꿉니다.</p><div className="sample-buttons">{GREETING_SAMPLES.map(sample => <button type="button" key={sample.name} onClick={() => { if (!text(hero, 'greeting') || window.confirm('현재 인사말을 샘플 문구로 바꿀까요?')) changeContent(hero, { greeting: sample.text }) }}>{sample.name}</button>)}</div>
               </section>}
               {map && <section className="editor-section"><h2>오시는 길</h2><label>식장 이름<input value={text(map, 'venueName')} maxLength={150} onChange={e => changeContent(map, { venueName: e.target.value })} placeholder="웨딩홀 · 층 · 홀 이름" /></label><label>주소<input value={text(map, 'address')} maxLength={300} onChange={e => changeContent(map, { address: e.target.value })} placeholder="예식장 주소를 직접 입력해 주세요" /></label><label>교통 · 주차 안내<textarea rows={3} maxLength={1500} value={text(map, 'directions')} onChange={e => changeContent(map, { directions: e.target.value })} placeholder="지하철 출구, 셔틀버스, 주차 정보를 안내해 주세요." /></label></section>}
-              {gallery && <section className="editor-section"><h2>웨딩 갤러리 <small>{images.length} / {MAX_GALLERY_IMAGES}</small></h2><label>사진 배치<select value={String(gallery.content.layout ?? 'grid-2')} onChange={e => changeContent(gallery, { layout: e.target.value })}><option value="grid-2">2열 그리드</option><option value="grid-3">3열 그리드</option><option value="slider">가로 슬라이드</option></select></label><ImageListEditor images={images} onChange={next => changeContent(gallery, { images: next })} /></section>}
+              {gallery && <section className="editor-section"><h2>웨딩 갤러리 <small>{images.length} / {MAX_GALLERY_IMAGES}</small></h2><label>사진 배치<select value={String(gallery.content.layout ?? 'grid-2')} onChange={e => changeContent(gallery, { layout: e.target.value })}><option value="grid-2">2열 그리드</option><option value="grid-3">3열 그리드</option><option value="slider">가로 슬라이드</option></select></label><GalleryPhotoEditor invitationId={invitation.id} images={images} disabled={busy} onChange={next => changeContent(gallery, { images: next })} onPendingChange={pending => photoPendingChange('gallery', pending)} /></section>}
               {account && <section className="editor-section"><h2>마음 전하실 곳</h2><p className="editor-section-hint">비워 둔 분은 표시하지 않습니다. 계좌 대신 메시지도 전할 수 있어요.</p>{([['신랑측', GROOM_ROLES], ['신부측', BRIDE_ROLES]] as const).map(([title, roles]) => <div key={title}><p className="editor-section-sub">{title}</p>{roles.map(role => <AccountRoleEditor key={role} role={role} entry={accounts[role]} onChange={patch => updateAccount(role, patch)} />)}</div>)}</section>}
             </>}
             {panel === 'design' && <>
@@ -206,20 +211,6 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       <dialog className="share-dialog" ref={dialogRef} aria-labelledby="share-title" onCancel={() => setShareOpen(false)} onClose={() => setShareOpen(false)}><p className="builder-eyebrow">READY TO SHARE</p><h2 id="share-title">두 사람의 초대장이 완성됐어요.</h2><p>링크를 복사해 소중한 분들께 전해 주세요.</p><label>공개 청첩장 주소<input value={publicUrl} readOnly onFocus={e => e.target.select()} /></label><div className="share-actions"><button type="button" onClick={() => void copyLink()}>링크 복사</button><a className="button-link" href={publicUrl} target="_blank" rel="noreferrer">청첩장 열기</a></div><p role="status" className="editor-section-hint">{copyStatus}</p><button className="secondary-button" type="button" onClick={() => setShareOpen(false)}>편집 계속하기</button></dialog>
     </main>
   )
-}
-
-function ImageListEditor({ images, onChange }: { images: string[]; onChange: (images: string[]) => void }) {
-  const [url, setUrl] = useState('')
-  const [error, setError] = useState('')
-  function addImage() {
-    if (!isImageUrl(url.trim())) { setError('http 또는 https 이미지 주소를 입력해 주세요.'); return }
-    if (images.length >= MAX_GALLERY_IMAGES) { setError('사진은 최대 ' + MAX_GALLERY_IMAGES + '장까지 추가할 수 있습니다.'); return }
-    onChange([...images, url.trim()]); setUrl(''); setError('')
-  }
-  function reorder(from: number, to: number) {
-    const next = [...images]; const [image] = next.splice(from, 1); next.splice(to, 0, image); onChange(next)
-  }
-  return <div className="list-editor"><label>사진 URL<input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://.../photo.jpg" /></label><button type="button" className="secondary-button" onClick={addImage} disabled={images.length >= MAX_GALLERY_IMAGES}>사진 추가</button><p className="editor-section-hint">8~12장을 권장하며 최대 20장까지 추가할 수 있습니다. 갤러리 파일 업로드는 추후 지원됩니다.</p>{error && <p className="form-error" role="alert">{error}</p>}{images.map((src, index) => <div key={index + '-' + src} className="list-editor-row"><img src={src} alt={'등록한 웨딩 사진 ' + (index + 1)} className="list-editor-thumb" loading="lazy" /><span className="photo-index">{index + 1}</span><button type="button" aria-label={'사진 ' + (index + 1) + ' 위로'} disabled={index === 0} onClick={() => reorder(index, index - 1)}>↑</button><button type="button" aria-label={'사진 ' + (index + 1) + ' 아래로'} disabled={index === images.length - 1} onClick={() => reorder(index, index + 1)}>↓</button><button type="button" aria-label={'사진 ' + (index + 1) + ' 삭제'} onClick={() => onChange(images.filter((_, i) => i !== index))}>삭제</button></div>)}</div>
 }
 
 function AccountRoleEditor({ role, entry, onChange }: { role: AccountRole; entry: AccountEntry; onChange: (patch: Partial<AccountEntry>) => void }) {
