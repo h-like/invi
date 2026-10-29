@@ -106,7 +106,8 @@ private JsonNode pageData;
   1. Cloudflare 대시보드에서 R2 버킷 생성, R2 API 토큰(Object Read & Write) 발급 → account-id·access-key-id·secret-access-key 확보.
   2. **버킷 CORS 설정 필수** — 프론트(`http://localhost:5173`)가 presigned URL로 R2에 직접 PUT하므로, 버킷의 CORS 정책에 해당 오리진의 `PUT`을 허용해두지 않으면 브라우저가 요청을 막는다. 배포 후에는 실제 프론트 도메인도 추가해야 한다.
   3. `public-base-url`은 R2 버킷의 공개 접근 방식(R2.dev 서브도메인 또는 커스텀 도메인 연결)에 따라 결정 — 아직 도메인을 안 정했으므로 당장은 R2.dev 공개 URL이나 임시 프록시로 채워두면 된다.
-- **대표 사진 업로드**: `CoverPhotoEditor`가 JPG/JPEG·PNG·WebP·HEIC/HEIF 원본을 장당 최대 30MiB까지 받는다. Worker에서 긴 변 최대 2,560px WebP(미지원 시 JPEG)로 최적화하고, 업로드·attach·공개 이미지 로드 확인이 모두 성공한 뒤에만 `hero.content.coverImage`를 바꾼다. 실패 시 기존 사진을 유지하고 재시도·취소를 제공한다. 처리 중/실패 선택이 남아 있으면 저장·공개를 막는다. 서버는 JPEG/PNG/WebP의 크기·MIME·키 소유 경로와 R2 HEAD/Range GET 시그니처를 검사한다. 갤러리 최대 20장(8~12장 권장), 갤러리 파일 업로드·자르기는 후속 범위. 설정·CORS·검증·제한은 `docs/PHOTO_UPLOAD.md` 참고.
+- **대표 사진 업로드**: `CoverPhotoEditor`가 JPG/JPEG·PNG·WebP·HEIC/HEIF 원본을 장당 최대 30MiB까지 받는다. Worker에서 긴 변 최대 2,560px WebP(미지원 시 JPEG)로 최적화하고, 업로드·attach·공개 이미지 로드 확인이 모두 성공한 뒤에만 `hero.content.coverImage`를 바꾼다. 실패 시 기존 사진을 유지하고 재시도·취소를 제공한다. 처리 중/실패 선택이 남아 있으면 저장·공개를 막는다. 서버는 JPEG/PNG/WebP의 크기·MIME·키 소유 경로와 R2 HEAD/Range GET 시그니처를 검사한다. 갤러리는 최대 20장(8~12장 권장) 순차 다중 업로드·사진별 진행·실패 항목만 재시도·정렬·삭제를 지원하며 자르기는 제외한다. 설정·CORS·검증·제한은 `docs/PHOTO_UPLOAD.md` 참고.
+- **R2 잔여 파일 정리**: `tracked_media_object`로 presign/기존 객체를 추적한다. 저장된 모든 청첩장 상태·숨김·언어·미래 필드·템플릿 참조를 보호하고 기본 7일 유예를 둔다. 실제 삭제는 기본 비활성/점검 모드다. 참조를 쓰는 새 경로는 트랜잭션 시작 시 `MediaLifecycle.lock()`으로 공통 PostgreSQL 잠금을 잡고 `referencesChanged`/`assertUsable` 검사를 해야 한다. 삭제는 먼저 DELETING을 커밋하고 조건부 삭제 안전 검증 후 ETag 조건으로 진행하며 불확실한 실패에도 재참조 차단을 유지한다. 기존 DELETE API는 즉시 삭제가 아닌 202 예약이다. 자세한 설정·조건부 삭제 호환 한계·검증 상태는 `docs/MEDIA_CLEANUP.md` 참고.
 
 ## 프론트엔드 컨벤션 (frontend/)
 

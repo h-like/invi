@@ -6,8 +6,10 @@ import com.invi.api.common.StorageUnavailableException;
 import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
 import java.net.URI;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,7 +19,6 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
@@ -42,6 +43,9 @@ public class MediaService {
     private final InvitationRepository invitationRepository;
     private final ObjectProvider<S3Presigner> presignerProvider;
     private final ObjectProvider<S3Client> s3ClientProvider;
+    private final MediaLifecycle lifecycle;
+    private final MediaCleanupService cleanupService;
+    private final Clock clock;
     private final String bucket;
     private final String publicBaseUrl;
 
@@ -50,17 +54,25 @@ public class MediaService {
             InvitationRepository invitationRepository,
             ObjectProvider<S3Presigner> presignerProvider,
             ObjectProvider<S3Client> s3ClientProvider,
+            MediaLifecycle lifecycle,
+            MediaCleanupService cleanupService,
+            Clock clock,
             @Value("${invi.r2.bucket:invi-media}") String bucket,
             @Value("${invi.r2.public-base-url:}") String publicBaseUrl) {
         this.mediaAssetRepository = mediaAssetRepository;
         this.invitationRepository = invitationRepository;
         this.presignerProvider = presignerProvider;
         this.s3ClientProvider = s3ClientProvider;
+        this.lifecycle = lifecycle;
+        this.cleanupService = cleanupService;
+        this.clock = clock;
         this.bucket = bucket;
         this.publicBaseUrl = publicBaseUrl;
     }
 
+    @Transactional
     public PresignUploadResponse presignUpload(UUID memberId, UUID invitationId, PresignUploadRequest request) {
+        lifecycle.lock();
         getOwnedOrThrow(memberId, invitationId);
         String extension = extensionFor(request.contentType());
         if (request.contentLength() == null || request.contentLength() <= 0
@@ -88,15 +100,19 @@ public class MediaService {
                         .build();
 
         PresignedPutObjectRequest presigned = presigner.presignPutObject(presignRequest);
+        lifecycle.issued(key, clock.instant().plus(UPLOAD_URL_TTL));
         return new PresignUploadResponse(presigned.url().toString(), key, publicUrl(key));
     }
 
     @Transactional
     public MediaAssetDto attach(UUID memberId, UUID invitationId, AttachMediaRequest request) {
+        lifecycle.lock();
         Invitation invitation = getOwnedOrThrow(memberId, invitationId);
         String expectedContentType = contentTypeForKey(invitationId, request.r2Key());
         requirePublicBaseUrl();
+        lifecycle.assertUsable(Set.of(request.r2Key()));
         verifyUploadedObject(request.r2Key(), expectedContentType);
+        lifecycle.attached(request.r2Key());
         MediaAsset asset =
                 MediaAsset.builder()
                         .invitation(invitation)
@@ -114,8 +130,14 @@ public class MediaService {
                 .toList();
     }
 
+    public MediaCleanupReport previewCleanup(UUID memberId, UUID invitationId) {
+        getOwnedOrThrow(memberId, invitationId);
+        return cleanupService.preview(invitationId);
+    }
+
     @Transactional
     public void delete(UUID memberId, UUID invitationId, UUID mediaId) {
+        lifecycle.lock();
         getOwnedOrThrow(memberId, invitationId);
         MediaAsset asset =
                 mediaAssetRepository
@@ -125,11 +147,7 @@ public class MediaService {
             throw new NotFoundException("이미지를 찾을 수 없습니다: " + mediaId);
         }
 
-        S3Client s3Client = s3ClientProvider.getIfAvailable();
-        if (s3Client != null) {
-            s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(asset.getR2Key()).build());
-        }
-        mediaAssetRepository.delete(asset);
+        lifecycle.requestDeletion(asset.getR2Key());
     }
 
     private Invitation getOwnedOrThrow(UUID memberId, UUID invitationId) {
@@ -201,7 +219,7 @@ public class MediaService {
                 throw badRequest("업로드된 이미지 형식이 발급된 키와 일치하지 않습니다.");
             }
             // Bounded magic-byte check only, not a full decoder or malware scan.
-            // Keys are namespace-validated, not persisted presign receipts. A still-valid PUT URL
+            // Keys are namespace-validated and lifecycle-tracked. A still-valid PUT URL
             // can overwrite the object after attach; immutable promotion needs a separate flow.
             // If-Match ensures these bytes correspond to the HEAD metadata.
             byte[] header = client.getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(key)
