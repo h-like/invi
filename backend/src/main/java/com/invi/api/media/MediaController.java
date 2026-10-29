@@ -46,8 +46,13 @@ public class MediaController {
         return mediaService.list(currentMember.requireId(authentication), invitationId);
     }
 
+    @PostMapping("/cleanup-preview")
+    public MediaCleanupReport previewCleanup(Authentication authentication, @PathVariable UUID invitationId) {
+        return mediaService.previewCleanup(currentMember.requireId(authentication), invitationId);
+    }
+
     @DeleteMapping("/{mediaId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public void delete(Authentication authentication, @PathVariable UUID invitationId, @PathVariable UUID mediaId) {
         mediaService.delete(currentMember.requireId(authentication), invitationId, mediaId);
     }

@@ -2,11 +2,16 @@ package com.invi.api.template;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.invi.api.media.MediaLifecycle;
+import com.invi.api.media.MediaReferences;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Seeds the initial 4 templates (기획서 3번: 초기 4종) on first boot. Same block
@@ -19,6 +24,7 @@ public class TemplateSeeder implements CommandLineRunner {
 
     private final TemplateRepository templateRepository;
     private final ObjectMapper objectMapper;
+    private final MediaLifecycle lifecycle;
 
     private record Preset(String name, String category, String fontFamily, String bgColor, String accentColor) {}
 
@@ -30,7 +36,9 @@ public class TemplateSeeder implements CommandLineRunner {
                     new Preset("모던", "modern", "pretendard", "#141414", "#4fd1c5"));
 
     @Override
+    @Transactional
     public void run(String... args) {
+        lifecycle.lock();
         if (templateRepository.count() > 0) {
             return;
         }
@@ -41,6 +49,9 @@ public class TemplateSeeder implements CommandLineRunner {
                             .category(preset.category())
                             .defaultPageData(buildPageData(preset))
                             .build();
+            Set<String> keys = new HashSet<>(MediaReferences.extract(template.getDefaultPageData()));
+            keys.addAll(MediaReferences.extractText(template.getThumbnailUrl()));
+            lifecycle.referencesChanged(Set.of(), keys);
             templateRepository.save(template);
         }
     }

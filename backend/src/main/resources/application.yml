@@ -51,3 +51,13 @@ invi:
     # (INVI_R2_ACCOUNT_ID / INVI_R2_ACCESS_KEY_ID / INVI_R2_SECRET_ACCESS_KEY).
     bucket: ${R2_BUCKET:invi-media}
     public-base-url: ${R2_PUBLIC_BASE_URL:}
+
+    cleanup:
+      # Tracking/reference guards always run; automatic sweeps are opt-in.
+      enabled: ${R2_CLEANUP_ENABLED:false}
+      dry-run: ${R2_CLEANUP_DRY_RUN:true}
+      grace-period: ${R2_CLEANUP_GRACE_PERIOD:P7D}
+      interval: PT1H
+      initial-delay: PT5M
+      max-objects: 10000
+      batch-size: 100

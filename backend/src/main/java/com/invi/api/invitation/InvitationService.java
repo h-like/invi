@@ -8,9 +8,13 @@ import com.invi.api.account.MemberRepository;
 import com.invi.api.common.ConflictException;
 import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
+import com.invi.api.media.MediaLifecycle;
+import com.invi.api.media.MediaReferences;
 import com.invi.api.template.Template;
 import com.invi.api.template.TemplateRepository;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,9 +30,11 @@ public class InvitationService {
 
     /** Jackson 2 — matches Hibernate's JSON column mapping. See JacksonConfig. */
     private final ObjectMapper entityJsonMapper;
+    private final MediaLifecycle lifecycle;
 
     @Transactional
     public InvitationDto create(UUID memberId, CreateInvitationRequest request) {
+        lifecycle.lock();
         if (invitationRepository.existsBySlug(request.slug())) {
             throw new ConflictException("이미 사용 중인 슬러그입니다: " + request.slug());
         }
@@ -51,6 +57,7 @@ public class InvitationService {
                         .pageData(template.getDefaultPageData() != null ? template.getDefaultPageData().deepCopy() : null)
                         .build();
 
+        lifecycle.referencesChanged(Set.of(), MediaReferences.extract(invitation.getPageData()));
         return toDto(invitationRepository.save(invitation));
     }
 
@@ -85,8 +92,16 @@ public class InvitationService {
 
     @Transactional
     public InvitationDto updatePageData(UUID memberId, UUID id, tools.jackson.databind.JsonNode pageData) {
+        lifecycle.lock();
         Invitation invitation = getOwnedOrThrow(memberId, id);
-        invitation.updatePageData(toEntityJson(pageData));
+        JsonNode nextPageData = toEntityJson(pageData);
+        Set<String> languageKeys = MediaReferences.extract(invitation.getLangVariants());
+        Set<String> before = new HashSet<>(MediaReferences.extract(invitation.getPageData()));
+        before.addAll(languageKeys);
+        Set<String> after = new HashSet<>(MediaReferences.extract(nextPageData));
+        after.addAll(languageKeys);
+        lifecycle.referencesChanged(before, after);
+        invitation.updatePageData(nextPageData);
         return toDto(invitation);
     }
 
@@ -101,7 +116,11 @@ public class InvitationService {
 
     @Transactional
     public InvitationDto publish(UUID memberId, UUID id) {
+        lifecycle.lock();
         Invitation invitation = getOwnedOrThrow(memberId, id);
+        Set<String> keys = new HashSet<>(MediaReferences.extract(invitation.getPageData()));
+        keys.addAll(MediaReferences.extract(invitation.getLangVariants()));
+        lifecycle.assertUsable(keys);
         invitation.publish();
         return toDto(invitation);
     }

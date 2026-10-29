@@ -3,14 +3,17 @@ package com.invi.api.media;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.invi.api.account.AuthProvider;
 import com.invi.api.account.Member;
+import com.invi.api.common.ConflictException;
 import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
 import com.invi.api.common.StorageUnavailableException;
@@ -19,15 +22,21 @@ import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -55,6 +64,10 @@ class MediaServiceTest {
     @Mock private ObjectProvider<S3Client> s3ClientProvider;
     @Mock private S3Presigner s3Presigner;
     @Mock private S3Client s3Client;
+    @Mock private MediaLifecycle lifecycle;
+    @Mock private MediaCleanupService cleanupService;
+
+    private final Clock clock = Clock.fixed(Instant.parse("2026-10-28T08:00:00Z"), ZoneOffset.UTC);
 
     private MediaService mediaService;
 
@@ -66,6 +79,9 @@ class MediaServiceTest {
                         invitationRepository,
                         presignerProvider,
                         s3ClientProvider,
+                        lifecycle,
+                        cleanupService,
+                        clock,
                         "invi-media",
                         "https://media.example.com");
     }
@@ -131,7 +147,11 @@ class MediaServiceTest {
                         ownerId, invitationId, new PresignUploadRequest("photo.svg/../../evil", "image/jpeg", MediaType.GALLERY, 1024L));
 
         ArgumentCaptor<PutObjectPresignRequest> signed = ArgumentCaptor.forClass(PutObjectPresignRequest.class);
-        verify(s3Presigner).presignPutObject(signed.capture());
+        InOrder order = inOrder(lifecycle, invitationRepository, s3Presigner);
+        order.verify(lifecycle).lock();
+        order.verify(invitationRepository).findById(invitationId);
+        order.verify(s3Presigner).presignPutObject(signed.capture());
+        order.verify(lifecycle).issued(response.r2Key(), clock.instant().plus(Duration.ofMinutes(5)));
         assertThat(signed.getValue().putObjectRequest().contentLength()).isEqualTo(1024L);
         assertThat(signed.getValue().putObjectRequest().contentType()).isEqualTo("image/jpeg");
         assertThat(response.uploadUrl()).isEqualTo("https://r2.example.com/invi-media/some-key?sig=abc");
@@ -168,6 +188,14 @@ class MediaServiceTest {
         verify(s3Client).getObjectAsBytes(get.capture());
         assertThat(get.getValue().range()).isEqualTo("bytes=0-11");
         assertThat(get.getValue().ifMatch()).isEqualTo("etag");
+        InOrder order = inOrder(lifecycle, invitationRepository, s3Client, mediaAssetRepository);
+        order.verify(lifecycle).lock();
+        order.verify(invitationRepository).findById(invitationId);
+        order.verify(lifecycle).assertUsable(Set.of(key));
+        order.verify(s3Client).headObject(any(HeadObjectRequest.class));
+        order.verify(s3Client).getObjectAsBytes(any(GetObjectRequest.class));
+        order.verify(lifecycle).attached(key);
+        order.verify(mediaAssetRepository).save(any(MediaAsset.class));
     }
 
     @Test
@@ -186,7 +214,7 @@ class MediaServiceTest {
     }
 
     @Test
-    void delete_removesAssetAndCallsS3_whenS3ClientAvailable() {
+    void delete_requestsDeferredDeletion_withoutDeletingStorageOrAsset() {
         UUID ownerId = UUID.randomUUID();
         UUID invitationId = UUID.randomUUID();
         UUID mediaId = UUID.randomUUID();
@@ -194,16 +222,21 @@ class MediaServiceTest {
         MediaAsset asset = MediaAsset.builder().invitation(invitation).r2Key("k").type(MediaType.GALLERY).build();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
         when(mediaAssetRepository.findById(mediaId)).thenReturn(Optional.of(asset));
-        when(s3ClientProvider.getIfAvailable()).thenReturn(s3Client);
 
         mediaService.delete(ownerId, invitationId, mediaId);
 
-        verify(s3Client, times(1)).deleteObject(any(DeleteObjectRequest.class));
-        verify(mediaAssetRepository).delete(asset);
+        InOrder order = inOrder(lifecycle, invitationRepository, mediaAssetRepository);
+        order.verify(lifecycle).lock();
+        order.verify(invitationRepository).findById(invitationId);
+        order.verify(mediaAssetRepository).findById(mediaId);
+        order.verify(lifecycle).requestDeletion("k");
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+        verify(mediaAssetRepository, never()).delete(any(MediaAsset.class));
+        verifyNoInteractions(s3ClientProvider);
     }
 
     @Test
-    void delete_skipsS3Call_whenS3ClientNotConfigured() {
+    void delete_requestsDeferredDeletion_withoutResolvingS3Client() {
         UUID ownerId = UUID.randomUUID();
         UUID invitationId = UUID.randomUUID();
         UUID mediaId = UUID.randomUUID();
@@ -211,12 +244,13 @@ class MediaServiceTest {
         MediaAsset asset = MediaAsset.builder().invitation(invitation).r2Key("k").type(MediaType.GALLERY).build();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
         when(mediaAssetRepository.findById(mediaId)).thenReturn(Optional.of(asset));
-        when(s3ClientProvider.getIfAvailable()).thenReturn(null);
 
         mediaService.delete(ownerId, invitationId, mediaId);
 
+        verify(lifecycle).requestDeletion("k");
         verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
-        verify(mediaAssetRepository).delete(asset);
+        verify(mediaAssetRepository, never()).delete(any(MediaAsset.class));
+        verifyNoInteractions(s3ClientProvider);
     }
 
     @Test
@@ -233,6 +267,9 @@ class MediaServiceTest {
 
         assertThatThrownBy(() -> mediaService.delete(ownerId, otherInvitationId, mediaId))
                 .isInstanceOf(NotFoundException.class);
+        verify(lifecycle, never()).requestDeletion(any());
+        verify(mediaAssetRepository, never()).delete(any(MediaAsset.class));
+        verifyNoInteractions(s3ClientProvider, s3Client);
     }
     private final UUID validationOwner = UUID.randomUUID();
     private final UUID validationInvitation = UUID.randomUUID();
@@ -250,6 +287,8 @@ class MediaServiceTest {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(ResponseStatusException.class,
                 ex -> assertThat(ex.getStatusCode().value()).isEqualTo(400));
         verify(mediaAssetRepository, never()).save(any());
+        verify(lifecycle, never()).attached(any());
+        verify(lifecycle, never()).issued(any(), any());
     }
 
     @Test
@@ -280,7 +319,7 @@ class MediaServiceTest {
     void presign_rejectsInvalidPublicUrl(String baseUrl) {
         givenOwnedInvitation();
         MediaService service = new MediaService(mediaAssetRepository, invitationRepository,
-                presignerProvider, s3ClientProvider, "invi-media", baseUrl);
+                presignerProvider, s3ClientProvider, lifecycle, cleanupService, clock, "invi-media", baseUrl);
         assertThatThrownBy(() -> service.presignUpload(validationOwner, validationInvitation,
                 new PresignUploadRequest("x", "image/jpeg", MediaType.COVER, 1L)))
                 .isInstanceOf(StorageUnavailableException.class);
@@ -411,5 +450,143 @@ class MediaServiceTest {
             assertThat(response.r2Key()).endsWith(".webp");
             assertThat(response.uploadUrl()).contains("content-length").contains("content-type");
         }
+    }
+
+    @Test
+    void presign_doesNotRecordIssuedKey_whenSignerFails() {
+        givenOwnedInvitation();
+        when(presignerProvider.getIfAvailable()).thenReturn(s3Presigner);
+        SdkClientException failure = SdkClientException.create("signing failed");
+        when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class))).thenThrow(failure);
+
+        assertThatThrownBy(() -> mediaService.presignUpload(validationOwner, validationInvitation,
+                new PresignUploadRequest("photo.jpg", "image/jpeg", MediaType.COVER, 1024L)))
+                .isSameAs(failure);
+
+        verify(lifecycle).lock();
+        verify(lifecycle, never()).issued(any(), any());
+    }
+
+    @Test
+    void attach_lifecycleRefusalBlocksReuseBeforeStorageVerification() {
+        givenOwnedInvitation();
+        String key = validKey();
+        ConflictException refusal = new ConflictException("image is deleting or deleted");
+        doThrow(refusal).when(lifecycle).assertUsable(Set.of(key));
+
+        assertThatThrownBy(() -> mediaService.attach(validationOwner, validationInvitation,
+                new AttachMediaRequest(key, MediaType.COVER, 0))).isSameAs(refusal);
+
+        verify(lifecycle, never()).attached(any());
+        verifyNoInteractions(s3ClientProvider, s3Client, mediaAssetRepository);
+    }
+
+    @Test
+    void attach_doesNotSaveAsset_whenLifecycleRejectsAttachment() {
+        givenOwnedInvitation();
+        String key = validKey();
+        when(s3ClientProvider.getIfAvailable()).thenReturn(s3Client);
+        when(s3Client.headObject(any(HeadObjectRequest.class)))
+                .thenReturn(HeadObjectResponse.builder().contentLength(3L).contentType("image/jpeg").eTag("etag").build());
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(),
+                        new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff}));
+        ConflictException refusal = new ConflictException("image cannot be attached");
+        doThrow(refusal).when(lifecycle).attached(key);
+
+        assertThatThrownBy(() -> mediaService.attach(validationOwner, validationInvitation,
+                new AttachMediaRequest(key, MediaType.COVER, 0))).isSameAs(refusal);
+
+        verify(mediaAssetRepository, never()).save(any());
+    }
+
+    @Test
+    void delete_lifecycleRefusalNeverDeletesStorageOrAsset() {
+        givenOwnedInvitation();
+        UUID mediaId = UUID.randomUUID();
+        MediaAsset asset = MediaAsset.builder()
+                .invitation(ownedInvitation(validationOwner, validationInvitation))
+                .r2Key("k").type(MediaType.GALLERY).build();
+        when(mediaAssetRepository.findById(mediaId)).thenReturn(Optional.of(asset));
+        ConflictException refusal = new ConflictException("image is referenced");
+        doThrow(refusal).when(lifecycle).requestDeletion("k");
+
+        assertThatThrownBy(() -> mediaService.delete(validationOwner, validationInvitation, mediaId))
+                .isSameAs(refusal);
+
+        verify(lifecycle).requestDeletion("k");
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+        verify(mediaAssetRepository, never()).delete(any(MediaAsset.class));
+        verifyNoInteractions(s3ClientProvider);
+    }
+
+    @Test
+    void delete_rejectsNonOwnerBeforeAssetLookup() {
+        when(invitationRepository.findById(validationInvitation))
+                .thenReturn(Optional.of(ownedInvitation(UUID.randomUUID(), validationInvitation)));
+
+        assertThatThrownBy(() -> mediaService.delete(validationOwner, validationInvitation, UUID.randomUUID()))
+                .isInstanceOf(ForbiddenException.class);
+
+        verify(lifecycle, never()).requestDeletion(any());
+        verifyNoInteractions(mediaAssetRepository, s3ClientProvider, s3Client);
+    }
+
+    @Test
+    void previewCleanup_rejectsNonOwnerWithoutCallingCleanupService() {
+        when(invitationRepository.findById(validationInvitation))
+                .thenReturn(Optional.of(ownedInvitation(UUID.randomUUID(), validationInvitation)));
+
+        assertThatThrownBy(() -> mediaService.previewCleanup(validationOwner, validationInvitation))
+                .isInstanceOf(ForbiddenException.class);
+
+        verifyNoInteractions(cleanupService, lifecycle, s3ClientProvider, s3Client);
+    }
+
+    @Test
+    void previewCleanup_rejectsMissingInvitationWithoutCallingCleanupService() {
+        when(invitationRepository.findById(validationInvitation)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> mediaService.previewCleanup(validationOwner, validationInvitation))
+                .isInstanceOf(NotFoundException.class);
+
+        verifyNoInteractions(cleanupService, lifecycle, s3ClientProvider, s3Client);
+    }
+
+    @Test
+    void previewCleanup_delegatesOwnerScopedDryRun() {
+        givenOwnedInvitation();
+        MediaCleanupReport report = new MediaCleanupReport(true, 168L, 3, 0, 3, 1, 1, 1, 0, 0, 0);
+        when(cleanupService.preview(validationInvitation)).thenReturn(report);
+
+        MediaCleanupReport result = mediaService.previewCleanup(validationOwner, validationInvitation);
+
+        assertThat(result).isSameAs(report);
+        assertThat(result.dryRun()).isTrue();
+        InOrder order = inOrder(invitationRepository, cleanupService);
+        order.verify(invitationRepository).findById(validationInvitation);
+        order.verify(cleanupService).preview(validationInvitation);
+        verifyNoInteractions(lifecycle, s3ClientProvider, s3Client, mediaAssetRepository);
+    }
+
+    @Test
+    void mutationLockRefusalStopsPresignAttachAndDeleteBeforeOwnershipLookup() {
+        ConflictException refusal = new ConflictException("media mutation lock unavailable");
+        doThrow(refusal).when(lifecycle).lock();
+
+        assertThatThrownBy(() -> mediaService.presignUpload(validationOwner, validationInvitation,
+                new PresignUploadRequest("photo.jpg", "image/jpeg", MediaType.COVER, 1024L)))
+                .isSameAs(refusal);
+        assertThatThrownBy(() -> mediaService.attach(validationOwner, validationInvitation,
+                new AttachMediaRequest(validKey(), MediaType.COVER, 0))).isSameAs(refusal);
+        assertThatThrownBy(() -> mediaService.delete(validationOwner, validationInvitation, UUID.randomUUID()))
+                .isSameAs(refusal);
+
+        verifyNoInteractions(invitationRepository, mediaAssetRepository, presignerProvider, s3Presigner,
+                s3ClientProvider, s3Client, cleanupService);
+        verify(lifecycle, never()).issued(any(), any());
+        verify(lifecycle, never()).assertUsable(any());
+        verify(lifecycle, never()).attached(any());
+        verify(lifecycle, never()).requestDeletion(any());
     }
 }
