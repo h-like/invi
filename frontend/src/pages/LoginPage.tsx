@@ -1,18 +1,22 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
+import { resolveRegistrationEnabled, resolveSocialLoginEnabled } from '../api/config'
 import { useAuth } from '../auth/AuthContext'
 import { rememberReturnTo, safeReturnTo, takeReturnTo } from '../auth/returnTo'
 import { SiteHeader } from '../discovery/SiteHeader'
 import '../discovery/flow.css'
 
 const mobilePhotoCheck = import.meta.env.MODE === 'mobile'
+const registrationEnabled = resolveRegistrationEnabled(import.meta.env.VITE_REGISTRATION_ENABLED)
+const socialLoginEnabled = resolveSocialLoginEnabled(import.meta.env.MODE, import.meta.env.VITE_SOCIAL_LOGIN_ENABLED)
 
 export function LoginPage() {
   const [params] = useSearchParams()
   const returnTo = safeReturnTo(params.get('returnTo'))
   const { member, loading, completeLogin, loginWithKakao, loginWithGoogle } = useAuth()
-  const [registering, setRegistering] = useState(false)
+  const [registrationRequested, setRegistering] = useState(false)
+  const registering = registrationEnabled && registrationRequested
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -64,10 +68,14 @@ export function LoginPage() {
               {registering && <label>비밀번호 확인<input type="password" autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required maxLength={64} /></label>}
               {error && <p className="form-error" role="alert">{error}</p>}
               <button className="discovery-button flow-full" type="submit">{submitting ? '처리 중...' : registering ? '회원가입하고 계속하기' : '로그인하고 계속하기'}</button>
-              <button type="button" className="flow-text-button" onClick={() => { setRegistering(!registering); setError(null); setPassword(''); setConfirmation('') }}>{registering ? '이미 계정이 있나요? 로그인' : '처음 오셨나요? 회원가입'}</button>
+              {registrationEnabled && <button type="button" className="flow-text-button" onClick={() => { setRegistering(!registering); setError(null); setPassword(''); setConfirmation('') }}>{registering ? '이미 계정이 있나요? 로그인' : '처음 오셨나요? 회원가입'}</button>}
             </fieldset>
           </form>
-          {mobilePhotoCheck ? <p className="editor-section-hint">휴대폰 Wi-Fi 테스트에서는 이메일 계정으로 로그인해 주세요. 소셜 로그인은 기본 로컬 실행 모드에서 확인합니다.</p> : <>
+          {!socialLoginEnabled ? <p className="editor-section-hint">{mobilePhotoCheck
+            ? '휴대폰 Wi-Fi 테스트에서는 이메일 계정으로 로그인해 주세요. 소셜 로그인은 기본 로컬 실행 모드에서 확인합니다.'
+            : registrationEnabled
+              ? '이 테스트 환경에서는 이메일 계정으로 로그인해 주세요. 소셜 로그인은 비활성화되어 있습니다.'
+              : '이 테스트 배포는 신규 가입을 받지 않습니다. 제공된 테스트 계정으로 로그인해 주세요.'}</p> : <>
             <div className="auth-divider">또는 소셜 계정으로</div>
             <div className="flow-social">
               <button type="button" className="login-kakao" disabled={submitting} onClick={() => socialLogin(loginWithKakao)}>카카오로 시작하기</button>

@@ -1,0 +1,87 @@
+# Public defaults only. Inject all TEST_* / JWT / R2 secrets at runtime, never during build.
+spring:
+  datasource:
+    url: ${TEST_DATABASE_JDBC_URL}
+    username: ${TEST_DATABASE_USERNAME}
+    password: ${TEST_DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 0
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+      # Only a fresh, isolated test DB. Production schema migration is a separate decision.
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-cache: true
+
+server:
+  # A packaged app inside an isolated hosting container, not a public development server.
+  address: 0.0.0.0
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 20
+      min-spare: 2
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: text/html,text/css,text/javascript,application/javascript,image/svg+xml
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+
+invi:
+  auth:
+    registration-enabled: false
+    social-login-enabled: false
+  https-test:
+    owner:
+      email: ${TEST_OWNER_EMAIL}
+      password: ${TEST_OWNER_PASSWORD}
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-minutes: 1440
+  frontend:
+    # Render supplies its assigned HTTPS URL; other hosts must set APP_PUBLIC_ORIGIN.
+    base-url: ${APP_PUBLIC_ORIGIN:${RENDER_EXTERNAL_URL:}}
+  r2:
+    account-id: ${INVI_R2_ACCOUNT_ID}
+    access-key-id: ${INVI_R2_ACCESS_KEY_ID}
+    secret-access-key: ${INVI_R2_SECRET_ACCESS_KEY}
+    bucket: ${TEST_R2_BUCKET}
+    public-base-url: ${TEST_R2_PUBLIC_BASE_URL}
+    cleanup:
+      # Never inventory/delete a local or production bucket from a new test database.
+      enabled: false
+      dry-run: true
+
+logging:
+  level:
+    org.hibernate.SQL: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"

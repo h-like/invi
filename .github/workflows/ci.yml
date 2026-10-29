@@ -45,6 +45,23 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
-      - name: Typecheck & build
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+      - name: Typecheck & build default mode
         working-directory: frontend
         run: npm run build
+      - name: Build same-origin HTTPS test mode
+        working-directory: frontend
+        run: npm run build:https-test
+
+  https-test-image:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build packaged HTTPS test image without deployment secrets
+        run: docker build --tag invi-https-test:ci .
