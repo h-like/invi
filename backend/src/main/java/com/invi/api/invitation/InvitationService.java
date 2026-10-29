@@ -14,6 +14,7 @@ import com.invi.api.template.Template;
 import com.invi.api.template.TemplateRepository;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -84,6 +85,14 @@ public class InvitationService {
                 invitation.getWeddingDate(),
                 toRawJson(invitation.getPageData()),
                 toRawJson(invitation.getLangVariants()));
+    }
+
+    /** Empty for drafts and unknown slugs, so a preview never reveals an unpublished page. */
+    public Optional<LinkPreview> findPublishedPreview(String slug, String imageBaseUrl) {
+        return invitationRepository
+                .findBySlug(slug)
+                .filter(i -> i.getStatus() == InvitationStatus.PUBLISHED)
+                .map(i -> LinkPreview.of(i, imageBaseUrl));
     }
 
     public boolean isSlugAvailable(String slug) {
