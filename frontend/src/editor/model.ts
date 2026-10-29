@@ -1,10 +1,16 @@
-import type { Block, BlockType, PageData, PageDesign } from '../api/types.ts'
+import type { Block, BlockType, HeroLayout, PageData, PageDesign } from '../api/types.ts'
 import themes from './themes.json' with { type: 'json' }
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
   hero: '첫 화면 · 초대의 글', countdown: '예식일 카운트다운', gallery: '웨딩 갤러리',
   map: '오시는 길', account: '마음 전하실 곳', rsvp: '참석 확인', guestbook: '방명록',
 }
+
+export const HERO_LAYOUTS: { value: HeroLayout; label: string }[] = [
+  { value: 'frame', label: '종이 프레임' },
+  { value: 'photo-full', label: '사진 가득' },
+  { value: 'typographic', label: '큰 이름 타이포' },
+]
 
 export interface DesignPreset { code: string; name: string; description: string; design: PageDesign }
 
@@ -42,6 +48,8 @@ export function getPageDesign(page: PageData | null): PageDesign {
     accentColor: color(raw?.accentColor, color(heroStyle.accentColor, inherited.accentColor)),
     fontFamily: raw?.fontFamily === 'sans' || raw?.fontFamily === 'serif' ? raw.fontFamily : heroStyle.fontFamily === 'pretendard' ? 'sans' : inherited.fontFamily,
     fontSize: raw?.fontSize === 'large' || raw?.fontSize === 'larger' ? raw.fontSize : 'normal',
+    // Pages saved before heroLayout existed keep the layout they were designed with.
+    heroLayout: HERO_LAYOUTS.find(l => l.value === raw?.heroLayout)?.value ?? 'frame',
   }
 }
 

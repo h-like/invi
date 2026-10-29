@@ -20,6 +20,7 @@ export interface Block {
 export type DesignTheme = string
 export type InvitationFont = 'serif' | 'sans'
 export type InvitationFontSize = 'normal' | 'large' | 'larger'
+export type HeroLayout = 'frame' | 'photo-full' | 'typographic'
 
 export interface PageDesign {
   theme: DesignTheme
@@ -27,6 +28,7 @@ export interface PageDesign {
   accentColor: string
   fontFamily: InvitationFont
   fontSize: InvitationFontSize
+  heroLayout: HeroLayout
 }
 
 export interface PageData {

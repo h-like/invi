@@ -38,7 +38,7 @@ export function PageRenderer({ pageData, weddingDate, invitationId, interactive 
         const block = { ...original, style: { ...original.style, bgColor: design.backgroundColor, accentColor: accent } }
         let rendered
         switch (block.type) {
-          case 'hero': rendered = <HeroBlock block={block} weddingDate={weddingDate} />; break
+          case 'hero': rendered = <HeroBlock block={block} weddingDate={weddingDate} layout={design.heroLayout} />; break
           case 'countdown': rendered = <CountdownBlock block={block} weddingDate={weddingDate} />; break
           case 'gallery': rendered = <GalleryBlock block={block} />; break
           case 'map': rendered = <MapBlock block={block} />; break

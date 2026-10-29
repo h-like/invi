@@ -95,15 +95,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .page-renderer .invitation-eyebrow { font-family: Georgia, serif; font-size: .57em; color: var(--invite-accent); letter-spacing: .2em; margin: 0 0 14px; }
 .page-renderer .hero-block { padding: 24px 18px; border-bottom: 0; }
 .hero-frame { padding: 46px 18px 36px; }
-.invitation-theme-classic .hero-frame { border: 1px solid var(--invite-accent); outline: 1px solid color-mix(in srgb, var(--invite-accent) 40%, transparent); outline-offset: -6px; }
-.invitation-theme-romantic .hero-frame { border-top: 1px solid var(--invite-accent); border-radius: 46% 46% 0 0; padding-top: 60px; }
-.invitation-theme-modern .hero-frame { border-top: 3px solid var(--invite-accent); text-align: left; padding-inline: 10px; }
+.invitation-theme-classic .hero-layout-frame .hero-frame { border: 1px solid var(--invite-accent); outline: 1px solid color-mix(in srgb, var(--invite-accent) 40%, transparent); outline-offset: -6px; }
+.invitation-theme-romantic .hero-layout-frame .hero-frame { border-top: 1px solid var(--invite-accent); border-radius: 46% 46% 0 0; padding-top: 60px; }
+.invitation-theme-modern .hero-layout-frame .hero-frame { border-top: 3px solid var(--invite-accent); text-align: left; padding-inline: 10px; }
 .page-renderer .hero-date { font-size: .69em; color: var(--invite-soft); margin: 24px 0; }
 .page-renderer .hero-names { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; font-size: 1.8em; letter-spacing: .03em; margin: 0 0 22px; }
-.invitation-theme-modern .hero-names { justify-content: flex-start; }
+.invitation-theme-modern .hero-layout-frame .hero-names { justify-content: flex-start; }
 .page-renderer .hero-ampersand { font-family: Georgia, serif; font-size: .7em; font-style: italic; }
 .hero-cover { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; margin: 26px auto; }
 .page-renderer .hero-invitation-label { margin-top: 42px; }
+/* photo-full: the cover runs edge to edge with names over a bottom scrim. */
+.page-renderer .hero-layout-photo-full { padding: 0; }
+.hero-photo { position: relative; aspect-ratio: 3 / 4; overflow: hidden; color: #fff; }
+.hero-photo-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-photo::after { content: ''; position: absolute; inset: 45% 0 0; background: linear-gradient(transparent, rgb(0 0 0 / .62)); }
+.hero-photo-empty { aspect-ratio: 4 / 5; color: var(--invite-ink); background: color-mix(in srgb, var(--invite-accent) 16%, var(--invite-bg)); }
+.hero-photo-empty::after { display: none; }
+.hero-photo-caption { position: absolute; inset: auto 0 0; z-index: 1; padding: 0 22px 30px; text-align: left; }
+.page-renderer .hero-photo-caption .invitation-eyebrow, .page-renderer .hero-photo-caption .hero-names, .page-renderer .hero-photo-caption .hero-date { color: inherit; }
+.page-renderer .hero-photo-caption .hero-names { justify-content: flex-start; margin: 0 0 8px; }
+.page-renderer .hero-photo-caption .hero-date { margin: 0; opacity: .88; }
+.hero-photo-body { padding: 34px 24px 10px; }
+/* typographic: names carry the page; the photo becomes a small inset. */
+.page-renderer .hero-layout-typographic { padding: 56px 24px 28px; }
+.page-renderer .hero-names-stacked { flex-direction: column; gap: 0; font-size: 2.7em; line-height: 1.25; letter-spacing: -.02em; margin: 18px 0 26px; }
+.page-renderer .hero-names-stacked .hero-ampersand { font-size: .45em; margin: 6px 0; }
+.page-renderer .hero-layout-typographic .hero-date { display: flex; flex-direction: column; gap: 4px; margin: 0 0 30px; }
+.hero-date-numeric { font-size: 1.9em; font-weight: 400; letter-spacing: .08em; color: var(--invite-ink); }
+.hero-cover-inset { width: 62%; aspect-ratio: 1; margin: 0 auto 30px; }
 .hero-greeting { white-space: pre-wrap; font-size: .83em; line-height: 2.3; word-break: keep-all; overflow-wrap: break-word; }
 .page-renderer .block-placeholder, .page-renderer .block-sub { color: var(--invite-soft); font-size: .8em; }
 .page-renderer .countdown-block { font-size: .82em; font-weight: 400; }
