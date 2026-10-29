@@ -1,8 +1,9 @@
-import type { CSSProperties } from 'react'
+import { useEffect, type CSSProperties } from 'react'
 import type { PageData } from '../api/types'
 import { getPageDesign, readableColor } from '../editor/model'
 import { AccountBlock } from './AccountBlock'
 import { CountdownBlock } from './CountdownBlock'
+import { FONT_STACKS, loadInvitationFont } from './fonts'
 import { GalleryBlock } from './GalleryBlock'
 import { GuestbookBlock } from './GuestbookBlock'
 import { HeroBlock } from './HeroBlock'
@@ -19,13 +20,14 @@ interface Props {
 // One renderer for both the editor preview and the published invitation.
 export function PageRenderer({ pageData, weddingDate, invitationId, interactive }: Props) {
   const design = getPageDesign(pageData)
+  useEffect(() => { void loadInvitationFont(design.fontFamily) }, [design.fontFamily])
   const accent = readableColor(design.accentColor, design.backgroundColor)
   const ink = readableColor('#36302b', design.backgroundColor)
   const soft = readableColor('#74695e', design.backgroundColor)
   const style = {
     '--invite-bg': design.backgroundColor, '--invite-accent': accent, '--invite-ink': ink,
     '--invite-soft': soft, '--invite-size': design.fontSize === 'larger' ? '20px' : design.fontSize === 'large' ? '18px' : '16px',
-    '--invite-font': design.fontFamily === 'serif' ? 'Georgia, "Batang", "바탕", serif' : 'system-ui, "Malgun Gothic", sans-serif',
+    '--invite-font': FONT_STACKS[design.fontFamily],
     '--ink': ink, '--ink-soft': soft,
     '--surface': design.backgroundColor, '--surface-2': design.backgroundColor,
   } as CSSProperties
