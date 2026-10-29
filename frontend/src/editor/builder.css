@@ -48,6 +48,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .swatch-romantic { border-radius: 65px 65px 4px 4px; }
 .swatch-minimal { font-family: system-ui, sans-serif; font-size: 20px; font-style: normal; letter-spacing: .05em; }
 .swatch-modern { font-family: system-ui, sans-serif; font-size: 23px; font-style: normal; font-weight: 300; letter-spacing: -.06em; }
+.swatch-garden { border-radius: 14px; outline: 1px solid currentColor; outline-offset: -8px; }
+.swatch-hanji { font-style: normal; font-size: 21px; letter-spacing: .12em; box-shadow: inset 0 0 0 6px color-mix(in srgb, currentColor 10%, transparent); }
+.swatch-film { font-family: system-ui, sans-serif; font-style: normal; font-size: 20px; border: 7px solid #fff; box-shadow: 0 2px 8px rgb(0 0 0 / .14); }
+.swatch-letterpress { font-style: normal; font-size: 22px; letter-spacing: .04em; border-block: 4px double currentColor; }
 .section-list { list-style: none; padding: 0; margin: 18px 0; display: grid; gap: 8px; }
 .section-list li { display: flex; align-items: center; gap: 8px; border: 1px solid #e2dace; padding: 12px 10px; border-radius: 7px; background: #fff; }
 .section-list li.section-hidden { background: #f4f1eb; }
@@ -104,6 +108,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .page-renderer .hero-ampersand { font-family: Georgia, serif; font-size: .7em; font-style: italic; }
 .hero-cover { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; margin: 26px auto; }
 .page-renderer .hero-invitation-label { margin-top: 42px; }
+/* garden: rounded double frame with a leaf mark. */
+.invitation-theme-garden .hero-layout-frame .hero-frame { border: 1px solid var(--invite-accent); border-radius: 22px; outline: 1px solid color-mix(in srgb, var(--invite-accent) 35%, transparent); outline-offset: -7px; }
+.invitation-theme-garden .hero-layout-frame .hero-frame::before { content: '❦'; display: block; color: var(--invite-accent); font-size: 1.3em; line-height: 1; margin: -12px 0 18px; }
+/* hanji: a vermilion 囍 seal, wide-tracked names and faint paper fibres. */
+.page-renderer.invitation-theme-hanji { background-image: radial-gradient(color-mix(in srgb, var(--invite-ink) 5%, transparent) .6px, transparent .8px); background-size: 7px 9px; }
+.invitation-theme-hanji .hero-block::before { content: '囍'; display: inline-block; color: var(--invite-accent); border: 1.5px solid var(--invite-accent); border-radius: 3px; padding: 3px 7px; font-size: 1.05em; line-height: 1.3; margin-bottom: 20px; }
+.invitation-theme-hanji .hero-names { letter-spacing: .14em; }
+/* film: the cover becomes a white-bordered print. */
+.invitation-theme-film .hero-layout-photo-full { padding: 22px 20px 0; }
+.invitation-theme-film .hero-photo { border: 10px solid #fff; border-bottom-width: 34px; box-shadow: 0 6px 18px rgb(0 0 0 / .14); }
+.invitation-theme-film .hero-photo-caption .invitation-eyebrow { font-family: inherit; letter-spacing: .28em; }
+/* letterpress: heavy double rules like a pressed card. */
+.invitation-theme-letterpress .hero-layout-typographic { margin: 18px 18px 0; border-block: 5px double var(--invite-accent); }
+.invitation-theme-letterpress .hero-names { letter-spacing: .02em; }
+.invitation-theme-letterpress .hero-date-numeric { color: var(--invite-accent); }
 /* photo-full: the cover runs edge to edge with names over a bottom scrim. */
 .page-renderer .hero-layout-photo-full { padding: 0; }
 .hero-photo { position: relative; aspect-ratio: 3 / 4; overflow: hidden; color: #fff; }

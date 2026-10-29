@@ -32,7 +32,7 @@ class TemplateServiceTest {
     @Test
     void findAll_mapsEntitiesToDtos() {
         Template classic = Template.builder().name("클래식").category("classic").build();
-        when(templateRepository.findAll()).thenReturn(List.of(classic));
+        when(templateRepository.findAllByOrderByCreatedAtAsc()).thenReturn(List.of(classic));
 
         List<TemplateDto> result = templateService.findAll();
 

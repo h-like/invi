@@ -13,6 +13,7 @@ export interface TemplateGalleryProps {
 
 const categoryLabels: Record<string, string> = {
   classic: '클래식', minimal: '미니멀', romantic: '로맨틱', modern: '모던',
+  garden: '가든', hanji: '한지', film: '필름', letterpress: '레터프레스',
 }
 
 type GalleryState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; templates: Template[] }
