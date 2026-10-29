@@ -4,19 +4,30 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor
 public class LocalAuthController {
     private final LocalAuthService localAuthService;
+    private final boolean registrationEnabled;
+
+    public LocalAuthController(
+            LocalAuthService localAuthService,
+            @Value("${invi.auth.registration-enabled:true}") boolean registrationEnabled) {
+        this.localAuthService = localAuthService;
+        this.registrationEnabled = registrationEnabled;
+    }
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public TokenResponse register(@Valid @RequestBody RegisterRequest request) {
+        if (!registrationEnabled) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Test signup is disabled.");
+        }
         return localAuthService.register(request);
     }
 

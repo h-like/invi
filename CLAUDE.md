@@ -109,6 +109,14 @@ private JsonNode pageData;
 - **대표 사진 업로드**: `CoverPhotoEditor`가 JPG/JPEG·PNG·WebP·HEIC/HEIF 원본을 장당 최대 30MiB까지 받는다. Worker에서 긴 변 최대 2,560px WebP(미지원 시 JPEG)로 최적화하고, 업로드·attach·공개 이미지 로드 확인이 모두 성공한 뒤에만 `hero.content.coverImage`를 바꾼다. 실패 시 기존 사진을 유지하고 재시도·취소를 제공한다. 처리 중/실패 선택이 남아 있으면 저장·공개를 막는다. 서버는 JPEG/PNG/WebP의 크기·MIME·키 소유 경로와 R2 HEAD/Range GET 시그니처를 검사한다. 갤러리는 최대 20장(8~12장 권장) 순차 다중 업로드·사진별 진행·실패 항목만 재시도·정렬·삭제를 지원하며 자르기는 제외한다. 설정·CORS·검증·제한은 `docs/PHOTO_UPLOAD.md` 참고.
 - **R2 잔여 파일 정리**: `tracked_media_object`로 presign/기존 객체를 추적한다. 저장된 모든 청첩장 상태·숨김·언어·미래 필드·템플릿 참조를 보호하고 기본 7일 유예를 둔다. 실제 삭제는 기본 비활성/점검 모드다. 참조를 쓰는 새 경로는 트랜잭션 시작 시 `MediaLifecycle.lock()`으로 공통 PostgreSQL 잠금을 잡고 `referencesChanged`/`assertUsable` 검사를 해야 한다. 삭제는 먼저 DELETING을 커밋하고 조건부 삭제 안전 검증 후 ETag 조건으로 진행하며 불확실한 실패에도 재참조 차단을 유지한다. 기존 DELETE API는 즉시 삭제가 아닌 202 예약이다. 자세한 설정·조건부 삭제 호환 한계·검증 상태는 `docs/MEDIA_CLEANUP.md` 참고.
 
+## HTTPS 테스트 배포
+
+- `Dockerfile`은 React 정적 빌드와 boot JAR만 담아 비root JRE21로 실행한다. 개발 서버/bootRun/포트 포워딩을 외부 공개하지 않는다. 컨테이너 내부의 `0.0.0.0:$PORT`와 개인 PC 개발망 바인딩은 구분한다.
+- `https-test` 프로필은 새 TLS 검증 Postgres DB·별도 R2 테스트 버킷·강한 JWT·전용 테스트 계정 비밀값을 런타임에 요구한다. 로컬 프로필, `invi-media`, 활성 R2 정리, 공개 신규 가입, 상세 actuator 노출 등 안전 조건을 어기면 시작을 거절한다. 기존 계정 비밀번호를 재시작 때 덮어쓰지 않는다.
+- 프론트 `build:https-test`는 API를 현재 HTTPS Origin으로 사용하고 소셜/가입 UI를 숨긴다. 일반 localhost와 mobile 모드는 유지한다. VITE 변수나 Docker ARG에 비밀값을 넣지 않는다.
+- 공개 HTML shell 경로와 private API를 구분한다. 하객 링크 직접 접속/새로고침은 index.html로 보내지만 API/누락된 asset 오류는 HTML로 삼키지 않는다. 준비 확인은 `/actuator/health/readiness`다.
+- 계정 생성·플랜·배포 리소스/비용·실기기 검증은 별도 상태를 확인한다. 코드/이미지 빌드만으로 외부 HTTPS 배포 완료라고 하지 않는다. 절차와 미확인 사항은 `docs/HTTPS_TEST_DEPLOY.md`를 따른다.
+
 ## 프론트엔드 컨벤션 (frontend/)
 
 - Vite + React + TypeScript + `react-router-dom`(`/`, `/oauth/callback`, `/e/:id`, `/i/:slug`)

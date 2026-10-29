@@ -3,6 +3,7 @@ package com.invi.api.common;
 import com.invi.api.account.CustomOAuth2UserService;
 import com.invi.api.account.JwtAuthenticationFilter;
 import com.invi.api.account.OAuth2LoginSuccessHandler;
+import jakarta.servlet.DispatcherType;
 import java.net.URI;
 import java.util.List;
 import java.util.Locale;
@@ -44,6 +45,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private static final String[] SPA_PUBLIC_PATHS = {
+        "/", "/index.html", "/assets/**", "/favicon.svg", "/robots.txt",
+        "/templates", "/templates/*", "/login", "/oauth/callback", "/create",
+        "/invitations", "/e/*", "/e/*/guests", "/i/*"
+    };
+
     @Bean
     public org.springframework.security.crypto.password.PasswordEncoder passwordEncoder() {
         return new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
@@ -57,12 +64,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            @Value("${invi.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) throws Exception {
+            @Value("${invi.frontend.base-url:http://localhost:5173}") String frontendBaseUrl,
+            @Value("${invi.auth.social-login-enabled:true}") boolean socialLoginEnabled) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource(frontendBaseUrl)))
                 .authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login")
+                                auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                                        .requestMatchers(HttpMethod.GET, SPA_PUBLIC_PATHS).permitAll()
+                                        .requestMatchers(HttpMethod.HEAD, SPA_PUBLIC_PATHS).permitAll()
+                                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/hello", "/actuator/**", "/api/templates/**")
                                         .permitAll()
@@ -86,7 +97,7 @@ public class SecurityConfig {
                                         new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
                                         request -> request.getRequestURI().startsWith("/api/")));
 
-        if (clientRegistrations.getIfAvailable() != null) {
+        if (socialLoginEnabled && clientRegistrations.getIfAvailable() != null) {
             http.oauth2Login(
                     oauth2 ->
                             oauth2.userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
