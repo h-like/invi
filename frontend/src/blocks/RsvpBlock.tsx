@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { api } from '../api/client'
+import { clampGuestCount, GUEST_COUNT_MAX, GUEST_NAME_MAX, RSVP_MESSAGE_MAX } from './guestLimits'
 
 interface Props {
   invitationId: string
@@ -13,11 +14,13 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
   const [message, setMessage] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!interactive) return
+    if (!interactive || busy) return
     setError(null)
+    setBusy(true)
     try {
       await api.submitRsvp(invitationId, {
         guestName,
@@ -28,6 +31,8 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : '제출에 실패했습니다')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -47,6 +52,7 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
           placeholder="이름"
           value={guestName}
           onChange={(e) => setGuestName(e.target.value)}
+          maxLength={GUEST_NAME_MAX}
           required
           disabled={!interactive}
         />
@@ -63,20 +69,22 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
         <input
           type="number"
           min={0}
+          max={GUEST_COUNT_MAX}
           placeholder="인원 수"
           value={guestCount}
-          onChange={(e) => setGuestCount(Number(e.target.value))}
+          onChange={(e) => setGuestCount(clampGuestCount(Number(e.target.value)))}
           disabled={!interactive}
         />
         <textarea
           placeholder="전달할 말 (선택)"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          maxLength={RSVP_MESSAGE_MAX}
           disabled={!interactive}
         />
         {error && <p className="block-error">{error}</p>}
-        <button type="submit" disabled={!interactive}>
-          전달하기
+        <button type="submit" disabled={!interactive || busy}>
+          {busy ? '전달하는 중...' : '전달하기'}
         </button>
       </form>
     </section>

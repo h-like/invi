@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '../api/client'
 import type { GuestbookEntryItem } from '../api/types'
+import { GUEST_NAME_MAX, GUESTBOOK_MESSAGE_MAX } from './guestLimits'
 
 interface Props {
   invitationId: string
@@ -12,6 +13,7 @@ export function GuestbookBlock({ invitationId, interactive }: Props) {
   const [author, setAuthor] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!interactive) return
@@ -23,8 +25,9 @@ export function GuestbookBlock({ invitationId, interactive }: Props) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!interactive) return
+    if (!interactive || busy) return
     setError(null)
+    setBusy(true)
     try {
       const entry = await api.submitGuestbook(invitationId, { author, message })
       setEntries((prev) => [entry, ...prev])
@@ -32,6 +35,8 @@ export function GuestbookBlock({ invitationId, interactive }: Props) {
       setMessage('')
     } catch (err) {
       setError(err instanceof Error ? err.message : '작성에 실패했습니다')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -40,15 +45,17 @@ export function GuestbookBlock({ invitationId, interactive }: Props) {
       <h3>방명록</h3>
       {interactive && (
         <form onSubmit={handleSubmit}>
-          <input placeholder="이름" value={author} onChange={(e) => setAuthor(e.target.value)} required />
+          <input placeholder="이름" value={author} onChange={(e) => setAuthor(e.target.value)} maxLength={GUEST_NAME_MAX} required />
           <textarea
             placeholder="축하 메시지"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            maxLength={GUESTBOOK_MESSAGE_MAX}
             required
           />
+          <small className="guestbook-count" aria-live="polite">{message.length}/{GUESTBOOK_MESSAGE_MAX}</small>
           {error && <p className="block-error">{error}</p>}
-          <button type="submit">남기기</button>
+          <button type="submit" disabled={busy}>{busy ? '남기는 중...' : '남기기'}</button>
         </form>
       )}
       <ul className="guestbook-list">

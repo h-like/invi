@@ -30,7 +30,7 @@ public class GuestbookEntry extends BaseEntity {
     @Column(nullable = false)
     private String author;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = CreateGuestbookRequest.MESSAGE_MAX)
     private String message;
 
     private Instant deletedAt;
