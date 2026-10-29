@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createSaveBeforeLeave, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation } from './navigation.ts'
+import { canSaveBeforeLeave, createSaveBeforeLeave, leaveDialogMode, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation } from './navigation.ts'
 
 const editor = { pathname: '/e/test-id', search: '' }
 const home = { pathname: '/', search: '' }
@@ -25,6 +25,28 @@ test('dirty editors block a different route or query but not the same location',
 test('pending save/publish blocks leaving even if the draft was previously saved', () => {
   assert.equal(shouldBlockEditorNavigation({ dirty: false, busy: true }, editor, home), true)
   assert.equal(needsLeaveWarning({ dirty: false, busy: true }), true)
+})
+
+test('pending photos block leaving even without other unsaved edits', () => {
+  const state = { dirty: false, busy: false, photoPending: true }
+  assert.equal(needsLeaveWarning(state), true)
+  assert.equal(shouldBlockEditorNavigation(state, editor, home), true)
+  let prevented = false
+  assert.equal(preventEditorUnload({ preventDefault() { prevented = true }, returnValue: '' }, state), true)
+  assert.equal(prevented, true)
+})
+
+test('leave dialog mode prioritizes busy, then pending photos, then unsaved edits', () => {
+  assert.equal(leaveDialogMode({ dirty: true, busy: true, photoPending: true }), 'busy')
+  assert.equal(leaveDialogMode({ dirty: true, busy: false, photoPending: true }), 'photos')
+  assert.equal(leaveDialogMode({ dirty: true, busy: false }), 'unsaved')
+  assert.equal(leaveDialogMode({ dirty: false, busy: false }), 'clean')
+})
+
+test('save-and-leave is offered only for unsaved edits without pending photos', () => {
+  assert.equal(canSaveBeforeLeave({ dirty: true, busy: false }), true)
+  assert.equal(canSaveBeforeLeave({ dirty: true, busy: false, photoPending: true }), false)
+  assert.equal(canSaveBeforeLeave({ dirty: false, busy: false }), false)
 })
 
 test('clean unload leaves the browser event unchanged', () => {

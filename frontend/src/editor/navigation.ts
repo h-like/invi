@@ -1,6 +1,8 @@
 export interface EditorChangeState {
   dirty: boolean
   busy: boolean
+  /** Cover/gallery uploads that are still processing or failed; they are lost on leave. */
+  photoPending?: boolean
 }
 
 export interface EditorLocation {
@@ -8,8 +10,21 @@ export interface EditorLocation {
   search: string
 }
 
+export type LeaveDialogMode = 'busy' | 'photos' | 'unsaved' | 'clean'
+
 export function needsLeaveWarning(state: EditorChangeState): boolean {
-  return state.dirty || state.busy
+  return state.dirty || state.busy || !!state.photoPending
+}
+
+export function leaveDialogMode(state: EditorChangeState): LeaveDialogMode {
+  if (state.busy) return 'busy'
+  if (state.photoPending) return 'photos'
+  return state.dirty ? 'unsaved' : 'clean'
+}
+
+/** Saving is refused while photos are pending, so save-and-leave is offered only for plain unsaved edits. */
+export function canSaveBeforeLeave(state: EditorChangeState): boolean {
+  return state.dirty && !state.photoPending
 }
 
 export function shouldBlockEditorNavigation(state: EditorChangeState, current: EditorLocation, next: EditorLocation): boolean {
