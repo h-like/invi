@@ -35,6 +35,18 @@ test('legacy templates inherit design; unsafe style tokens are not accepted', ()
   assert.deepEqual(getPageDesign(unsafe), DESIGN_PRESETS[0].design)
 })
 
+test('theme registry is well-formed and every seeded template design round-trips', () => {
+  const codes = DESIGN_PRESETS.map(p => p.code)
+  assert.equal(new Set(codes).size, codes.length)
+  for (const preset of DESIGN_PRESETS) {
+    // The backend seeds template code === design.theme; CSS uses the theme as a class name.
+    assert.equal(preset.design.theme, preset.code)
+    assert.match(preset.code, /^[a-z][a-z0-9-]*$/)
+    assert.ok(preset.name && preset.description)
+    assert.deepEqual(getPageDesign({ blocks: [], design: preset.design }), preset.design)
+  }
+})
+
 test('text colors maintain WCAG AA contrast for each preset and custom backgrounds', () => {
   for (const background of [...DESIGN_PRESETS.map(p => p.design.backgroundColor), '#777777', '#ffff00', '#663399']) {
     for (const foreground of ['#ffffff', '#000000', background]) {

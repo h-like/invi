@@ -12,6 +12,8 @@ COPY backend/gradlew backend/build.gradle backend/settings.gradle ./
 COPY backend/gradle/ ./gradle/
 RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
 COPY backend/src/main/ ./src/main/
+# TemplateSeeder's presets come from the frontend theme registry (backend/build.gradle).
+COPY frontend/src/editor/themes.json /build/frontend/src/editor/themes.json
 COPY --from=frontend /build/frontend/dist/ ./src/main/resources/static/
 # Tests run before checkpoint/push and in CI with Postgres, not against a deployment DB.
 RUN ./gradlew --no-daemon bootJar -x test --console=plain \

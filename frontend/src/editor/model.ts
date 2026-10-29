@@ -1,16 +1,16 @@
 import type { Block, BlockType, PageData, PageDesign } from '../api/types.ts'
+import themes from './themes.json' with { type: 'json' }
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
   hero: '첫 화면 · 초대의 글', countdown: '예식일 카운트다운', gallery: '웨딩 갤러리',
   map: '오시는 길', account: '마음 전하실 곳', rsvp: '참석 확인', guestbook: '방명록',
 }
 
-export const DESIGN_PRESETS: { name: string; description: string; design: PageDesign }[] = [
-  { name: '베이지 클래식', description: '아이보리 종이와 클래식 프레임', design: { theme: 'classic', backgroundColor: '#faf7f2', accentColor: '#856539', fontFamily: 'serif', fontSize: 'normal' } },
-  { name: '미니멀 화이트', description: '여백으로 전하는 담백한 초대', design: { theme: 'minimal', backgroundColor: '#ffffff', accentColor: '#333333', fontFamily: 'sans', fontSize: 'normal' } },
-  { name: '로즈 레터', description: '부드러운 핑크빛 편지', design: { theme: 'romantic', backgroundColor: '#fdf1f4', accentColor: '#a33e58', fontFamily: 'serif', fontSize: 'normal' } },
-  { name: '모던 나이트', description: '짙은 배경과 선명한 타이포', design: { theme: 'modern', backgroundColor: '#141414', accentColor: '#80d8cc', fontFamily: 'sans', fontSize: 'normal' } },
-]
+export interface DesignPreset { code: string; name: string; description: string; design: PageDesign }
+
+// Single source for themes: the backend TemplateSeeder reads the same file, so a
+// template's code, theme and defaults never drift from what the editor offers.
+export const DESIGN_PRESETS: DesignPreset[] = themes as DesignPreset[]
 
 // Original sample copy. No competitor text or artwork is reused.
 export const GREETING_SAMPLES = [

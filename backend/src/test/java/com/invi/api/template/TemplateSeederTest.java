@@ -48,7 +48,11 @@ class TemplateSeederTest {
         assertThat(saved).allSatisfy(t -> {
             assertThat(t.getCategory()).isEqualTo(t.getCode());
             assertThat(t.getDefaultPageData().get("blocks")).hasSize(7);
+            assertThat(t.getDefaultPageData().at("/design/theme").asText()).isEqualTo(t.getCode());
+            assertThat(t.getDefaultPageData().at("/design/backgroundColor").asText()).matches("#[0-9a-f]{6}");
         });
+        assertThat(saved).extracting(Template::getName)
+                .containsExactly("베이지 클래식", "미니멀 화이트", "로즈 레터", "모던 나이트");
         InOrder order = inOrder(lifecycle, templateRepository);
         order.verify(lifecycle).lock();
         order.verify(templateRepository).findByCode("classic");
@@ -97,7 +101,7 @@ class TemplateSeederTest {
 
         seeder.run();
 
-        assertThat(minimal.getName()).isEqualTo("미니멀");
+        assertThat(minimal.getName()).isEqualTo("미니멀 화이트");
         assertThat(minimal.getCategory()).isEqualTo("minimal");
         assertThat(minimal.getDefaultPageData()).isNotNull();
         verify(templateRepository, never()).save(any());

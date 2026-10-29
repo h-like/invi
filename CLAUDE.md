@@ -77,7 +77,7 @@ private JsonNode pageData;
 |---|---|---|---|
 | `Member` | `member` | provider(KAKAO/GOOGLE), providerId, email, name | providerId+provider로 유니크 |
 | `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt | slug는 서브도메인과 1:1 |
-| `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋은 `TemplateSeeder` 코드가 원본. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
+| `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋 원본은 `frontend/src/editor/themes.json` 하나 — 에디터 `DESIGN_PRESETS`가 import하고, `backend/build.gradle`이 `presets/themes.json`으로 복사해 `TemplateSeeder`가 읽는다(Dockerfile도 이 파일을 복사). `code` = `category` = `design.theme`. 시더는 `pageData.design`을 직접 저장한다. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
 | `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message | 로그인 없이 제출 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
 
