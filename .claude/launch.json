@@ -37,7 +37,7 @@
         "-p",
         "backend",
         "bootRun",
-        "--args=--spring.profiles.active=local --server.address=127.0.0.1 --invi.frontend.base-url=http://localhost:5173",
+        "--args=--spring.profiles.active=local --server.address=127.0.0.1 --invi.frontend.base-url=http://localhost:5173 --server.servlet.session.persistent=false",
         "--console=plain"
       ],
       "port": 8080
