@@ -14,6 +14,8 @@ import com.invi.api.account.CustomOAuth2UserService;
 import com.invi.api.account.JwtAuthenticationFilter;
 import com.invi.api.account.JwtService;
 import com.invi.api.account.OAuth2LoginSuccessHandler;
+import com.invi.api.invitation.GuestLinkPreviewController;
+import com.invi.api.invitation.InvitationService;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -22,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -31,7 +34,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
-@WebMvcTest(controllers = SpaController.class,
+@WebMvcTest(controllers = {SpaController.class, GuestLinkPreviewController.class},
         properties = "invi.frontend.base-url=https://invi-test.example.com")
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, HttpsTestHeadersFilter.class})
 @ActiveProfiles("https-test")
@@ -43,8 +46,10 @@ class SpaControllerTest {
     @MockitoBean private JwtService jwtService;
     @MockitoBean private CustomOAuth2UserService customOAuth2UserService;
     @MockitoBean private OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    @MockitoBean private InvitationService invitationService;
 
-    // MockMvc records the forward only: the frontend's compiled index.html is not in this checkout.
+    // MockMvc records the forward only: the frontend's compiled index.html is not in this checkout,
+    // so GuestLinkPreviewController falls back to the same forward for /i/{slug}.
     @ParameterizedTest
     @ValueSource(strings = {"/", "/templates", "/templates/classic", "/login", "/oauth/callback",
             "/create", "/invitations", "/e/123", "/e/123/guests", "/i/our-wedding"})
@@ -115,7 +120,8 @@ class SpaControllerTest {
 
     @Test
     void post_invitationShell_hasNoControllerPostMappingEvenWithoutSecurity() throws Exception {
-        MockMvc controllerOnly = MockMvcBuilders.standaloneSetup(new SpaController()).build();
+        MockMvc controllerOnly = MockMvcBuilders.standaloneSetup(new GuestLinkPreviewController(
+                invitationService, new DefaultResourceLoader(), "https://invi-test.example.com", "")).build();
         MvcResult result = controllerOnly.perform(post("/i/our-wedding").accept(MediaType.TEXT_HTML))
                 .andExpect(status().isMethodNotAllowed())
                 .andReturn();
