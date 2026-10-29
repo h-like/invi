@@ -5,9 +5,25 @@
 - 같은 Wi-Fi 밖의 모바일 데이터·다른 기기에서 하객 링크와 공유 흐름을 확인하는 **테스트 배포**다. 실제 하객 서비스 운영 승인을 뜻하지 않는다.
 - Vite dev/preview, Spring bootRun, 공유기 포트 포워딩이나 로컬 개발 서버 터널을 공개하지 않는다. Docker에서 컴파일한 React 정적 파일과 Spring Boot JAR만 배포한다.
 - 현재 소스 브랜치는 `phase-1/https-test-deploy`, 시작점은 사용자가 확인한 최신 main `8be877c`다.
-- 2026-10-29 사용자가 무료 Render·Neon 진행을 승인했고 두 서비스의 Google 로그인 연결을 확인했다. Render는 Hobby 플랜/등록 카드 없음이며, 새 서비스 폼에서 Docker·Singapore·Free($0), health `/actuator/health/readiness`, Auto-Deploy Off를 선택했다. 이는 미저장 폼 준비 상태이며 서비스 생성/앱 배포는 아직 하지 않았다.
-- 같은 날 Neon Free 테스트 프로젝트 `invi-https-test`, Singapore, PostgreSQL 16, DB `invi_https_test`를 생성했다. 기존 DB/사진을 복사하지 않았으며 앱 스키마/테스트 계정은 아직 초기화하지 않았다. 기본 branch 이름 `production`은 Neon의 기본 이름일 뿐 이 프로젝트는 격리 테스트용이다.
-- 사용자는 프론트 테스트·lint·일반/HTTPS 빌드 성공을 보고했다. SPA 테스트의 미로그인 차단 기대값을 403에서 401로 바로잡은 뒤, 2026-10-29 백엔드 재실행 XML 32개 suite에서 620 tests / failures 0 / errors 0 / skipped 0을 확인했다. 기능 브랜치 커밋/push와 Docker 이미지/실제 HTTPS 실행 검증은 아직 미확인이다. Render 브랜치 선택 목록에도 `phase-1/https-test-deploy`가 조회되지 않아 실제 서비스 생성/배포는 검증과 push 이후 진행한다. 새 R2 테스트 버킷/키도 아직 생성하지 않았다. 유료 플랜·카드 추가·초과 과금 조건은 별도 확인한다.
+- 2026-10-29 사용자가 무료 Render·Neon 진행을 승인했고 두 서비스의 Google 로그인 연결을 확인했다. Render Hobby/등록 카드 없음 상태에서 Docker·Singapore·Free($0), health `/actuator/health/readiness`, Auto-Deploy Off로 서비스를 생성했다. `51e6e1b`의 첫 이미지 빌드와 배포가 성공했고 12:14:48 KST에 Live가 됐다. 첫 빌드부터 Live까지 5분 7초였으며, 장기 안정성이나 휴면 후 기동 시간의 보장은 아니다.
+- Neon Free 테스트 프로젝트 `invi-https-test`, Singapore, PostgreSQL 16, DB `invi_https_test`를 사용한다. 기존 DB/사진을 복사하지 않았다. 새 스키마와 전용 테스트 계정 초기화, TLS 검증 설정을 통한 DB 연결과 로그인을 확인했다. 기본 branch 이름 `production`은 Neon의 기본 이름일 뿐 이 프로젝트는 격리 테스트용이다.
+- 사용자는 프론트 테스트·lint·일반/HTTPS 빌드 성공을 보고했다. SPA 테스트의 미로그인 차단 기대값을 403에서 401로 바로잡은 뒤 백엔드 XML 32개 suite에서 620 tests / failures 0 / errors 0 / skipped 0을 확인했다. 사용자 출력으로 `51e6e1b` 커밋·원격 push·clean 상태를 확인한 뒤 그 커밋을 배포했다. 이 문서의 후속 배포 결과 기록은 별도 커밋 대상이며 런타임 코드 변경은 없다.
+- R2 테스트 버킷 `invi-media-https-test`(APAC/Standard)와 해당 버킷만 Object Read & Write 가능한 사용자 토큰 `invi-https-test-upload`를 만들었다. 토큰은 **2026-11-28 만료**이며 계속 업로드를 테스트하려면 만료 전에 교체해야 한다. 기존 `invi-media` 버킷·키·CORS·객체는 변경하지 않았다. 실제 객체 삭제도 하지 않았다.
+
+## 2026-10-29 외부 HTTPS 확인 기록
+
+- 앱: https://invi-https-test.onrender.com/
+- 공개 테스트 초대장: https://invi-https-test.onrender.com/i/https-test-20261029
+- Render의 실제 배포 상태 `Deploy succeeded | Live` 및 준비 API 200 / `UP` 확인. HTTP 주소가 HTTPS로 이동하고 HSTS 헤더가 반환되는 것을 확인했다.
+- `/`, `/templates`는 HTML 200, `/api/templates`는 JSON 200, 인증 없는 `/api/invitations`는 401, 누락 `/assets/missing.js`는 JSON 404다. 검색 차단 헤더와 `no-referrer`도 확인했다.
+- 로그인 화면에서 가입·소셜 버튼이 숨겨지고, 이미 존재하는 테스트 계정으로 수행한 유효한 등록 요청도 서버가 403 `Test signup is disabled.`로 차단했다. 이 점검은 새 계정을 만들지 않았다.
+- 테스트 계정으로 청첩장을 만들고 가짜 이름·장소·안내문을 입력했다. PNG 합성 이미지로 대표 1장·갤러리 3장 업로드, 갤러리 순서 변경, 저장 및 에디터 새로고침 유지를 확인했다.
+- 공개 DTO에 포함된 이미지 네 개는 새 테스트 버킷 공개 주소만 사용하며 모두 WebP 200으로 열렸다(2,642~2,740 bytes). 기존 로컬 버킷 이미지 참조는 없었다.
+- 공개 버튼 성공, 새 탭의 `/i/https-test-20261029` 직접 접속·새로고침, 인증 없는 공개 HTML/API 200, HTTPS 링크 복사 성공 메시지를 확인했다.
+- 가짜 하객 응답 1건(불참)과 테스트 방명록 1건을 전송했다. 공개 방명록 새로고침 유지 및 소유자 관리 화면의 응답/방명록 각 1건을 확인했다.
+- 브라우저 390×844 viewport 확인 후, 사용자가 실휴대폰에서도 접속을 확인했다고 보고했다(2026-10-29). 기종·브라우저·통신망의 상세 결과와 휴대폰에서의 편집/업로드까지 확인한 것으로 확대해 기록하지 않는다. iPhone/Safari, 실제 HEIC 사진 품질, 무료 휴면 뒤 재기동, 장시간/최대 부하 메모리 사용량은 별도 미검증이다.
+- 런타임 비밀값은 Render와 로컬 `backend/.env.https-test.local`에만 보관했다. 이 파일은 `.gitignore`의 `.env.*.local`과 Docker 제외 규칙에 해당한다. 강제 add·채팅 복사·프론트 배포를 하지 않는다. 앱의 `TEST_OWNER_PASSWORD`는 Google 비밀번호와 별도로 생성한 테스트 비밀번호다.
+- 일회성 기동 확인 예약은 정상 기동 확인 후 삭제했다. 휴면 방지용 주기 요청은 설정하지 않았다. 결제수단 추가나 유료 전환도 하지 않았다.
 
 ## 테스트 환경 격리
 
@@ -65,7 +81,7 @@
 
 2026-10-29 공식 문서 확인 기준:
 
-- Render Free Web Service는 15분 무요청 시 휴면하고 다음 요청 시 기동에 약 1분이 걸릴 수 있다. 750 무료 인스턴스 시간/월과 트래픽·빌드 한도가 있다. 결제수단이 등록돼 있으면 일부 초과 사용은 과금될 수 있어 계정/워크스페이스 요금·한도를 확인한다. 유료 인스턴스나 결제수단을 확인 없이 추가하지 않는다.
+- Render Free Web Service는 15분 무요청 시 휴면하고 다음 요청 시 기동에 수십 초~수분이 걸릴 수 있다. 이번 첫 배포에서는 JVM 초기화에도 시간이 걸렸으므로 1분 이내 기동을 보장하지 않는다. 750 무료 인스턴스 시간/월과 트래픽·빌드 한도가 있다. 결제수단이 등록돼 있으면 일부 초과 사용은 과금될 수 있어 계정/워크스페이스 요금·한도를 확인한다. 유료 인스턴스나 결제수단을 확인 없이 추가하지 않는다.
 - Render 무료 Postgres는 30일 만료 조건이 있어 장기 보존 테스트 DB로 선택하지 않는다.
 - Neon Free는 기간 제한·카드 없이 제공되며 프로젝트당 1GB 및 월 100 CU-hours 등의 한도가 있다. 실제 생성 화면의 Free 선택과 한도도 다시 확인한다.
 - R2도 기존 계정의 사용량·무료 한도와 실제 과금 조건을 생성 전에 확인한다. 버킷 격리는 데이터 보호용이며 비용 차단을 보장하지 않는다. 자동 초과 과금 조건이 있으면 추가 확인한다.
