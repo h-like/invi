@@ -14,9 +14,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Seeds the initial 4 templates (기획서 3번: 초기 4종) on first boot. Same block
- * layout across all four — only the style tokens differ — since Phase 1's job
- * is proving the page_data block schema out, not final template design.
+ * Keeps the code-defined presets (기획서 3번: 초기 4종 이후 확장) present in every
+ * environment's DB on each boot, keyed by {@link Template#getCode()} rather than
+ * per-DB UUIDs. Missing presets are created, drifted ones are realigned, and rows
+ * the code no longer lists are left alone because invitations reference them.
+ * Invitations copy {@code defaultPageData} at creation, so realigning a preset
+ * never changes an existing invitation.
  */
 @Component
 @RequiredArgsConstructor
@@ -26,34 +29,54 @@ public class TemplateSeeder implements CommandLineRunner {
     private final ObjectMapper objectMapper;
     private final MediaLifecycle lifecycle;
 
-    private record Preset(String name, String category, String fontFamily, String bgColor, String accentColor) {}
+    private record Preset(String code, String name, String category, String fontFamily, String bgColor, String accentColor) {}
 
     private static final List<Preset> PRESETS =
             List.of(
-                    new Preset("클래식", "classic", "noto-serif-kr", "#faf7f2", "#b08d57"),
-                    new Preset("미니멀", "minimal", "pretendard", "#ffffff", "#1a1a1a"),
-                    new Preset("로맨틱", "romantic", "noto-serif-kr", "#fdf1f4", "#c9647a"),
-                    new Preset("모던", "modern", "pretendard", "#141414", "#4fd1c5"));
+                    new Preset("classic", "클래식", "classic", "noto-serif-kr", "#faf7f2", "#b08d57"),
+                    new Preset("minimal", "미니멀", "minimal", "pretendard", "#ffffff", "#1a1a1a"),
+                    new Preset("romantic", "로맨틱", "romantic", "noto-serif-kr", "#fdf1f4", "#c9647a"),
+                    new Preset("modern", "모던", "modern", "pretendard", "#141414", "#4fd1c5"));
 
     @Override
     @Transactional
     public void run(String... args) {
         lifecycle.lock();
-        if (templateRepository.count() > 0) {
-            return;
-        }
         for (Preset preset : PRESETS) {
-            Template template =
+            sync(preset);
+        }
+    }
+
+    private void sync(Preset preset) {
+        JsonNode pageData = buildPageData(preset);
+        // Rows seeded before `code` existed used the code as their category.
+        Template existing =
+                templateRepository
+                        .findByCode(preset.code())
+                        .or(() -> templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAsc(preset.code()))
+                        .orElse(null);
+        if (existing == null) {
+            Template created =
                     Template.builder()
+                            .code(preset.code())
                             .name(preset.name())
                             .category(preset.category())
-                            .defaultPageData(buildPageData(preset))
+                            .defaultPageData(pageData)
                             .build();
-            Set<String> keys = new HashSet<>(MediaReferences.extract(template.getDefaultPageData()));
-            keys.addAll(MediaReferences.extractText(template.getThumbnailUrl()));
-            lifecycle.referencesChanged(Set.of(), keys);
-            templateRepository.save(template);
+            lifecycle.referencesChanged(Set.of(), referencedKeys(created));
+            templateRepository.save(created);
+            return;
         }
+        Set<String> before = referencedKeys(existing);
+        if (existing.syncPreset(preset.code(), preset.name(), preset.category(), pageData, null)) {
+            lifecycle.referencesChanged(before, referencedKeys(existing));
+        }
+    }
+
+    private static Set<String> referencedKeys(Template template) {
+        Set<String> keys = new HashSet<>(MediaReferences.extract(template.getDefaultPageData()));
+        keys.addAll(MediaReferences.extractText(template.getThumbnailUrl()));
+        return keys;
     }
 
     @SneakyThrows
