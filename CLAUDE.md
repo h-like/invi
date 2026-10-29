@@ -77,7 +77,7 @@ private JsonNode pageData;
 |---|---|---|---|
 | `Member` | `member` | provider(KAKAO/GOOGLE), providerId, email, name | providerId+provider로 유니크 |
 | `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt | slug는 서브도메인과 1:1 |
-| `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋은 `TemplateSeeder` 코드가 원본. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
+| `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋 원본은 `frontend/src/editor/themes.json` 하나 — 에디터 `DESIGN_PRESETS`가 import하고, `backend/build.gradle`이 `presets/themes.json`으로 복사해 `TemplateSeeder`가 읽는다(Dockerfile도 이 파일을 복사). `code` = `category` = `design.theme`. 시더는 `pageData.design`을 직접 저장한다. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
 | `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message | 로그인 없이 제출 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
 
@@ -120,6 +120,7 @@ private JsonNode pageData;
 ## 프론트엔드 컨벤션 (frontend/)
 
 - Vite + React + TypeScript + `react-router-dom`(`/`, `/oauth/callback`, `/e/:id`, `/i/:slug`)
+- 청첩장 웹폰트는 npm 패키지로 자체 호스팅한다(`@fontsource/noto-serif-kr` = serif, `pretendard` = sans, 둘 다 OFL). 폰트 CDN을 쓰지 않는다 — 하객 기기에서 제3자 요청이 나가지 않게. `src/blocks/fonts.ts`가 `design.fontFamily`에 맞는 CSS를 `PageRenderer`에서 지연 import하고, unicode-range 분할이라 화면에 쓰인 글자 구간의 woff2만 받는다. 폰트를 추가할 때도 같은 방식(테마별 지연 로딩, 시스템 폰트 폴백 스택 유지)을 따른다.
 - 로그인 상태는 `src/auth/AuthContext.tsx`(Context) + `src/auth/token.ts`(localStorage 저장)로 관리한다. `api/client.ts`의 모든 요청이 토큰이 있으면 자동으로 `Authorization` 헤더를 붙인다.
 - 백엔드 API 베이스는 `VITE_API_BASE_URL`로 설정하며 기본값은 `http://localhost:8080`이다. `api/baseUrl.ts`를 일반 API와 소셜 로그인에서 공유한다. Origin만 허용하고 경로·인증정보·query·fragment는 거절한다. 프록시는 사용하지 않는다. 백엔드 `SecurityConfig` CORS는 `invi.frontend.base-url`의 정확한 HTTP(S) Origin만 허용한다(기본 localhost:5173). 휴대폰 개인 Wi-Fi 테스트는 gitignored `.env.mobile.local` + Vite `--mode mobile`, Wi-Fi 사설 IP 한 개로의 명시적 바인딩을 사용한다. 이메일 로그인·실기기 체크·복구는 `docs/MOBILE_PHOTO_CHECK.md` 참고.
 

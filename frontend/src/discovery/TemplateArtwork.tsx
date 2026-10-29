@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Template } from '../api/types'
+import { DESIGN_PRESETS } from '../editor/model'
 
 export interface TemplateArtworkProps {
   template: Template
@@ -47,7 +48,7 @@ export function TemplateArtwork({ template, compact = false }: TemplateArtworkPr
   const [failedSource, setFailedSource] = useState<string | null>(null)
   const thumbnail = safeThumbnail(template.thumbnailUrl)
   const category = template.category.toLowerCase()
-  const variant = ['classic', 'minimal', 'romantic', 'modern'].includes(category) ? category : 'classic'
+  const variant = DESIGN_PRESETS.some(p => p.code === category) ? category : 'classic'
 
   return (
     <div className={`discovery-artwork discovery-artwork-${variant}${compact ? ' discovery-artwork-compact' : ''}`}>
@@ -57,9 +58,9 @@ export function TemplateArtwork({ template, compact = false }: TemplateArtworkPr
         <div className="discovery-cover-scene" aria-hidden="true">
           <div className="discovery-cover-shadow-paper" />
           <div className="discovery-cover-paper">
-            <span className="discovery-cover-overline">{variant === 'modern' ? 'OUR NEW CHAPTER' : 'THE WEDDING INVITATION'}</span>
-            <BotanicalSprig floral={variant === 'romantic'} />
-            <span className="discovery-cover-title">{variant === 'minimal' ? <>you<br /><i>& me.</i></> : variant === 'modern' ? <>With<br /><i>love.</i></> : <>We are<br /><i>getting married</i></>}</span>
+            <span className="discovery-cover-overline">{variant === 'modern' ? 'OUR NEW CHAPTER' : variant === 'hanji' ? '혼례에 모십니다' : 'THE WEDDING INVITATION'}</span>
+            {variant === 'hanji' ? <span className="discovery-cover-seal">囍</span> : variant === 'film' ? <span className="discovery-cover-photo" /> : variant !== 'letterpress' && <BotanicalSprig floral={variant === 'romantic'} />}
+            <span className="discovery-cover-title">{variant === 'minimal' ? <>you<br /><i>& me.</i></> : variant === 'modern' ? <>With<br /><i>love.</i></> : variant === 'hanji' ? <>백년가약</> : variant === 'film' ? <>Our day</> : variant === 'letterpress' ? <>Save<br />the Date</> : <>We are<br /><i>getting married</i></>}</span>
             <span className="discovery-cover-rule" />
             <span className="discovery-cover-korean">우리의 새로운 시작에<br />당신을 초대합니다</span>
             <span className="discovery-cover-bottom">A DAY TO REMEMBER</span>

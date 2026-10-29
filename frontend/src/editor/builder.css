@@ -48,6 +48,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .swatch-romantic { border-radius: 65px 65px 4px 4px; }
 .swatch-minimal { font-family: system-ui, sans-serif; font-size: 20px; font-style: normal; letter-spacing: .05em; }
 .swatch-modern { font-family: system-ui, sans-serif; font-size: 23px; font-style: normal; font-weight: 300; letter-spacing: -.06em; }
+.swatch-garden { border-radius: 14px; outline: 1px solid currentColor; outline-offset: -8px; }
+.swatch-hanji { font-style: normal; font-size: 21px; letter-spacing: .12em; box-shadow: inset 0 0 0 6px color-mix(in srgb, currentColor 10%, transparent); }
+.swatch-film { font-family: system-ui, sans-serif; font-style: normal; font-size: 20px; border: 7px solid #fff; box-shadow: 0 2px 8px rgb(0 0 0 / .14); }
+.swatch-letterpress { font-style: normal; font-size: 22px; letter-spacing: .04em; border-block: 4px double currentColor; }
 .section-list { list-style: none; padding: 0; margin: 18px 0; display: grid; gap: 8px; }
 .section-list li { display: flex; align-items: center; gap: 8px; border: 1px solid #e2dace; padding: 12px 10px; border-radius: 7px; background: #fff; }
 .section-list li.section-hidden { background: #f4f1eb; }
@@ -95,15 +99,49 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .page-renderer .invitation-eyebrow { font-family: Georgia, serif; font-size: .57em; color: var(--invite-accent); letter-spacing: .2em; margin: 0 0 14px; }
 .page-renderer .hero-block { padding: 24px 18px; border-bottom: 0; }
 .hero-frame { padding: 46px 18px 36px; }
-.invitation-theme-classic .hero-frame { border: 1px solid var(--invite-accent); outline: 1px solid color-mix(in srgb, var(--invite-accent) 40%, transparent); outline-offset: -6px; }
-.invitation-theme-romantic .hero-frame { border-top: 1px solid var(--invite-accent); border-radius: 46% 46% 0 0; padding-top: 60px; }
-.invitation-theme-modern .hero-frame { border-top: 3px solid var(--invite-accent); text-align: left; padding-inline: 10px; }
+.invitation-theme-classic .hero-layout-frame .hero-frame { border: 1px solid var(--invite-accent); outline: 1px solid color-mix(in srgb, var(--invite-accent) 40%, transparent); outline-offset: -6px; }
+.invitation-theme-romantic .hero-layout-frame .hero-frame { border-top: 1px solid var(--invite-accent); border-radius: 46% 46% 0 0; padding-top: 60px; }
+.invitation-theme-modern .hero-layout-frame .hero-frame { border-top: 3px solid var(--invite-accent); text-align: left; padding-inline: 10px; }
 .page-renderer .hero-date { font-size: .69em; color: var(--invite-soft); margin: 24px 0; }
 .page-renderer .hero-names { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; font-size: 1.8em; letter-spacing: .03em; margin: 0 0 22px; }
-.invitation-theme-modern .hero-names { justify-content: flex-start; }
+.invitation-theme-modern .hero-layout-frame .hero-names { justify-content: flex-start; }
 .page-renderer .hero-ampersand { font-family: Georgia, serif; font-size: .7em; font-style: italic; }
 .hero-cover { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; margin: 26px auto; }
 .page-renderer .hero-invitation-label { margin-top: 42px; }
+/* garden: rounded double frame with a leaf mark. */
+.invitation-theme-garden .hero-layout-frame .hero-frame { border: 1px solid var(--invite-accent); border-radius: 22px; outline: 1px solid color-mix(in srgb, var(--invite-accent) 35%, transparent); outline-offset: -7px; }
+.invitation-theme-garden .hero-layout-frame .hero-frame::before { content: '❦'; display: block; color: var(--invite-accent); font-size: 1.3em; line-height: 1; margin: -12px 0 18px; }
+/* hanji: a vermilion 囍 seal, wide-tracked names and faint paper fibres. */
+.page-renderer.invitation-theme-hanji { background-image: radial-gradient(color-mix(in srgb, var(--invite-ink) 5%, transparent) .6px, transparent .8px); background-size: 7px 9px; }
+.invitation-theme-hanji .hero-block::before { content: '囍'; display: inline-block; color: var(--invite-accent); border: 1.5px solid var(--invite-accent); border-radius: 3px; padding: 3px 7px; font-size: 1.05em; line-height: 1.3; margin-bottom: 20px; }
+.invitation-theme-hanji .hero-names { letter-spacing: .14em; }
+/* film: the cover becomes a white-bordered print. */
+.invitation-theme-film .hero-layout-photo-full { padding: 22px 20px 0; }
+.invitation-theme-film .hero-photo { border: 10px solid #fff; border-bottom-width: 34px; box-shadow: 0 6px 18px rgb(0 0 0 / .14); }
+.invitation-theme-film .hero-photo-caption .invitation-eyebrow { font-family: inherit; letter-spacing: .28em; }
+/* letterpress: heavy double rules like a pressed card. */
+.invitation-theme-letterpress .hero-layout-typographic { margin: 18px 18px 0; border-block: 5px double var(--invite-accent); }
+.invitation-theme-letterpress .hero-names { letter-spacing: .02em; }
+.invitation-theme-letterpress .hero-date-numeric { color: var(--invite-accent); }
+/* photo-full: the cover runs edge to edge with names over a bottom scrim. */
+.page-renderer .hero-layout-photo-full { padding: 0; }
+.hero-photo { position: relative; aspect-ratio: 3 / 4; overflow: hidden; color: #fff; }
+.hero-photo-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-photo::after { content: ''; position: absolute; inset: 45% 0 0; background: linear-gradient(transparent, rgb(0 0 0 / .62)); }
+.hero-photo-empty { aspect-ratio: 4 / 5; color: var(--invite-ink); background: color-mix(in srgb, var(--invite-accent) 16%, var(--invite-bg)); }
+.hero-photo-empty::after { display: none; }
+.hero-photo-caption { position: absolute; inset: auto 0 0; z-index: 1; padding: 0 22px 30px; text-align: left; }
+.page-renderer .hero-photo-caption .invitation-eyebrow, .page-renderer .hero-photo-caption .hero-names, .page-renderer .hero-photo-caption .hero-date { color: inherit; }
+.page-renderer .hero-photo-caption .hero-names { justify-content: flex-start; margin: 0 0 8px; }
+.page-renderer .hero-photo-caption .hero-date { margin: 0; opacity: .88; }
+.hero-photo-body { padding: 34px 24px 10px; }
+/* typographic: names carry the page; the photo becomes a small inset. */
+.page-renderer .hero-layout-typographic { padding: 56px 24px 28px; }
+.page-renderer .hero-names-stacked { flex-direction: column; gap: 0; font-size: 2.7em; line-height: 1.25; letter-spacing: -.02em; margin: 18px 0 26px; }
+.page-renderer .hero-names-stacked .hero-ampersand { font-size: .45em; margin: 6px 0; }
+.page-renderer .hero-layout-typographic .hero-date { display: flex; flex-direction: column; gap: 4px; margin: 0 0 30px; }
+.hero-date-numeric { font-size: 1.9em; font-weight: 400; letter-spacing: .08em; color: var(--invite-ink); }
+.hero-cover-inset { width: 62%; aspect-ratio: 1; margin: 0 auto 30px; }
 .hero-greeting { white-space: pre-wrap; font-size: .83em; line-height: 2.3; word-break: keep-all; overflow-wrap: break-word; }
 .page-renderer .block-placeholder, .page-renderer .block-sub { color: var(--invite-soft); font-size: .8em; }
 .page-renderer .countdown-block { font-size: .82em; font-weight: 400; }

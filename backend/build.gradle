@@ -53,6 +53,14 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+// Theme presets are owned by the frontend editor; TemplateSeeder reads the same file
+// so template codes and default designs cannot drift between the two (CLAUDE.md).
+tasks.named('processResources') {
+	from('../frontend/src/editor/themes.json') {
+		into 'presets'
+	}
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

@@ -4,8 +4,43 @@
     {
       "name": "invi-frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--host"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev",
+        "--",
+        "--host"
+      ],
       "port": 5173
+    },
+    {
+      "name": "invi-frontend-localhost",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "localhost"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "invi-backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "backend\\gradlew.bat",
+        "-p",
+        "backend",
+        "bootRun",
+        "--args=--spring.profiles.active=local --server.address=127.0.0.1 --invi.frontend.base-url=http://localhost:5173 --server.servlet.session.persistent=false",
+        "--console=plain"
+      ],
+      "port": 8080
     }
   ]
 }

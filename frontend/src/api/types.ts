@@ -16,9 +16,11 @@ export interface Block {
   style: Record<string, unknown>
 }
 
-export type DesignTheme = 'classic' | 'minimal' | 'romantic' | 'modern'
+// Theme codes come from src/editor/themes.json, shared with the backend TemplateSeeder.
+export type DesignTheme = string
 export type InvitationFont = 'serif' | 'sans'
 export type InvitationFontSize = 'normal' | 'large' | 'larger'
+export type HeroLayout = 'frame' | 'photo-full' | 'typographic'
 
 export interface PageDesign {
   theme: DesignTheme
@@ -26,6 +28,7 @@ export interface PageDesign {
   accentColor: string
   fontFamily: InvitationFont
   fontSize: InvitationFontSize
+  heroLayout: HeroLayout
 }
 
 export interface PageData {

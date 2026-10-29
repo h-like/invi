@@ -28,7 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class TemplateSeederTest {
 
-    private static final List<String> CODES = List.of("classic", "minimal", "romantic", "modern");
+    private static final List<String> CODES = List.of("classic", "minimal", "romantic", "modern", "garden", "hanji", "film", "letterpress");
 
     @Mock private TemplateRepository templateRepository;
     @Mock private MediaLifecycle lifecycle;
@@ -48,7 +48,12 @@ class TemplateSeederTest {
         assertThat(saved).allSatisfy(t -> {
             assertThat(t.getCategory()).isEqualTo(t.getCode());
             assertThat(t.getDefaultPageData().get("blocks")).hasSize(7);
+            assertThat(t.getDefaultPageData().at("/design/theme").asText()).isEqualTo(t.getCode());
+            assertThat(t.getDefaultPageData().at("/design/backgroundColor").asText()).matches("#[0-9a-f]{6}");
         });
+        assertThat(saved).extracting(Template::getName)
+                .containsExactly("베이지 클래식", "미니멀 화이트", "로즈 레터", "모던 나이트",
+                        "세이지 가든", "한지 담묵", "필름 포토", "네이비 레터프레스");
         InOrder order = inOrder(lifecycle, templateRepository);
         order.verify(lifecycle).lock();
         order.verify(templateRepository).findByCode("classic");
@@ -81,9 +86,9 @@ class TemplateSeederTest {
         assertThat(legacy.getCode()).isEqualTo("classic");
         assertThat(legacy.getDefaultPageData().get("blocks")).hasSize(7);
         ArgumentCaptor<Template> captor = ArgumentCaptor.forClass(Template.class);
-        verify(templateRepository, times(3)).save(captor.capture());
+        verify(templateRepository, times(CODES.size() - 1)).save(captor.capture());
         assertThat(captor.getAllValues()).extracting(Template::getCode)
-                .containsExactly("minimal", "romantic", "modern");
+                .containsExactly("minimal", "romantic", "modern", "garden", "hanji", "film", "letterpress");
     }
 
     @Test
@@ -97,7 +102,7 @@ class TemplateSeederTest {
 
         seeder.run();
 
-        assertThat(minimal.getName()).isEqualTo("미니멀");
+        assertThat(minimal.getName()).isEqualTo("미니멀 화이트");
         assertThat(minimal.getCategory()).isEqualTo("minimal");
         assertThat(minimal.getDefaultPageData()).isNotNull();
         verify(templateRepository, never()).save(any());

@@ -13,7 +13,8 @@ public class TemplateService {
     private final TemplateRepository templateRepository;
 
     public List<TemplateDto> findAll() {
-        return templateRepository.findAll().stream().map(this::toDto).toList();
+        // Seed order == registry order; an unordered scan reshuffles once the seeder updates rows.
+        return templateRepository.findAllByOrderByCreatedAtAsc().stream().map(this::toDto).toList();
     }
 
     public TemplateDetailDto findById(UUID id) {

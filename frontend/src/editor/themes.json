@@ -1,0 +1,50 @@
+[
+  {
+    "code": "classic",
+    "name": "베이지 클래식",
+    "description": "아이보리 종이와 클래식 프레임",
+    "design": { "theme": "classic", "backgroundColor": "#faf7f2", "accentColor": "#856539", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" }
+  },
+  {
+    "code": "minimal",
+    "name": "미니멀 화이트",
+    "description": "여백으로 전하는 담백한 초대",
+    "design": { "theme": "minimal", "backgroundColor": "#ffffff", "accentColor": "#333333", "fontFamily": "sans", "fontSize": "normal", "heroLayout": "typographic" }
+  },
+  {
+    "code": "romantic",
+    "name": "로즈 레터",
+    "description": "부드러운 핑크빛 편지",
+    "design": { "theme": "romantic", "backgroundColor": "#fdf1f4", "accentColor": "#a33e58", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" }
+  },
+  {
+    "code": "modern",
+    "name": "모던 나이트",
+    "description": "짙은 배경과 선명한 타이포",
+    "design": { "theme": "modern", "backgroundColor": "#141414", "accentColor": "#80d8cc", "fontFamily": "sans", "fontSize": "normal", "heroLayout": "photo-full" }
+  },
+  {
+    "code": "garden",
+    "name": "세이지 가든",
+    "description": "초록 잎사귀가 감싸는 정원의 초대",
+    "design": { "theme": "garden", "backgroundColor": "#f2f4ec", "accentColor": "#4a6a4c", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" }
+  },
+  {
+    "code": "hanji",
+    "name": "한지 담묵",
+    "description": "미색 한지에 먹빛과 주홍 낙관",
+    "design": { "theme": "hanji", "backgroundColor": "#f6f0e1", "accentColor": "#a8352a", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "typographic" }
+  },
+  {
+    "code": "film",
+    "name": "필름 포토",
+    "description": "한 장의 인화 사진으로 여는 초대",
+    "design": { "theme": "film", "backgroundColor": "#f3f0eb", "accentColor": "#5b4f45", "fontFamily": "sans", "fontSize": "normal", "heroLayout": "photo-full" }
+  },
+  {
+    "code": "letterpress",
+    "name": "네이비 레터프레스",
+    "description": "크림 종이에 눌러 찍은 남색 활자",
+    "design": { "theme": "letterpress", "backgroundColor": "#fbf6ea", "accentColor": "#22385c", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "typographic" }
+  }
+]
