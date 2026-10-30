@@ -70,6 +70,7 @@ private JsonNode pageData;
 - 모든 블록은 `id`, `type`, `order`, `visible`, `content`, `style`을 공통으로 갖는다. `content`의 내부 구조만 타입별로 다르다.
 - 백엔드는 이 구조를 검증하지 않고 그대로 저장/반환한다(자유도 우선). 검증이 필요해지면 프론트 Zod 스키마를 우선 기준으로 삼고 백엔드는 최소한의 sanity check만 추가한다.
 - `Invitation.langVariants`도 같은 JSONB 방식. 블록별로 언어 코드(`ko`/`en`)를 키로 갖는 텍스트 오버라이드만 저장한다.
+- `hero.content` 선택 필드: 혼주 `groomFather`·`groomMother`·`groomRelation`·`brideFather`·`brideMother`·`brideRelation`(부모 이름이 하나도 없으면 표시 안 함, 관계가 비면 아들/딸), 실링 이니셜 `monogram`(영문·`&`·공백 최대 5자, 비면 "&", 봉투 인트로가 있는 테마만 사용). 읽기·정규화는 `frontend/src/blocks/heroDetails.ts` 한 곳에서 한다.
 
 ## 데이터 모델 (Phase 0 범위)
 
@@ -78,7 +79,7 @@ private JsonNode pageData;
 | `Member` | `member` | provider(KAKAO/GOOGLE), providerId, email, name | providerId+provider로 유니크 |
 | `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt | slug는 서브도메인과 1:1 |
 | `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋 원본은 `frontend/src/editor/themes.json` 하나 — 에디터 `DESIGN_PRESETS`가 import하고, `backend/build.gradle`이 `presets/themes.json`으로 복사해 `TemplateSeeder`가 읽는다(Dockerfile도 이 파일을 복사). `code` = `category` = `design.theme`. 시더는 `pageData.design`을 직접 저장한다. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
-| `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message | 로그인 없이 제출 |
+| `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal은 nullable(이전 응답·이전 클라이언트 호환), 불참이면 meal은 저장하지 않음. 값 종류를 늘리면 Hibernate가 기존 enum CHECK 제약을 갱신하지 않으므로 `schema.sql`에서 제약을 다시 만든다 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
 
 ## 인증 (Kakao / Google 로그인)

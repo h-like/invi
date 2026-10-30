@@ -48,8 +48,15 @@
 :where(.page-renderer) .account-group-title { font-weight: 600; font-size: 13px; color: var(--inv-ink-soft); margin: 0 0 6px; }
 :where(.page-renderer) .account-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 14px; }
 :where(.page-renderer) .account-row button { padding: 4px 10px; font-size: 12px; background: var(--inv-surface-2); color: var(--inv-ink); border: 1px solid var(--inv-line); }
-:where(.page-renderer) .rsvp-attending { display: flex; gap: 16px; margin: 10px 0; font-size: 14px; }
-:where(.page-renderer) .rsvp-attending label { display: flex; align-items: center; gap: 6px; margin: 0; }
+:where(.page-renderer) .rsvp-segment { margin: 4px 0 0; padding: 0; border: 0; min-width: 0; }
+:where(.page-renderer) .rsvp-segment legend { padding: 0; margin: 0 0 6px; font-size: 13px; }
+:where(.page-renderer) .rsvp-segment-options { display: flex; border: 1px solid var(--inv-line, #ddd); border-radius: 8px; overflow: hidden; }
+:where(.page-renderer) .rsvp-segment-options label { flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 40px; margin: 0; padding: 0 6px; font-size: 14px; cursor: pointer; text-align: center; word-break: keep-all; }
+:where(.page-renderer) .rsvp-segment-options label + label { border-left: 1px solid var(--inv-line, #ddd); }
+:where(.page-renderer) .rsvp-segment-options input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+:where(.page-renderer) .rsvp-segment-options label.is-selected { background: var(--invite-accent, #333); color: var(--invite-bg, #fff); }
+:where(.page-renderer) .rsvp-segment-options label:has(input:focus-visible) { outline: 2px solid var(--invite-accent, #333); outline-offset: -4px; }
+:where(.page-renderer) .rsvp-segment:disabled label { cursor: default; }
 :where(.page-renderer) .rsvp-block form, :where(.page-renderer) .guestbook-block form { display: flex; flex-direction: column; gap: 10px; }
 :where(.page-renderer) .block-success { color: var(--inv-success); font-weight: 600; text-align: center; }
 :where(.page-renderer) .guestbook-list { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
@@ -107,6 +114,11 @@
 .hero-date-numeric { font-size: 1.9em; font-weight: 400; letter-spacing: .08em; color: var(--invite-ink); }
 .hero-cover-inset { width: 62%; aspect-ratio: 1; margin: 0 auto 30px; }
 .hero-greeting { white-space: pre-wrap; font-size: .83em; line-height: 2.3; word-break: keep-all; overflow-wrap: break-word; }
+/* Parents' names (혼주), only rendered when at least one is entered. */
+.page-renderer .hero-parents { margin: 26px auto 0; font-size: .85em; line-height: 2; word-break: keep-all; }
+.page-renderer .hero-parent-line { margin: 0; }
+.page-renderer .hero-parent-relation { color: var(--invite-soft); }
+.page-renderer .hero-parent-child { font-weight: 600; }
 .page-renderer .block-placeholder, .page-renderer .block-sub { color: var(--invite-soft); font-size: .8em; }
 .page-renderer .countdown-block { font-weight: 400; }
 .page-renderer .countdown-message { font-size: .82em; }
@@ -119,7 +131,8 @@
 .page-renderer input:not([type='radio']), .page-renderer textarea { font-family: inherit; font-size: .85em; color: var(--invite-ink); background: var(--invite-bg); border-color: var(--inv-line); }
 .page-renderer button { font-size: .8em; background: var(--invite-accent); color: var(--invite-bg); border: 1px solid var(--inv-line); }
 .page-renderer .account-row button { background: transparent; color: var(--invite-accent); }
-.page-renderer .account-row, .page-renderer .account-group-title, .page-renderer .rsvp-attending, .page-renderer .rsvp-attending label { font-size: .85em; }
+.page-renderer .account-row, .page-renderer .account-group-title, .page-renderer .rsvp-segment legend { font-size: .8em; color: var(--invite-soft); }
+.page-renderer .rsvp-segment-options label { font-size: .85em; }
 .page-renderer .account-group { text-align: left; }
 .page-renderer .block-success { color: var(--invite-accent); }
 .page-renderer .guestbook-list li { font-size: .85em; background: transparent; border: 1px solid var(--inv-line); text-align: left; }
@@ -208,6 +221,10 @@ html.invite-modal-open { overflow: hidden; }
 .invitation-theme-seal .hero-ampersand { font-family: var(--seal-script); font-style: normal; font-weight: 400; font-size: 1.35em; }
 .invitation-theme-seal .hero-date { font-family: "Cormorant Garamond", var(--invite-font); font-weight: 600; font-size: .9em; letter-spacing: .12em; color: var(--invite-accent); }
 .invitation-theme-seal .hero-greeting { font-size: .875em; line-height: 1.95; }
+.invitation-theme-seal .hero-layout-frame .hero-parents { order: 7; }
+.invitation-theme-seal .hero-parents { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--inv-line); min-width: 220px; line-height: 2.1; }
+.invitation-theme-seal .hero-parent-names, .invitation-theme-seal .hero-parent-child { color: var(--invite-accent); font-weight: 700; }
+.invitation-theme-seal .hero-parent-relation { font-size: .9em; letter-spacing: .04em; }
 .invitation-theme-seal .calendar-title { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; font-size: 1.35em; }
 .invitation-theme-seal .calendar th, .invitation-theme-seal .countdown-clock small { font-family: "Cormorant Garamond", Georgia, serif; }
 .invitation-theme-seal .countdown-clock div { border: 0; background: var(--seal-paper-2); }

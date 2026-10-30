@@ -1,3 +1,5 @@
+import type { RsvpMeal, RsvpSide } from '../blocks/rsvpOptions'
+
 export type BlockType =
   | 'hero'
   | 'gallery'
@@ -76,6 +78,8 @@ export interface RsvpEntry {
   attending: boolean
   guestCount: number
   message: string | null
+  side: RsvpSide | null
+  meal: RsvpMeal | null
 }
 
 export interface GuestbookEntryItem {

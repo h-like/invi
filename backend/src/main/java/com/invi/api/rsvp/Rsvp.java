@@ -4,6 +4,8 @@ import com.invi.api.common.BaseEntity;
 import com.invi.api.invitation.Invitation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -36,4 +38,11 @@ public class Rsvp extends BaseEntity {
     private Integer guestCount;
 
     private String message;
+
+    // Nullable: responses from before side/meal existed keep loading (ddl-auto adds the columns).
+    @Enumerated(EnumType.STRING)
+    private RsvpSide side;
+
+    @Enumerated(EnumType.STRING)
+    private RsvpMeal meal;
 }
