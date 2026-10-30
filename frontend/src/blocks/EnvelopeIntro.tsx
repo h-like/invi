@@ -330,13 +330,19 @@ export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: P
       probe.remove()
       if (!box.width) return
       const k = Math.min(1, SEAL_TEXT_WIDTH / box.width)
-      setSealFit({ label, size: Math.round(base * k * 10) / 10, dx: Math.round(-(box.x + box.width / 2) * k * 10) / 10 })
+      const next = { label, size: Math.round(base * k * 10) / 10, dx: Math.round(-(box.x + box.width / 2) * k * 10) / 10 }
+      setSealFit(prev => prev && prev.label === next.label && prev.size === next.size && prev.dx === next.dx ? prev : next)
     }
-    // The script face is registered lazily with the theme CSS, so measure again whenever
-    // a font finishes loading; the first pass may still see the fallback.
+    // The script face is registered lazily with the theme CSS, so measure again when a
+    // Pinyon Script face finishes loading; the first pass may still see the fallback.
+    // Other fonts (the body face's unicode-range chunks) cannot change the seal width.
+    const onFontsLoaded = (event: Event) => {
+      const faces = (event as FontFaceSetLoadEvent).fontfaces ?? []
+      if (faces.some(face => face.family.replace(/["']/g, '') === 'Pinyon Script')) measure()
+    }
     document.fonts.load(`${base}px "Pinyon Script"`, label).then(measure, measure)
-    document.fonts.addEventListener('loadingdone', measure)
-    return () => { live = false; document.fonts.removeEventListener('loadingdone', measure) }
+    document.fonts.addEventListener('loadingdone', onFontsLoaded)
+    return () => { live = false; document.fonts.removeEventListener('loadingdone', onFontsLoaded) }
   }, [read, monogram])
 
   // After the letter is out, move focus into it so keyboard and screen reader users land on the invitation.
