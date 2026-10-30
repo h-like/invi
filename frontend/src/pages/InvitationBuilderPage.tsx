@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from 'react'
 import { Link, useBlocker, useParams, type BlockerFunction } from 'react-router-dom'
 import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
@@ -269,7 +269,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                   <datalist id={'relations-' + side}>{relations.map(r => <option key={r} value={r} />)}</datalist>
                 </div><p className="editor-section-hint">{preview ? `표시: ${preview.parents}의 ${preview.relation}${preview.child ? ' ' + preview.child : ''}` : '표시 안 함'}</p></div> })}
               </section>}
-              {hero && themeFeatures(design.theme).envelopeIntro && <section className="editor-section"><h2>실링 이니셜 <small>와인 실링 레터</small></h2><label>봉투 실링에 새길 영문 이니셜<input value={text(hero, 'monogram')} maxLength={MONOGRAM_MAX} onChange={e => changeContent(hero, { monogram: normalizeMonogram(e.target.value) })} placeholder="D&S" aria-describedby="monogram-hint" autoCapitalize="characters" /></label><p className="editor-section-hint" id="monogram-hint">영문·&·공백으로 최대 {MONOGRAM_MAX}자. 비워 두면 &로 표시됩니다. 하객 화면의 봉투에서 볼 수 있어요.</p></section>}
+              {hero && themeFeatures(design.theme).envelopeIntro && <section className="editor-section"><h2>실링 이니셜 <small>와인 실링 레터</small></h2><label>봉투 실링에 새길 영문 이니셜<MonogramInput value={text(hero, 'monogram')} onChange={monogram => changeContent(hero, { monogram })} /></label><p className="editor-section-hint" id="monogram-hint">영문·&·공백으로 최대 {MONOGRAM_MAX}자. 비워 두면 &로 표시됩니다. 하객 화면의 봉투에서 볼 수 있어요.</p></section>}
               {hero && <section className="editor-section"><h2>초대의 글</h2><label>인사말<textarea rows={6} maxLength={1500} value={text(hero, 'greeting')} onChange={e => changeContent(hero, { greeting: e.target.value })} placeholder="소중한 분들께 전할 초대의 글을 써 주세요." /></label>
                 <p className="editor-section-hint">샘플 문구를 선택하면 현재 인사말을 바꿉니다.</p><div className="sample-buttons">{GREETING_SAMPLES.map(sample => <button type="button" key={sample.name} onClick={() => { if (!text(hero, 'greeting') || window.confirm('현재 인사말을 샘플 문구로 바꿀까요?')) changeContent(hero, { greeting: sample.text }) }}>{sample.name}</button>)}</div>
               </section>}
@@ -307,6 +307,24 @@ function AccountRoleEditor({ role, entry, onChange }: { role: AccountRole; entry
   const label = ACCOUNT_ROLE_LABELS[role]
   const input = (key: keyof AccountEntry) => (e: ChangeEvent<HTMLInputElement>) => onChange({ [key]: e.target.value })
   return <div className="account-role-editor"><p className="account-role-label">{label}</p><div className="account-editor-row"><input aria-label={label + ' 예금주'} value={entry.holder} onChange={input('holder')} placeholder="예금주" maxLength={100} /><input aria-label={label + ' 은행'} value={entry.bank} onChange={input('bank')} placeholder="은행" maxLength={50} /><input aria-label={label + ' 계좌번호'} value={entry.accountNumber} onChange={input('accountNumber')} placeholder="계좌번호" maxLength={100} /></div><input aria-label={label + ' 계좌 대신 메시지'} value={entry.message} onChange={input('message')} placeholder="계좌 대신 표시할 메시지" maxLength={300} /></div>
+}
+
+// Mobile keyboards compose text (Hangul, and Latin words on some Android keyboards), and
+// rewriting a controlled value mid-composition breaks it. While composing the field shows the
+// raw text locally; only normalized values reach the draft, so nothing else is ever saved.
+function MonogramInput({ value, onChange }: { value: string; onChange: (monogram: string) => void }) {
+  const [composing, setComposing] = useState<string | null>(null)
+  const commit = (e: SyntheticEvent<HTMLInputElement>) => { setComposing(null); onChange(normalizeMonogram(e.currentTarget.value)) }
+  return <input
+    value={composing ?? value}
+    maxLength={MONOGRAM_MAX}
+    onCompositionEnd={commit}
+    onChange={e => { if ((e.nativeEvent as InputEvent).isComposing) setComposing(e.target.value); else commit(e) }}
+    onBlur={e => { if (composing !== null) commit(e) }}
+    placeholder="D&S"
+    aria-describedby="monogram-hint"
+    autoCapitalize="characters"
+  />
 }
 
 function todayIso() {
