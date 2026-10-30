@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.invi.api.invitation.InvitationExpiryProperties;
 import com.invi.api.media.MediaCleanupProperties;
 import java.time.Duration;
 import java.util.List;
@@ -204,20 +205,29 @@ class HttpsTestDeploymentGuardTest {
         MockEnvironment environment = validEnvironment().withProperty("invi.r2.cleanup.enabled", "true");
         MediaCleanupProperties cleanup = Binder.get(environment)
                 .bind("invi.r2.cleanup", Bindable.of(MediaCleanupProperties.class)).get();
-        assertThatThrownBy(() -> new HttpsTestDeploymentGuard(environment, cleanup))
+        assertThatThrownBy(() -> new HttpsTestDeploymentGuard(environment, cleanup, expiry(true)))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("invi.r2.cleanup.enabled");
     }
 
     @Test
     void requiresDryRunEvenWhenCleanupIsDisabled() {
-        assertThatThrownBy(() -> new HttpsTestDeploymentGuard(validEnvironment(), createMediaCleanupProperties(false, false)))
+        assertThatThrownBy(() -> new HttpsTestDeploymentGuard(validEnvironment(), createMediaCleanupProperties(false, false), expiry(true)))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("invi.r2.cleanup.dry-run");
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"false", ""})
-    void requiresInvitationExpiryDryRun(String value) {
-        rejects("invi.invitation.expiry.dry-run", value);
+    @Test
+    void requiresInvitationExpiryDryRun() {
+        assertThatThrownBy(() -> new HttpsTestDeploymentGuard(validEnvironment(), createMediaCleanupProperties(false, true), expiry(false)))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("invi.invitation.expiry.dry-run");
+    }
+
+    @Test
+    void acceptsAnyCaseThatSpringBindsAsDryRun() {
+        MockEnvironment environment = validEnvironment().withProperty("invi.invitation.expiry.dry-run", "TRUE");
+        InvitationExpiryProperties bound = Binder.get(environment)
+                .bind("invi.invitation.expiry", Bindable.of(InvitationExpiryProperties.class)).get();
+        assertThatCode(() -> new HttpsTestDeploymentGuard(environment, createMediaCleanupProperties(false, true), bound))
+                .doesNotThrowAnyException();
     }
 
     @ParameterizedTest
@@ -281,6 +291,7 @@ class HttpsTestDeploymentGuardTest {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.setEnvironment(environment);
             context.registerBean(MediaCleanupProperties.class, () -> cleanup);
+            context.registerBean(InvitationExpiryProperties.class, () -> expiry(true));
             context.register(HttpsTestDeploymentGuard.class);
             assertThatThrownBy(context::refresh).hasRootCauseInstanceOf(IllegalStateException.class)
                     .hasStackTraceContaining("Invalid https-test configuration: spring.profiles.active");
@@ -331,7 +342,11 @@ class HttpsTestDeploymentGuardTest {
     }
 
     private static void guard(Environment environment) {
-        new HttpsTestDeploymentGuard(environment, createMediaCleanupProperties(false, true));
+        new HttpsTestDeploymentGuard(environment, createMediaCleanupProperties(false, true), expiry(true));
+    }
+
+    private static InvitationExpiryProperties expiry(boolean dryRun) {
+        return new InvitationExpiryProperties(true, dryRun, 10, 100);
     }
 
     private static MediaCleanupProperties createMediaCleanupProperties(boolean enabled, boolean dryRun) {
@@ -352,7 +367,6 @@ class HttpsTestDeploymentGuardTest {
                 .withProperty("invi.r2.bucket", "invi-https-test")
                 .withProperty("invi.r2.cleanup.enabled", "false")
                 .withProperty("invi.r2.cleanup.dry-run", "true")
-                .withProperty("invi.invitation.expiry.dry-run", "true")
                 .withProperty("server.forward-headers-strategy", "framework")
                 .withProperty("management.endpoints.web.exposure.include", "health")
                 .withProperty("management.endpoint.health.show-details", "never")

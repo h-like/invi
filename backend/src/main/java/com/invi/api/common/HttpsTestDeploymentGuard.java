@@ -1,5 +1,6 @@
 package com.invi.api.common;
 
+import com.invi.api.invitation.InvitationExpiryProperties;
 import com.invi.api.media.MediaCleanupProperties;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -21,7 +22,8 @@ public class HttpsTestDeploymentGuard {
     private static final String DATASOURCE_URL = "spring.datasource.url";
     private static final String SSL_FACTORY = "org.postgresql.ssl.DefaultJavaSSLFactory";
 
-    public HttpsTestDeploymentGuard(Environment environment, MediaCleanupProperties cleanup) {
+    public HttpsTestDeploymentGuard(Environment environment, MediaCleanupProperties cleanup,
+            InvitationExpiryProperties expiry) {
         require(!environment.acceptsProfiles(Profiles.of("local")), "spring.profiles.active");
         validateHttps(property(environment, "invi.frontend.base-url"), "invi.frontend.base-url", true);
 
@@ -43,7 +45,7 @@ public class HttpsTestDeploymentGuard {
         require(cleanup != null && !cleanup.enabled(), "invi.r2.cleanup.enabled");
         require(cleanup.dryRun(), "invi.r2.cleanup.dry-run");
         // Test data never expires for real; switching off dry-run is a production decision.
-        exact(environment, "invi.invitation.expiry.dry-run", "true");
+        require(expiry != null && expiry.dryRun(), "invi.invitation.expiry.dry-run");
         exact(environment, "server.forward-headers-strategy", "framework");
         exact(environment, "management.endpoints.web.exposure.include", "health");
         exact(environment, "management.endpoint.health.show-details", "never");

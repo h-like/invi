@@ -15,5 +15,5 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
 
     List<Invitation> findAllByMemberIdOrderByCreatedAtDesc(UUID memberId);
 
-    List<Invitation> findByPlanAndWeddingDateBeforeOrderByWeddingDateAsc(Plan plan, LocalDate date, Limit limit);
+    List<Invitation> findByPlanAndWeddingDateBeforeOrderByWeddingDateAscIdAsc(Plan plan, LocalDate date, Limit limit);
 }

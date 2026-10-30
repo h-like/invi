@@ -3,6 +3,7 @@ package com.invi.api.media;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import com.invi.api.common.SchedulingConfiguration;
 import java.time.Clock;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class MediaCleanupConfigurationTest {
     private ApplicationContextRunner context() {
         return new ApplicationContextRunner()
-                .withUserConfiguration(MediaCleanupConfiguration.class, MediaCleanupJob.class)
+                .withUserConfiguration(SchedulingConfiguration.class, MediaCleanupConfiguration.class, MediaCleanupJob.class)
                 .withBean(MediaCleanupService.class, () -> mock(MediaCleanupService.class));
     }
 

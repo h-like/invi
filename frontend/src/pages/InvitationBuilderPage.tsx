@@ -51,6 +51,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const [shareOpen, setShareOpen] = useState(false)
   const [copyStatus, setCopyStatus] = useState('')
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const [dateInput, setDateInput] = useState('')
+  const [dateSaving, setDateSaving] = useState(false)
+  const [dateStatus, setDateStatus] = useState('')
   const unsaved = draft !== null && JSON.stringify(draft) !== baseline
   const leaveState = { dirty: unsaved, busy, photoPending }
   const leaveMode = leaveDialogMode(leaveState)
@@ -67,6 +70,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       if (!active) return
       const page = inv.pageData ?? createEmptyPage()
       setInvitation(inv)
+      setDateInput(inv.weddingDate)
       setDraft(page)
       setBaseline(JSON.stringify(page))
     }).catch(err => { if (active) setError(err instanceof Error ? err.message : '청첩장을 불러오지 못했습니다.') })
@@ -144,6 +148,22 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       return patchContent(prev, account.id, { [role]: { ...emptyAccountContent()[role], ...existing, ...patch } })
     })
     setNotice('')
+  }
+
+  // Saved immediately, apart from the draft: free invitations are deleted 10 days after this date.
+  async function saveWeddingDate() {
+    if (!invitation || dateSaving || !dateInput || dateInput === invitation.weddingDate) return
+    setDateSaving(true)
+    setDateStatus('')
+    try {
+      const saved = await api.updateWeddingDate(invitation.id, dateInput)
+      setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate } : prev)
+      setDateStatus('예식일을 변경했습니다.')
+    } catch (err) {
+      setDateStatus(err instanceof Error ? err.message : '예식일을 변경하지 못했습니다.')
+    } finally {
+      setDateSaving(false)
+    }
   }
 
   async function persist(publish: boolean): Promise<boolean> {
@@ -230,8 +250,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
               {hero && <section className="editor-section"><h2>두 사람의 이름</h2><div className="form-columns">
                 <label>신랑 이름<input value={text(hero, 'groomName')} maxLength={50} onChange={e => changeContent(hero, { groomName: e.target.value })} placeholder="신랑 이름" /></label>
                 <label>신부 이름<input value={text(hero, 'brideName')} maxLength={50} onChange={e => changeContent(hero, { brideName: e.target.value })} placeholder="신부 이름" /></label>
-              </div><div className="form-columns"><label>예식일<input value={invitation.weddingDate} readOnly aria-describedby="date-hint" /></label><label>예식 시간<input type="time" value={text(hero, 'weddingTime')} onChange={e => changeContent(hero, { weddingTime: e.target.value })} /></label></div>
-                <p className="editor-section-hint" id="date-hint">예식일은 청첩장을 만들 때 선택한 날짜입니다.</p>
+              </div><div className="form-columns"><label>예식일<span className="date-change"><input type="date" value={dateInput} min={todayIso()} onChange={e => { setDateInput(e.target.value); setDateStatus('') }} aria-describedby="date-hint" /><button type="button" className="secondary-button" disabled={dateSaving || !dateInput || dateInput === invitation.weddingDate} onClick={() => void saveWeddingDate()}>{dateSaving ? '변경 중...' : '변경'}</button></span></label><label>예식 시간<input type="time" value={text(hero, 'weddingTime')} onChange={e => changeContent(hero, { weddingTime: e.target.value })} /></label></div>
+                <p className="editor-section-hint" id="date-hint">예식일은 [변경]을 누르면 바로 저장됩니다. 무료 청첩장은 예식일 10일 뒤 삭제됩니다.</p>{dateStatus && <p className="editor-section-hint" role="status">{dateStatus}</p>}
                 <CoverPhotoEditor invitationId={invitation.id} currentUrl={isImageUrl(text(hero, 'coverImage')) ? text(hero, 'coverImage') : ''} disabled={busy} onChange={url => changeContent(hero, { coverImage: url })} onPendingChange={pending => photoPendingChange('cover', pending)} />
                 <details className="cover-photo-url"><summary>이미지 주소로 직접 입력</summary><label>대표 사진 URL<input type="url" disabled={photoPending} value={text(hero, 'coverImage')} onChange={e => changeContent(hero, { coverImage: e.target.value })} placeholder="https://.../photo.jpg" /></label>
                 {text(hero, 'coverImage') && !isImageUrl(text(hero, 'coverImage')) && <p className="form-error">http 또는 https 이미지 주소를 입력해 주세요. 올바른 주소만 표시됩니다.</p>}</details>
@@ -273,4 +293,9 @@ function AccountRoleEditor({ role, entry, onChange }: { role: AccountRole; entry
   const label = ACCOUNT_ROLE_LABELS[role]
   const input = (key: keyof AccountEntry) => (e: ChangeEvent<HTMLInputElement>) => onChange({ [key]: e.target.value })
   return <div className="account-role-editor"><p className="account-role-label">{label}</p><div className="account-editor-row"><input aria-label={label + ' 예금주'} value={entry.holder} onChange={input('holder')} placeholder="예금주" maxLength={100} /><input aria-label={label + ' 은행'} value={entry.bank} onChange={input('bank')} placeholder="은행" maxLength={50} /><input aria-label={label + ' 계좌번호'} value={entry.accountNumber} onChange={input('accountNumber')} placeholder="계좌번호" maxLength={100} /></div><input aria-label={label + ' 계좌 대신 메시지'} value={entry.message} onChange={input('message')} placeholder="계좌 대신 표시할 메시지" maxLength={300} /></div>
+}
+
+function todayIso() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }

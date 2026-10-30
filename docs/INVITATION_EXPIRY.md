@@ -4,7 +4,7 @@
 
 - 대상: `plan = FREE`인 청첩장. 상태(DRAFT/PUBLISHED/ARCHIVED)와 무관하다. PAID는 지우지 않는다.
 - 기준: **예식일 + 10일이 지난 다음 날**(한국 시간). 예: 6/12 예식이면 6/22까지 유지되고 6/23부터 삭제 대상이 된다.
-- 만료일을 따로 저장하지 않는다. 예식일은 에디터에서 바뀔 수 있으므로 매 실행마다 `weddingDate < 오늘(KST) - 10일`로 계산한다. `Invitation.expiresAt` 컬럼은 이 배치에서 쓰지 않는다.
+- 만료일을 따로 저장하지 않는다. 예식일은 에디터의 [변경] 버튼(`PUT /api/invitations/{id}/wedding-date`, 소유자만, 오늘 이후 날짜만)으로 바로 바뀌므로 매 실행마다 `weddingDate < 오늘(KST) - 10일`로 계산한다. `Invitation.expiresAt` 컬럼은 이 배치에서 쓰지 않는다.
 - 개인정보 보관 최소화가 우선이라 소프트 삭제하지 않는다. 청첩장 행, RSVP, 방명록(이미 소프트 삭제된 글 포함), `media_asset` 행을 실제로 지운다.
 
 ## R2 사진
@@ -24,8 +24,9 @@
 | `interval` | `PT3H` | 깨어 있는 동안 반복 간격 |
 | `initial-delay` | `PT2M` | 서버 시작 후 첫 실행까지 대기 |
 
-- 로그 예: `Invitation expiry: InvitationExpiryReport[dryRun=true, weddingDateBefore=..., expired=[uuid...], deleted=0]`. 슬러그에는 신랑·신부 이름이 들어가는 경우가 많아 id만 남긴다.
-- 실패하면 트랜잭션 전체가 롤백되고 다음 주기에 다시 시도한다.
+- 로그 예: `Invitation expiry: InvitationExpiryReport[dryRun=true, weddingDateBefore=..., expired=[uuid...], deleted=0, failed=[]]`. 슬러그에는 신랑·신부 이름이 들어가는 경우가 많아 id만 남긴다.
+- 대상 목록 조회 후 **청첩장마다 별도 트랜잭션**(`InvitationExpiryTransactions.deleteIfExpired`)으로 지운다. 잠금은 청첩장 하나를 지우는 동안만 잡는다. 잠금을 잡은 뒤 무료 플랜·예식일 조건을 다시 확인해, 그사이 날짜가 미뤄졌으면 지우지 않는다. 예식일 변경도 같은 잠금을 잡는다.
+- 한 건이 실패하면 그 건만 롤백되어 `failed`에 id가 남고, 나머지는 계속 처리한다. 실패한 건은 다음 주기에 다시 시도한다.
 
 ## 무료 호스팅에서의 실행 시점
 
