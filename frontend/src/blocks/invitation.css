@@ -50,6 +50,7 @@
 :where(.page-renderer) .account-row button { padding: 4px 10px; font-size: 12px; background: var(--inv-surface-2); color: var(--inv-ink); border: 1px solid var(--inv-line); }
 :where(.page-renderer) .rsvp-segment { margin: 4px 0 0; padding: 0; border: 0; min-width: 0; }
 :where(.page-renderer) .rsvp-segment legend { padding: 0; margin: 0 0 6px; font-size: 13px; }
+:where(.page-renderer) .rsvp-required { color: var(--invite-accent, #333); }
 :where(.page-renderer) .rsvp-segment-options { display: flex; border: 1px solid var(--inv-line, #ddd); border-radius: 8px; overflow: hidden; }
 :where(.page-renderer) .rsvp-segment-options label { flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 40px; margin: 0; padding: 0 6px; font-size: 14px; cursor: pointer; text-align: center; word-break: keep-all; }
 :where(.page-renderer) .rsvp-segment-options label + label { border-left: 1px solid var(--inv-line, #ddd); }

@@ -17,12 +17,14 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
   const [message, setMessage] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sideMissing, setSideMissing] = useState(false)
   const [busy, setBusy] = useState(false)
+  const sideErrorId = useId()
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!interactive || busy) return
-    if (!side) { setError('신랑측·신부측 중 하나를 선택해 주세요.'); return }
+    if (!side) { setError(null); setSideMissing(true); return }
     setError(null)
     setBusy(true)
     try {
@@ -62,7 +64,16 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
           required
           disabled={!interactive}
         />
-        <Segmented legend="어느 분의 하객이신가요?" name="side" options={RSVP_SIDE_OPTIONS} value={side} onChange={setSide} disabled={!interactive} />
+        <Segmented
+          legend="어느 분의 하객이신가요?"
+          name="side"
+          options={RSVP_SIDE_OPTIONS}
+          value={side}
+          onChange={v => { setSide(v); setSideMissing(false) }}
+          disabled={!interactive}
+          required
+          errorId={sideMissing ? sideErrorId : undefined}
+        />
         <Segmented legend="참석 여부" name="attending" options={ATTENDING_OPTIONS} value={attending ? 'yes' : 'no'} onChange={v => setAttending(v === 'yes')} disabled={!interactive} />
         {attending && <Segmented legend="식사 여부" name="meal" options={RSVP_MEAL_OPTIONS} value={meal} onChange={setMeal} disabled={!interactive} />}
         <input
@@ -81,6 +92,7 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
           maxLength={RSVP_MESSAGE_MAX}
           disabled={!interactive}
         />
+        {sideMissing && <p id={sideErrorId} className="block-error">신랑측·신부측 중 하나를 선택해 주세요.</p>}
         {error && <p className="block-error">{error}</p>}
         <button type="submit" disabled={!interactive || busy}>
           {busy ? '전달하는 중...' : '전달하기'}
@@ -93,18 +105,30 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
 const ATTENDING_OPTIONS = [{ value: 'yes', label: '참석' }, { value: 'no', label: '불참' }] as const
 
 // Radio group drawn as one row of segments, so it stays keyboard and screen-reader friendly.
-function Segmented<T extends string>({ legend, name, options, value, onChange, disabled }: {
+// A required group is checked on submit with our own message (the native bubble would point
+// at the visually hidden radio), so it is announced through aria-required instead of `required`.
+function Segmented<T extends string>({ legend, name, options, value, onChange, disabled, required = false, errorId }: {
   legend: string
   name: string
   options: readonly { value: T; label: string }[]
   value: T | null
   onChange: (value: T) => void
   disabled: boolean
+  required?: boolean
+  /** Id of the message explaining why the group is invalid; marks it invalid while set. */
+  errorId?: string
 }) {
   const id = useId()
   return (
-    <fieldset className="rsvp-segment" disabled={disabled}>
-      <legend>{legend}</legend>
+    <fieldset
+      className="rsvp-segment"
+      disabled={disabled}
+      role={required ? 'radiogroup' : undefined}
+      aria-required={required || undefined}
+      aria-invalid={errorId ? true : undefined}
+      aria-describedby={errorId}
+    >
+      <legend>{legend}{required && <span className="rsvp-required" aria-hidden="true"> (필수)</span>}</legend>
       <div className="rsvp-segment-options">
         {options.map(option => (
           <label key={option.value} className={value === option.value ? 'is-selected' : ''}>
