@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api/client'
+import { EnvelopeIntro } from '../blocks/EnvelopeIntro'
 import { PageRenderer } from '../blocks/PageRenderer'
+import { getPageDesign, themeFeatures } from '../editor/model'
 import type { GuestInvitation } from '../api/types'
 
 export function GuestPage() {
@@ -28,15 +30,21 @@ export function GuestPage() {
     return <main className="page">불러오는 중...</main>
   }
 
+  const design = getPageDesign(invitation.pageData)
+  const page = (
+    <PageRenderer
+      pageData={invitation.pageData}
+      weddingDate={invitation.weddingDate}
+      invitationId={invitation.id}
+      interactive
+    />
+  )
   return (
     <div className="guest-backdrop">
       <main className="guest-page">
-        <PageRenderer
-          pageData={invitation.pageData}
-          weddingDate={invitation.weddingDate}
-          invitationId={invitation.id}
-          interactive
-        />
+        {themeFeatures(design.theme).envelopeIntro
+          ? <EnvelopeIntro paper={design.backgroundColor} wine={design.accentColor} storageKey={'invi:envelope:' + invitation.id}>{page}</EnvelopeIntro>
+          : page}
       </main>
     </div>
   )

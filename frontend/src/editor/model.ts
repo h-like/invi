@@ -18,6 +18,16 @@ export interface DesignPreset { code: string; name: string; description: string;
 // template's code, theme and defaults never drift from what the editor offers.
 export const DESIGN_PRESETS: DesignPreset[] = themes as DesignPreset[]
 
+// Behaviour a theme adds on top of its CSS. Kept here rather than in themes.json so the
+// seeded design stays plain data and old pages never carry stale flags.
+export interface ThemeFeatures { envelopeIntro: boolean; reveal: boolean }
+const THEME_FEATURES: Record<string, ThemeFeatures> = {
+  seal: { envelopeIntro: true, reveal: true },
+}
+export function themeFeatures(theme: string): ThemeFeatures {
+  return THEME_FEATURES[theme] ?? { envelopeIntro: false, reveal: false }
+}
+
 // Original sample copy. No competitor text or artwork is reused.
 export const GREETING_SAMPLES = [
   { name: '따뜻한 초대', text: '서로의 하루에 가장 편안한 사람이 되었습니다.\n이제 같은 계절을 함께 걸어가려 합니다.\n저희의 시작에 함께해 주시면 감사하겠습니다.' },

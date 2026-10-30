@@ -28,7 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class TemplateSeederTest {
 
-    private static final List<String> CODES = List.of("classic", "minimal", "romantic", "modern", "garden", "hanji", "film", "letterpress");
+    private static final List<String> CODES = List.of("classic", "minimal", "romantic", "modern", "garden", "hanji", "film", "letterpress", "seal");
 
     @Mock private TemplateRepository templateRepository;
     @Mock private MediaLifecycle lifecycle;
@@ -53,7 +53,7 @@ class TemplateSeederTest {
         });
         assertThat(saved).extracting(Template::getName)
                 .containsExactly("베이지 클래식", "미니멀 화이트", "로즈 레터", "모던 나이트",
-                        "세이지 가든", "한지 담묵", "필름 포토", "네이비 레터프레스");
+                        "세이지 가든", "한지 담묵", "필름 포토", "네이비 레터프레스", "와인 실링 레터");
         InOrder order = inOrder(lifecycle, templateRepository);
         order.verify(lifecycle).lock();
         order.verify(templateRepository).findByCode("classic");
@@ -88,7 +88,7 @@ class TemplateSeederTest {
         ArgumentCaptor<Template> captor = ArgumentCaptor.forClass(Template.class);
         verify(templateRepository, times(CODES.size() - 1)).save(captor.capture());
         assertThat(captor.getAllValues()).extracting(Template::getCode)
-                .containsExactly("minimal", "romantic", "modern", "garden", "hanji", "film", "letterpress");
+                .containsExactly("minimal", "romantic", "modern", "garden", "hanji", "film", "letterpress", "seal");
     }
 
     @Test

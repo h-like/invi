@@ -46,5 +46,11 @@
     "name": "네이비 레터프레스",
     "description": "크림 종이에 눌러 찍은 남색 활자",
     "design": { "theme": "letterpress", "backgroundColor": "#fbf6ea", "accentColor": "#22385c", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "typographic" }
+  },
+  {
+    "code": "seal",
+    "name": "와인 실링 레터",
+    "description": "실링을 깨고 꺼내 읽는 편지",
+    "design": { "theme": "seal", "backgroundColor": "#f4eee3", "accentColor": "#6e1c28", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" }
   }
 ]

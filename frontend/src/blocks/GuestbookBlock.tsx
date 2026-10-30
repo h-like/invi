@@ -42,7 +42,7 @@ export function GuestbookBlock({ invitationId, interactive }: Props) {
 
   return (
     <section className="block guestbook-block">
-      <h3>방명록</h3>
+      <p className="invitation-eyebrow">GUESTBOOK</p><h3>방명록</h3>
       {interactive && (
         <form onSubmit={handleSubmit}>
           <input placeholder="이름" value={author} onChange={(e) => setAuthor(e.target.value)} maxLength={GUEST_NAME_MAX} required />
