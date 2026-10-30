@@ -47,11 +47,11 @@ export function GuestManagementPage() {
       <section className="editor-section" style={{ borderTop: 'none', paddingTop: 0 }}>
         <h2>참석 응답{rsvps ? ` (${rsvps.length}건, 참석 ${attendingCount}명)` : ''}</h2>
         {!rsvps ? (
-          <p className="block-placeholder">불러오는 중...</p>
+          <p className="guest-admin-empty">불러오는 중...</p>
         ) : rsvps.length === 0 ? (
-          <p className="block-placeholder">아직 응답이 없습니다.</p>
+          <p className="guest-admin-empty">아직 응답이 없습니다.</p>
         ) : (
-          <ul className="guestbook-list">
+          <ul className="guest-admin-list">
             {rsvps.map((rsvp) => (
               <li key={rsvp.id}>
                 <strong>{rsvp.guestName}</strong> — {rsvp.attending ? `참석 (${rsvp.guestCount}명)` : '불참'}
@@ -65,13 +65,13 @@ export function GuestManagementPage() {
       <section className="editor-section">
         <h2>방명록{guestbook ? ` (${guestbook.length}건)` : ''}</h2>
         {!guestbook ? (
-          <p className="block-placeholder">불러오는 중...</p>
+          <p className="guest-admin-empty">불러오는 중...</p>
         ) : guestbook.length === 0 ? (
-          <p className="block-placeholder">아직 남겨진 방명록이 없습니다.</p>
+          <p className="guest-admin-empty">아직 남겨진 방명록이 없습니다.</p>
         ) : (
-          <ul className="guestbook-list">
+          <ul className="guest-admin-list">
             {guestbook.map((entry) => (
-              <li key={entry.id} className="account-row">
+              <li key={entry.id} className="guest-admin-row">
                 <div>
                   <strong>{entry.author}</strong>
                   <p>{entry.message}</p>

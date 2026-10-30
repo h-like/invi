@@ -83,8 +83,7 @@ button.publish-button {
   background: var(--accent);
 }
 
-.form-error,
-.block-error {
+.form-error {
   color: var(--accent);
   font-size: 13px;
 }
@@ -381,72 +380,14 @@ button.publish-button {
   }
 }
 
-/* ---------- guest page / blocks ---------- */
-.guest-page {
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.block {
-  padding: 32px 24px;
-  border-bottom: 1px solid var(--line);
-}
-
-.hero-block {
-  text-align: center;
-  padding: 64px 24px;
-}
-
-.hero-date {
-  color: var(--ink-soft);
-  margin: 0 0 12px;
-}
-
-.hero-names {
-  font-size: 28px;
-  margin: 0;
-}
-
-.countdown-block {
-  text-align: center;
-  font-weight: 600;
-}
-
-.block-placeholder {
+/* ---------- guest management lists (service UI) ---------- */
+/* Named apart from the invitation blocks so these rules never reach guests. */
+.guest-admin-empty {
   color: var(--ink-soft);
   font-size: 14px;
 }
 
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
-}
-
-.gallery-grid img {
-  width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: 6px;
-}
-
-.block-sub {
-  color: var(--ink-soft);
-  font-size: 13px;
-}
-
-.account-group {
-  margin-top: 12px;
-}
-
-.account-group-title {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--ink-soft);
-  margin: 0 0 6px;
-}
-
-.account-row {
+.guest-admin-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -454,7 +395,7 @@ button.publish-button {
   font-size: 14px;
 }
 
-.account-row button {
+.guest-admin-row button {
   padding: 4px 10px;
   font-size: 12px;
   background: var(--surface-2);
@@ -462,34 +403,7 @@ button.publish-button {
   border: 1px solid var(--line);
 }
 
-.rsvp-attending {
-  display: flex;
-  gap: 16px;
-  margin: 10px 0;
-  font-size: 14px;
-}
-
-.rsvp-attending label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-}
-
-.rsvp-block form,
-.guestbook-block form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.block-success {
-  color: var(--decided);
-  font-weight: 600;
-  text-align: center;
-}
-
-.guestbook-list {
+.guest-admin-list {
   list-style: none;
   margin: 16px 0 0;
   padding: 0;
@@ -498,13 +412,13 @@ button.publish-button {
   gap: 12px;
 }
 
-.guestbook-list li {
+.guest-admin-list li {
   padding: 10px 12px;
   background: var(--surface-2);
   border-radius: 8px;
   font-size: 14px;
 }
 
-.guestbook-list li p {
+.guest-admin-list li p {
   margin: 4px 0 0;
 }
