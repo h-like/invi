@@ -17,6 +17,8 @@
   overflow-wrap: anywhere;
 }
 .guest-page { max-width: 480px; margin: 0 auto; min-height: 100svh; background: white; }
+/* Desktop gutter around the guest column predates the service tokens; keep it fixed. */
+body:has(.guest-page) { background: #faf8fa; }
 
 /* Element defaults formerly inherited from the global stylesheets. */
 :where(.page-renderer), :where(.page-renderer) * { box-sizing: border-box; }
