@@ -5,8 +5,9 @@ export const PARENT_NAME_MAX = 20
 export const RELATION_MAX = 10
 export const MONOGRAM_MAX = 5
 
-export const GROOM_RELATIONS = ['장남', '차남', '삼남', '아들']
-export const BRIDE_RELATIONS = ['장녀', '차녀', '삼녀', '딸']
+// Neutral word first: birth order is the couple's choice, never assumed.
+export const GROOM_RELATIONS = ['아들', '장남', '차남', '삼남']
+export const BRIDE_RELATIONS = ['딸', '장녀', '차녀', '삼녀']
 
 export type HeroSide = 'groom' | 'bride'
 /** Shown when the relation is left blank; the editor uses it as the placeholder so both agree. */
