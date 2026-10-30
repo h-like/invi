@@ -44,14 +44,14 @@ class RsvpControllerTest {
     @Test
     void submit_rejectsGuestCountAboveTwenty() throws Exception {
         submit("하객", 21, null).andExpect(status().isBadRequest());
-        verify(rsvpService, never()).submit(any(), any());
+        verify(rsvpService, never()).submit(any(), any(), any());
     }
 
     @Test
     void submit_rejectsOverlongNameOrMessage() throws Exception {
         submit("가".repeat(31), 1, null).andExpect(status().isBadRequest());
         submit("하객", 1, "말".repeat(201)).andExpect(status().isBadRequest());
-        verify(rsvpService, never()).submit(any(), any());
+        verify(rsvpService, never()).submit(any(), any(), any());
     }
 
     private ResultActions submit(String name, int count, String message)

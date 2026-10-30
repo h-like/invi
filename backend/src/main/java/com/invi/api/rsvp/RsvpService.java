@@ -1,6 +1,7 @@
 package com.invi.api.rsvp;
 
 import com.invi.api.common.ForbiddenException;
+import com.invi.api.common.GuestWriteRateLimiter;
 import com.invi.api.common.NotFoundException;
 import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
@@ -15,12 +16,15 @@ public class RsvpService {
 
     private final RsvpRepository rsvpRepository;
     private final InvitationRepository invitationRepository;
+    private final GuestWriteRateLimiter rateLimiter;
 
-    public RsvpDto submit(UUID invitationId, CreateRsvpRequest request) {
+    public RsvpDto submit(UUID invitationId, CreateRsvpRequest request, String clientAddress) {
         Invitation invitation =
                 invitationRepository
                         .findById(invitationId)
                         .orElseThrow(() -> new NotFoundException("청첩장을 찾을 수 없습니다: " + invitationId));
+        // After the lookup, so unknown ids never create limiter entries.
+        rateLimiter.acquire(GuestWriteRateLimiter.Kind.RSVP, invitationId, clientAddress);
 
         Rsvp rsvp =
                 Rsvp.builder()

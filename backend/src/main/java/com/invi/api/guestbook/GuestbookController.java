@@ -1,6 +1,7 @@
 package com.invi.api.guestbook;
 
 import com.invi.api.account.CurrentMember;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -27,8 +28,8 @@ public class GuestbookController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public GuestbookEntryDto submit(
-            @PathVariable UUID invitationId, @Valid @RequestBody CreateGuestbookRequest request) {
-        return guestbookService.submit(invitationId, request);
+            HttpServletRequest http, @PathVariable UUID invitationId, @Valid @RequestBody CreateGuestbookRequest request) {
+        return guestbookService.submit(invitationId, request, http.getRemoteAddr());
     }
 
     @GetMapping
