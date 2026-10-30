@@ -95,6 +95,30 @@ class GuestWriteRateLimiterTest {
     }
 
     @Test
+    void slidingWindowAllowsNoBurstAcrossAWindowBoundary() {
+        GuestWriteRateLimiter limiter = limiter(3, 100, 100);
+        clock.advance(Duration.ofMinutes(9).plusSeconds(59));
+        acquireTimes(limiter, 3, Kind.RSVP, INVITATION, "a");
+        clock.advance(Duration.ofSeconds(2));
+
+        // A fixed window would have reset here; the sliding log still sees three writes 2s ago.
+        assertThatThrownBy(() -> limiter.acquire(Kind.RSVP, INVITATION, "a"))
+                .isInstanceOf(TooManyRequestsException.class)
+                .satisfies(error -> assertThat(((TooManyRequestsException) error).getRetryAfterSeconds()).isEqualTo(598));
+    }
+
+    @Test
+    void releasedPermitsCanBeUsedAgain() {
+        GuestWriteRateLimiter limiter = limiter(2, 2, 100);
+        acquireTimes(limiter, 2, Kind.GUESTBOOK, INVITATION, "a");
+        limiter.release(Kind.GUESTBOOK, INVITATION, "a");
+
+        assertThatCode(() -> limiter.acquire(Kind.GUESTBOOK, INVITATION, "a")).doesNotThrowAnyException();
+        assertThatThrownBy(() -> limiter.acquire(Kind.GUESTBOOK, INVITATION, "a"))
+                .isInstanceOf(TooManyRequestsException.class);
+    }
+
+    @Test
     void disabledLimiterAllowsEverything() {
         GuestWriteRateLimiter limiter = new GuestWriteRateLimiter(new GuestWriteRateLimitProperties(false, 1,
                 Duration.ofMinutes(10), 1, Duration.ofHours(1), 100), clock);

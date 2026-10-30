@@ -5,6 +5,7 @@ import com.invi.api.common.GuestWriteRateLimiter;
 import com.invi.api.common.NotFoundException;
 import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
+import com.invi.api.invitation.InvitationStatus;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,8 @@ public class GuestbookService {
         Invitation invitation =
                 invitationRepository
                         .findById(invitationId)
+                        // Guests can only reach published pages; drafts must not collect writes.
+                        .filter(i -> i.getStatus() == InvitationStatus.PUBLISHED)
                         .orElseThrow(() -> new NotFoundException("청첩장을 찾을 수 없습니다: " + invitationId));
         // After the lookup, so unknown ids never create limiter entries.
         rateLimiter.acquire(GuestWriteRateLimiter.Kind.GUESTBOOK, invitationId, clientAddress);
@@ -34,7 +37,13 @@ public class GuestbookService {
                         .message(request.message())
                         .build();
 
-        return toDto(guestbookEntryRepository.save(entry));
+        try {
+            return toDto(guestbookEntryRepository.save(entry));
+        } catch (RuntimeException error) {
+            // Nothing was saved, so a retry after e.g. a database cold start must not be throttled.
+            rateLimiter.release(GuestWriteRateLimiter.Kind.GUESTBOOK, invitationId, clientAddress);
+            throw error;
+        }
     }
 
     public List<GuestbookEntryDto> findByInvitation(UUID invitationId) {

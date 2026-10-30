@@ -18,6 +18,7 @@ import com.invi.api.common.TooManyRequestsException;
 import com.invi.api.common.TestEntityIds;
 import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
+import com.invi.api.invitation.InvitationStatus;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -51,7 +52,7 @@ class RsvpServiceTest {
     @Test
     void submit_savesRsvp_whenInvitationExists() {
         UUID invitationId = UUID.randomUUID();
-        Invitation invitation = Invitation.builder().slug("s").weddingDate(LocalDate.now()).build();
+        Invitation invitation = published();
         CreateRsvpRequest request = new CreateRsvpRequest("홍길동", true, 2, "축하합니다");
 
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
@@ -128,7 +129,7 @@ class RsvpServiceTest {
     @Test
     void submit_savesNothing_whenRateLimited() {
         UUID invitationId = UUID.randomUUID();
-        Invitation invitation = Invitation.builder().slug("s").weddingDate(LocalDate.now()).build();
+        Invitation invitation = published();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
         doThrow(new TooManyRequestsException(60)).when(rateLimiter)
                 .acquire(GuestWriteRateLimiter.Kind.RSVP, invitationId, "203.0.113.7");
@@ -136,5 +137,32 @@ class RsvpServiceTest {
         assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null), "203.0.113.7"))
                 .isInstanceOf(TooManyRequestsException.class);
         verify(rsvpRepository, never()).save(any());
+    }
+
+    @Test
+    void submit_treatsUnpublishedInvitationAsMissing_withoutCounting() {
+        UUID invitationId = UUID.randomUUID();
+        Invitation draft = Invitation.builder().slug("s").weddingDate(LocalDate.now()).build();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(draft));
+
+        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null), "203.0.113.7"))
+                .isInstanceOf(NotFoundException.class);
+        verifyNoInteractions(rateLimiter);
+        verify(rsvpRepository, never()).save(any());
+    }
+
+    @Test
+    void submit_releasesThePermit_whenSavingFails() {
+        UUID invitationId = UUID.randomUUID();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(published()));
+        when(rsvpRepository.save(any())).thenThrow(new IllegalStateException("db down"));
+
+        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null), "203.0.113.7"))
+                .isInstanceOf(IllegalStateException.class);
+        verify(rateLimiter).release(GuestWriteRateLimiter.Kind.RSVP, invitationId, "203.0.113.7");
+    }
+
+    private static Invitation published() {
+        return Invitation.builder().slug("s").weddingDate(LocalDate.now()).status(InvitationStatus.PUBLISHED).build();
     }
 }

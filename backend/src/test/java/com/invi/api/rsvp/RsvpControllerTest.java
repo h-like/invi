@@ -3,7 +3,9 @@ package com.invi.api.rsvp;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.invi.api.account.CurrentMember;
@@ -12,6 +14,7 @@ import com.invi.api.account.JwtAuthenticationFilter;
 import com.invi.api.account.JwtService;
 import com.invi.api.account.OAuth2LoginSuccessHandler;
 import com.invi.api.common.SecurityConfig;
+import com.invi.api.common.TooManyRequestsException;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +55,15 @@ class RsvpControllerTest {
         submit("가".repeat(31), 1, null).andExpect(status().isBadRequest());
         submit("하객", 1, "말".repeat(201)).andExpect(status().isBadRequest());
         verify(rsvpService, never()).submit(any(), any(), any());
+    }
+
+    @Test
+    void submit_returns429WithRetryAfter_whenRateLimited() throws Exception {
+        when(rsvpService.submit(any(), any(), any())).thenThrow(new TooManyRequestsException(30));
+
+        submit("하객", 1, null)
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "30"));
     }
 
     private ResultActions submit(String name, int count, String message)
