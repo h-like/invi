@@ -215,3 +215,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .gallery-photo-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .gallery-photo-actions button { min-height: 36px; padding: 7px 10px; font-size: 11px; }
 .page-renderer .guestbook-count { align-self: flex-end; color: var(--invite-soft); font-size: .7em; margin-top: -4px; }
+
+/* Native modal shared by internal links and browser back/forward navigation. */
+.leave-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.leave-actions button { font-size: 12px; padding: 10px 12px; }
+.leave-dialog .leave-error { padding: 12px; border: 1px solid #e7b7b1; background: #fff1ee; color: #8b392e; border-radius: 6px; font-size: 12px; }

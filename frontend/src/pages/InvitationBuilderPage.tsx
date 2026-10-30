@@ -1,12 +1,21 @@
-import { useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { Link, useBlocker, useParams, type BlockerFunction } from 'react-router-dom'
 import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
 import { createInvitationPersistence } from '../editor/persistence'
 import { CoverPhotoEditor } from '../editor/CoverPhotoEditor'
 import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
+import { canSaveBeforeLeave, createSaveBeforeLeave, leaveDialogMode, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation, type LeaveDialogMode } from '../editor/navigation'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
 import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, patchContent, publishIssues, updateBlock } from '../editor/model'
+
+// Chosen by leaveDialogMode(); pending photos cannot be saved, so that copy offers only staying or discarding.
+const LEAVE_COPY: Record<LeaveDialogMode, { title: string; description: string }> = {
+  busy: { title: '처리 중인 작업이 있습니다.', description: '저장 또는 공개가 끝나기 전에는 이동할 수 없습니다. 계속 편집을 선택하면 이동만 취소됩니다.' },
+  photos: { title: '처리 중인 사진이 있어요.', description: '업로드가 끝나지 않았거나 실패한 사진은 저장할 수 없어 이동하면 사라집니다. 편집을 계속해 사진을 마무리하거나 저장하지 않고 이동할 수 있어요.' },
+  unsaved: { title: '저장하지 않은 변경 사항이 있어요.', description: '지금 이동하면 저장하지 않은 내용이 사라집니다. 저장하고 이동하거나 편집을 계속할 수 있어요.' },
+  clean: { title: '변경 사항이 저장됐습니다.', description: '선택한 페이지로 이동할까요?' },
+}
 
 const GROOM_ROLES: AccountRole[] = ['groom', 'groomFather', 'groomMother']
 const BRIDE_ROLES: AccountRole[] = ['bride', 'brideFather', 'brideMother']
@@ -43,6 +52,14 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const [copyStatus, setCopyStatus] = useState('')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const unsaved = draft !== null && JSON.stringify(draft) !== baseline
+  const leaveState = { dirty: unsaved, busy, photoPending }
+  const leaveMode = leaveDialogMode(leaveState)
+  const shouldBlock = useCallback<BlockerFunction>(({ currentLocation, nextLocation }) =>
+    shouldBlockEditorNavigation({ dirty: unsaved, busy, photoPending }, currentLocation, nextLocation), [unsaved, busy, photoPending])
+  const blocker = useBlocker(shouldBlock)
+  const blockerRef = useRef(blocker)
+  const leaveDialogRef = useRef<HTMLDialogElement>(null)
+  const [leaveGate] = useState(() => createSaveBeforeLeave())
 
   useEffect(() => {
     let active = true
@@ -57,19 +74,35 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }, [id])
 
   useEffect(() => {
-    if (!unsaved && !photoPending) return
-    function warn(event: BeforeUnloadEvent) { event.preventDefault(); event.returnValue = '' }
+    const state = { dirty: unsaved, busy, photoPending }
+    if (!needsLeaveWarning(state)) return
+    function warn(event: BeforeUnloadEvent) { preventEditorUnload(event, state) }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [unsaved, photoPending])
+  }, [unsaved, busy, photoPending])
+
+  useEffect(() => { blockerRef.current = blocker }, [blocker])
+  useEffect(() => () => leaveGate.cancel(), [leaveGate])
 
   useEffect(() => {
     if (shareOpen && dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal()
     if (!shareOpen && dialogRef.current?.open) dialogRef.current.close()
   }, [shareOpen])
 
-  function confirmLeave(event: MouseEvent<HTMLAnchorElement>) {
-    if ((unsaved || hasPendingPhotos()) && !window.confirm('저장하지 않은 변경 사항이나 처리 중인 사진이 있습니다. 저장하지 않고 이동할까요?')) event.preventDefault()
+  useEffect(() => {
+    if (blocker.state === 'blocked' && leaveDialogRef.current && !leaveDialogRef.current.open) leaveDialogRef.current.showModal()
+    if (blocker.state !== 'blocked' && leaveDialogRef.current?.open) leaveDialogRef.current.close()
+  }, [blocker.state])
+
+  function cancelNavigation() {
+    leaveGate.cancel()
+    if (blocker.state === 'blocked') blocker.reset()
+  }
+
+  function discardAndLeave() {
+    if (busy || persistence.isRunning() || blocker.state !== 'blocked') return
+    leaveGate.cancel()
+    blocker.proceed()
   }
 
   if (!invitation || !draft) return <main className="page">{error ? <><p className="form-error" role="alert">{error}</p><Link to="/invitations">내 청첩장으로</Link></> : '청첩장을 불러오는 중...'}</main>
@@ -113,26 +146,26 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setNotice('')
   }
 
-  async function persist(publish: boolean) {
-    if (!invitation || !draft || persistence.isRunning()) return
-    if (hasPendingPhotos()) { setError('새 사진의 업로드를 완료하거나 실패한 사진을 재시도·삭제한 뒤 저장·공개해 주세요.'); return }
+  async function persist(publish: boolean): Promise<boolean> {
+    if (!invitation || !draft || persistence.isRunning()) return false
+    if (hasPendingPhotos()) { setError('새 사진의 업로드를 완료하거나 실패한 사진을 재시도·삭제한 뒤 저장·공개해 주세요.'); return false }
     setError(null)
     setFailedAction(null)
     setNotice('')
     if (publish) {
       const issues = publishIssues(draft)
-      if (issues.length) { setError(issues.join(' ')); setPanel('content'); setPreviewOnly(false); return }
+      if (issues.length) { setError(issues.join(' ')); setPanel('content'); setPreviewOnly(false); return false }
     }
     setShareOpen(false)
     setBusy(true)
     try {
       const result = await persistence.run(invitation, draft, publish)
-      if (result.kind === 'busy') return
+      if (result.kind === 'busy') return false
       if (result.kind === 'save-failed') {
         // Do not replace draft or baseline: the user's unsaved input stays intact.
         setError('저장 완료를 확인하지 못했습니다. 입력 내용은 현재 화면에 남아 있습니다. ' + result.detail)
         setFailedAction(publish)
-        return
+        return false
       }
       const saved = result.kind === 'publish-failed' ? result.saved : result.invitation
       setInvitation(saved)
@@ -142,17 +175,29 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
         setNotice('내용 저장 완료 · 공개 확인 필요')
         setError('내용은 저장했지만 공개 완료를 확인하지 못했습니다. 다시 시도해 주세요. ' + result.detail)
         setFailedAction(true)
-        return
+        return false
       }
       if (result.shared) {
         setCopyStatus('')
         setShareOpen(true)
         setNotice('저장하고 공개했습니다.')
       } else setNotice('변경 사항을 저장했습니다.')
+      return true
     } catch {
       setError('처리 결과를 확인하지 못했습니다. 현재 화면의 내용을 확인하고 다시 시도해 주세요.')
       setFailedAction(publish)
+      return false
     } finally { setBusy(false) }
+  }
+
+  async function saveAndLeave() {
+    if (blocker.state !== 'blocked' || busy || persistence.isRunning()) return
+    const destinationKey = blocker.location.key
+    await leaveGate.run(
+      () => persist(false),
+      () => blockerRef.current.state === 'blocked' && blockerRef.current.location.key === destinationKey,
+      () => { if (blockerRef.current.state === 'blocked') blockerRef.current.proceed() },
+    )
   }
 
   async function copyLink() {
@@ -163,7 +208,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   return (
     <main className={'builder-page' + (previewOnly ? ' is-preview-only' : '')}>
       <header className="builder-header">
-        <Link className="builder-brand" to="/" onClick={confirmLeave}>invi<span>우리의 시작을 담다</span></Link>
+        <Link className="builder-brand" to="/">invi<span>우리의 시작을 담다</span></Link>
         <div className="builder-header-actions">
           <span className="save-state" role="status">{busy ? '저장 중...' : photoPending ? '새 사진 처리 · 확인 필요' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
           <button type="button" className="secondary-button" disabled={photoPending} onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>
@@ -204,11 +249,22 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
             </>}
             {panel === 'sections' && <section className="editor-section"><h2>보여주고 싶은 순서대로</h2><p className="editor-section-hint">행을 드래그하거나 위·아래 버튼으로 순서를 바꾸세요. 숨긴 내용도 저장됩니다.</p><ol className="section-list">{sortedBlocks.map((block, index) => <li key={block.id} className={block.visible ? '' : 'section-hidden'} draggable={!busy} onDragStart={e => { e.dataTransfer.setData('text/plain', block.id); e.dataTransfer.effectAllowed = 'move' }} onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }} onDrop={e => { e.preventDefault(); move(e.dataTransfer.getData('text/plain'), block.id) }}><span className="drag-handle" aria-hidden="true">⠿</span><label><input type="checkbox" checked={block.visible} onChange={e => { const visible = e.target.checked; setDraft(prev => prev ? updateBlock(prev, block.id, { visible }) : prev); setNotice('') }} />{BLOCK_LABELS[block.type] ?? block.type}</label><div className="order-buttons"><button type="button" aria-label={(BLOCK_LABELS[block.type] ?? block.type) + ' 위로'} disabled={index === 0} onClick={() => move(block.id, sortedBlocks[index - 1].id)}>↑</button><button type="button" aria-label={(BLOCK_LABELS[block.type] ?? block.type) + ' 아래로'} disabled={index === sortedBlocks.length - 1} onClick={() => move(block.id, sortedBlocks[index + 1].id)}>↓</button></div></li>)}</ol></section>}
           </fieldset>
-          <footer className="builder-panel-footer"><Link to={`/e/${invitation.id}/guests`} onClick={confirmLeave}>참석 응답 · 방명록 관리</Link><p>저장 전 미리보기에서는 하객 응답을 전송하지 않습니다.</p></footer>
+          <footer className="builder-panel-footer"><Link to={`/e/${invitation.id}/guests`}>참석 응답 · 방명록 관리</Link><p>저장 전 미리보기에서는 하객 응답을 전송하지 않습니다.</p></footer>
         </aside>
         <section className="builder-preview-area" aria-label="청첩장 실시간 미리보기"><div className="preview-caption"><span>LIVE PREVIEW</span><span>변경 사항이 바로 반영됩니다</span></div><div className="preview-phone"><div className="preview-phone-bar" aria-hidden="true"><span />invi invitation</div><div className="preview-phone-content"><PageRenderer pageData={draft} weddingDate={invitation.weddingDate} invitationId={invitation.id} interactive={false} /></div></div><p className="preview-footnote">하객에게도 같은 디자인으로 보여집니다.</p></section>
       </div>
       <dialog className="share-dialog" ref={dialogRef} aria-labelledby="share-title" onCancel={() => setShareOpen(false)} onClose={() => setShareOpen(false)}><p className="builder-eyebrow">READY TO SHARE</p><h2 id="share-title">두 사람의 초대장이 완성됐어요.</h2><p>링크를 복사해 소중한 분들께 전해 주세요.</p><label>공개 청첩장 주소<input value={publicUrl} readOnly onFocus={e => e.target.select()} /></label><div className="share-actions"><button type="button" onClick={() => void copyLink()}>링크 복사</button><a className="button-link" href={publicUrl} target="_blank" rel="noreferrer">청첩장 열기</a></div><p role="status" className="editor-section-hint">{copyStatus}</p><button className="secondary-button" type="button" onClick={() => setShareOpen(false)}>편집 계속하기</button></dialog>
+      <dialog className="share-dialog leave-dialog" ref={leaveDialogRef} aria-labelledby="leave-title" aria-describedby="leave-description" onCancel={event => { event.preventDefault(); cancelNavigation() }} onClose={() => { if (blockerRef.current.state === 'blocked') cancelNavigation() }}>
+        <p className="builder-eyebrow">BEFORE YOU LEAVE</p>
+        <h2 id="leave-title">{LEAVE_COPY[leaveMode].title}</h2>
+        <p id="leave-description">{LEAVE_COPY[leaveMode].description}</p>
+        {error && <p className="leave-error" role="alert">{error}</p>}
+        <div className="leave-actions">
+          <button type="button" className="secondary-button" onClick={cancelNavigation}>계속 편집</button>
+          {canSaveBeforeLeave(leaveState) && <button type="button" disabled={busy} onClick={() => void saveAndLeave()}>{busy ? '저장 중...' : '저장하고 이동'}</button>}
+          <button type="button" className="secondary-button" disabled={busy} onClick={discardAndLeave}>{leaveMode === 'clean' ? '이동' : '저장하지 않고 이동'}</button>
+        </div>
+      </dialog>
     </main>
   )
 }
