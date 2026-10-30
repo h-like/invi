@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { api } from '../api/client'
 import { clampGuestCount, GUEST_COUNT_MAX, GUEST_NAME_MAX, RSVP_MESSAGE_MAX } from './guestLimits'
+import { RSVP_MEAL_OPTIONS, RSVP_SIDE_OPTIONS, type RsvpMeal, type RsvpSide } from './rsvpOptions'
 
 interface Props {
   invitationId: string
@@ -11,6 +12,8 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
   const [guestName, setGuestName] = useState('')
   const [attending, setAttending] = useState(true)
   const [guestCount, setGuestCount] = useState(1)
+  const [side, setSide] = useState<RsvpSide | null>(null)
+  const [meal, setMeal] = useState<RsvpMeal | null>(null)
   const [message, setMessage] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -19,6 +22,7 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!interactive || busy) return
+    if (!side) { setError('신랑측·신부측 중 하나를 선택해 주세요.'); return }
     setError(null)
     setBusy(true)
     try {
@@ -27,6 +31,8 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
         attending,
         guestCount,
         message: message || undefined,
+        side,
+        meal: attending && meal ? meal : undefined,
       })
       setSubmitted(true)
     } catch (err) {
@@ -56,16 +62,9 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
           required
           disabled={!interactive}
         />
-        <div className="rsvp-attending">
-          <label>
-            <input type="radio" checked={attending} onChange={() => setAttending(true)} disabled={!interactive} />
-            참석
-          </label>
-          <label>
-            <input type="radio" checked={!attending} onChange={() => setAttending(false)} disabled={!interactive} />
-            불참
-          </label>
-        </div>
+        <Segmented legend="어느 분의 하객이신가요?" name="side" options={RSVP_SIDE_OPTIONS} value={side} onChange={setSide} disabled={!interactive} />
+        <Segmented legend="참석 여부" name="attending" options={ATTENDING_OPTIONS} value={attending ? 'yes' : 'no'} onChange={v => setAttending(v === 'yes')} disabled={!interactive} />
+        {attending && <Segmented legend="식사 여부" name="meal" options={RSVP_MEAL_OPTIONS} value={meal} onChange={setMeal} disabled={!interactive} />}
         <input
           type="number"
           min={0}
@@ -88,5 +87,32 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
         </button>
       </form>
     </section>
+  )
+}
+
+const ATTENDING_OPTIONS = [{ value: 'yes', label: '참석' }, { value: 'no', label: '불참' }] as const
+
+// Radio group drawn as one row of segments, so it stays keyboard and screen-reader friendly.
+function Segmented<T extends string>({ legend, name, options, value, onChange, disabled }: {
+  legend: string
+  name: string
+  options: readonly { value: T; label: string }[]
+  value: T | null
+  onChange: (value: T) => void
+  disabled: boolean
+}) {
+  const id = useId()
+  return (
+    <fieldset className="rsvp-segment" disabled={disabled}>
+      <legend>{legend}</legend>
+      <div className="rsvp-segment-options">
+        {options.map(option => (
+          <label key={option.value} className={value === option.value ? 'is-selected' : ''}>
+            <input type="radio" name={id + name} value={option.value} checked={value === option.value} onChange={() => onChange(option.value)} />
+            {option.label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   )
 }

@@ -43,9 +43,14 @@ export function GuestPage() {
     <div className="guest-backdrop">
       <main className="guest-page">
         {themeFeatures(design.theme).envelopeIntro
-          ? <EnvelopeIntro paper={design.backgroundColor} wine={design.accentColor} storageKey={'invi:envelope:' + invitation.id}>{page}</EnvelopeIntro>
+          ? <EnvelopeIntro paper={design.backgroundColor} wine={design.accentColor} monogram={heroMonogram(invitation)} storageKey={'invi:envelope:' + invitation.id}>{page}</EnvelopeIntro>
           : page}
       </main>
     </div>
   )
+}
+
+function heroMonogram(invitation: GuestInvitation): string {
+  const value = invitation.pageData?.blocks.find(b => b.type === 'hero')?.content.monogram
+  return typeof value === 'string' ? value : ''
 }

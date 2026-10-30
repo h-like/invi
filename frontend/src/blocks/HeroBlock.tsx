@@ -1,5 +1,6 @@
 import type { Block, HeroLayout } from '../api/types'
 import { isImageUrl } from '../editor/model'
+import { parentLine, type HeroSide } from './heroDetails'
 
 export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddingDate: string; layout: HeroLayout }) {
   const text = (key: string) => typeof block.content[key] === 'string' ? block.content[key] as string : ''
@@ -14,6 +15,15 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
   const groomName = <span><small className="hero-role">신랑 </small>{groom}</span>
   const brideName = <span><small className="hero-role">신부 </small>{bride}</span>
   const greeting = <p className="hero-greeting">{text('greeting') || '소중한 여러분을 저희의 결혼식에 초대합니다.'}</p>
+  const lines = ([['groom', groom], ['bride', bride]] as [HeroSide, string][]).flatMap(([side, child]) => {
+    const line = parentLine(block.content, side, child)
+    return line ? [{ side, ...line }] : []
+  })
+  const parents = lines.length > 0 && (
+    <div className="hero-parents">
+      {lines.map(line => <p key={line.side} className="hero-parent-line"><span className="hero-parent-names">{line.parents}</span><span className="hero-parent-relation">의 {line.relation}</span> <strong className="hero-parent-child">{line.child}</strong></p>)}
+    </div>
+  )
 
   if (layout === 'photo-full') {
     // Without a cover photo the overlay would float on nothing, so a tinted panel stands in.
@@ -27,7 +37,7 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
             <p className="hero-date">{dateLabel}{time ? ' · ' + time : ''}</p>
           </div>
         </div>
-        <div className="hero-photo-body">{greeting}</div>
+        <div className="hero-photo-body">{greeting}{parents}</div>
       </section>
     )
   }
@@ -41,6 +51,7 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
         <p className="hero-date">{numeric && <strong className="hero-date-numeric">{numeric}</strong>}<span>{dateLabel}{time ? ' · ' + time : ''}</span></p>
         {cover && <img className="hero-cover hero-cover-inset" src={cover} alt="두 사람의 웨딩 사진" />}
         {greeting}
+        {parents}
       </section>
     )
   }
@@ -54,6 +65,7 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
         {cover && <img className="hero-cover" src={cover} alt="두 사람의 웨딩 사진" />}
         <p className="invitation-eyebrow hero-invitation-label">INVITATION</p>
         {greeting}
+        {parents}
       </div>
     </section>
   )

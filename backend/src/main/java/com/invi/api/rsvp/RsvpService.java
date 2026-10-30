@@ -36,6 +36,9 @@ public class RsvpService {
                         .attending(request.attending())
                         .guestCount(request.guestCount())
                         .message(request.message())
+                        .side(request.side())
+                        // A meal answer from someone not attending means nothing; drop it.
+                        .meal(request.attending() ? request.meal() : null)
                         .build();
 
         try {
@@ -61,6 +64,7 @@ public class RsvpService {
 
     private RsvpDto toDto(Rsvp rsvp) {
         return new RsvpDto(
-                rsvp.getId(), rsvp.getGuestName(), rsvp.getAttending(), rsvp.getGuestCount(), rsvp.getMessage());
+                rsvp.getId(), rsvp.getGuestName(), rsvp.getAttending(), rsvp.getGuestCount(), rsvp.getMessage(),
+                rsvp.getSide(), rsvp.getMeal());
     }
 }

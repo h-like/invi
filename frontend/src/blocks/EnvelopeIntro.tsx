@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createEnvelopeSound } from './envelopeSound'
+import { monogramFontSize, sealMonogram } from './heroDetails'
 import './envelope.css'
 
 // Guest-page opening for themes with an envelope: push the wax seal sideways until it
@@ -42,6 +43,9 @@ const geometry = (() => {
   }
 })()
 
+// Usable width inside the seal's inner ring (radius 22.5) in seal units.
+const SEAL_TEXT_WIDTH = 36
+
 function readOnce(key: string): boolean {
   try { return sessionStorage.getItem(key) === '1' } catch { return false }
 }
@@ -49,12 +53,14 @@ function readOnce(key: string): boolean {
 interface Props {
   paper: string
   wine: string
+  /** Couple's initials pressed into the wax; an ampersand when empty. */
+  monogram?: string
   /** Remembers per tab that the guest already opened this invitation, so a refresh skips the intro. */
   storageKey: string
   children: ReactNode
 }
 
-export function EnvelopeIntro({ paper, wine, storageKey, children }: Props) {
+export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: Props) {
   const [read, setRead] = useState(() => readOnce(storageKey))
   const [muted, setMuted] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -70,6 +76,7 @@ export function EnvelopeIntro({ paper, wine, storageKey, children }: Props) {
   const sound = useRef(createEnvelopeSound())
   const skip = useRef<() => void>(() => {})
   const justOpened = useRef(false)
+  const [sealFit, setSealFit] = useState<{ label: string; size: number; dx: number } | null>(null)
 
   useEffect(() => { sound.current.setMuted(muted) }, [muted])
 
@@ -298,6 +305,36 @@ export function EnvelopeIntro({ paper, wine, storageKey, children }: Props) {
     }
   }, [read, storageKey])
 
+  // Script capitals vary a lot in width, so initials are measured once the font is in and
+  // shrunk to fit inside the inner ring. The lone ampersand keeps its original drawing.
+  useLayoutEffect(() => {
+    const label = sealMonogram(monogram)
+    const svg = waxBottom.current?.querySelector('svg')
+    if (read || label === '&' || !svg) return
+    let live = true
+    const base = monogramFontSize(label)
+    const measure = () => {
+      if (!live) return
+      const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+      probe.setAttribute('font-family', 'Pinyon Script, cursive')
+      probe.setAttribute('font-size', String(base))
+      probe.setAttribute('text-anchor', 'middle')
+      probe.setAttribute('visibility', 'hidden')
+      probe.textContent = label
+      svg.appendChild(probe)
+      const box = probe.getBBox()
+      probe.remove()
+      if (!box.width) return
+      const k = Math.min(1, SEAL_TEXT_WIDTH / box.width)
+      setSealFit({ label, size: Math.round(base * k * 10) / 10, dx: Math.round(-(box.x + box.width / 2) * k * 10) / 10 })
+    }
+    // The script face is registered lazily with the theme CSS, so measure again whenever
+    // a font finishes loading; the first pass may still see the fallback.
+    document.fonts.load(`${base}px "Pinyon Script"`, label).then(measure, measure)
+    document.fonts.addEventListener('loadingdone', measure)
+    return () => { live = false; document.fonts.removeEventListener('loadingdone', measure) }
+  }, [read, monogram])
+
   // After the letter is out, move focus into it so keyboard and screen reader users land on the invitation.
   useEffect(() => {
     if (!read || !justOpened.current) return
@@ -306,6 +343,16 @@ export function EnvelopeIntro({ paper, wine, storageKey, children }: Props) {
   }, [read])
 
   const colors = { '--env-paper': paper, '--env-wine': wine } as CSSProperties
+  const sealLabel = sealMonogram(monogram)
+  const fitted = sealFit?.label === sealLabel ? sealFit : null
+  const sealSize = fitted?.size ?? monogramFontSize(sealLabel)
+  const sealText = {
+    text: sealLabel,
+    size: sealSize,
+    x: fitted?.dx ?? 0,
+    // Baseline sits about a third of the font size below centre, so the glyphs look centred.
+    y: Math.round(sealSize * 0.32 * 10) / 10,
+  }
   return (
     <div ref={root} className="envelope" data-stage={read ? 'read' : 'sealed'} style={colors}>
       {!read && <>
@@ -325,8 +372,8 @@ export function EnvelopeIntro({ paper, wine, storageKey, children }: Props) {
               <circle r="25" fill="url(#env-pool)" />
               <circle r="25" fill="none" stroke="#8a6721" strokeWidth="1.4" />
               <circle r="22.5" fill="none" stroke="#f3dc9c" strokeWidth=".6" opacity=".8" />
-              <text y="9" x=".6" textAnchor="middle" fontFamily="Pinyon Script, cursive" fontSize="26" fill="#f7e6b4" opacity=".75">&amp;</text>
-              <text y="8.3" textAnchor="middle" fontFamily="Pinyon Script, cursive" fontSize="26" fill="#7a5a1a">&amp;</text>
+              <text y={sealText.y + .7} x={sealText.x + .6} textAnchor="middle" fontFamily="Pinyon Script, cursive" fontSize={sealText.size} fill="#f7e6b4" opacity=".75">{sealText.text}</text>
+              <text y={sealText.y} x={sealText.x} textAnchor="middle" fontFamily="Pinyon Script, cursive" fontSize={sealText.size} fill="#7a5a1a">{sealText.text}</text>
             </g>
             <clipPath id="env-cp-top"><polygon points={geometry.top} /></clipPath>
             <clipPath id="env-cp-bottom"><polygon points={geometry.bottom} /></clipPath>

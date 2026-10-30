@@ -14,7 +14,10 @@ public record CreateRsvpRequest(
         @NotNull @Min(0) @Max(value = CreateRsvpRequest.GUEST_COUNT_MAX, message = "인원은 20명 이하로 입력해 주세요.")
                 Integer guestCount,
         @Size(max = CreateRsvpRequest.MESSAGE_MAX, message = "전달할 말은 200자 이하로 입력해 주세요.")
-                String message) {
+                String message,
+        // Optional so older clients still submit; unknown values fail deserialization with 400.
+        RsvpSide side,
+        RsvpMeal meal) {
 
     public static final int NAME_MAX = 30;
     public static final int GUEST_COUNT_MAX = 20;
