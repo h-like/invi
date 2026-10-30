@@ -132,7 +132,9 @@ export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: P
       const w = width - 30
       scale = w / 340
       const h = 236 * scale
-      envTop = Math.round(Math.max(h * 0.7 + 28, (vh - h) / 2 + h * 0.2))
+      // Sit a little below centre, but never so low that the seal or the hint under the
+      // envelope leaves a short (landscape) viewport: scrolling is pinned to the top.
+      envTop = Math.round(Math.min(Math.max(h * 0.7 + 28, (vh - h) / 2 + h * 0.2), Math.max(8, vh - h - 56)))
       setVar('--env-s', String(scale))
       setVar('--env-l', box.left + 15 + 'px')
       setVar('--env-t', envTop + 'px')
@@ -275,6 +277,8 @@ export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: P
     const onCancel = () => { if (pullDrag) { pullDrag = null; settle(0) } }
     const onWheel = (e: WheelEvent) => { if (stage === 'open' && e.deltaY > 0) settle(1) }
     const onKey = (e: KeyboardEvent) => {
+      // Enter/Space on the mute or skip pill must press that button, not pull the letter.
+      if ((e.target as Element | null)?.closest?.('.envelope-tools')) return
       if (stage === 'open' && ['ArrowUp', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) { e.preventDefault(); settle(1) }
     }
     window.addEventListener('pointerdown', onDown)
