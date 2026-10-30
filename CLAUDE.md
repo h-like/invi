@@ -70,7 +70,7 @@ private JsonNode pageData;
 - 모든 블록은 `id`, `type`, `order`, `visible`, `content`, `style`을 공통으로 갖는다. `content`의 내부 구조만 타입별로 다르다.
 - 백엔드는 이 구조를 검증하지 않고 그대로 저장/반환한다(자유도 우선). 검증이 필요해지면 프론트 Zod 스키마를 우선 기준으로 삼고 백엔드는 최소한의 sanity check만 추가한다.
 - `Invitation.langVariants`도 같은 JSONB 방식. 블록별로 언어 코드(`ko`/`en`)를 키로 갖는 텍스트 오버라이드만 저장한다.
-- `hero.content` 선택 필드: 혼주 `groomFather`·`groomMother`·`groomRelation`·`brideFather`·`brideMother`·`brideRelation`(부모 이름이 하나도 없으면 표시 안 함, 관계가 비면 아들/딸), 실링 이니셜 `monogram`(영문·`&`·공백 최대 5자, 비면 "&", 봉투 인트로가 있는 테마만 사용). 읽기·정규화는 `frontend/src/blocks/heroDetails.ts` 한 곳에서 한다.
+- `hero.content` 선택 필드: 혼주 `groomFather`·`groomMother`·`groomRelation`·`brideFather`·`brideMother`·`brideRelation`(부모 이름이 하나도 없으면 표시 안 함, 관계가 비면 아들/딸), 실링 이니셜 `monogram`(영문·`&`·공백 최대 5자, 비면 "&", 봉투 인트로가 있는 테마만 사용, 숨긴 hero(`visible: false`)의 값은 쓰지 않고 "&"). 읽기·정규화는 `frontend/src/blocks/heroDetails.ts` 한 곳에서 한다.
 
 ## 데이터 모델 (Phase 0 범위)
 

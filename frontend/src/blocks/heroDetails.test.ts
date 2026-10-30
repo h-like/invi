@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MONOGRAM_MAX, monogramFontSize, normalizeMonogram, parentLine, sealMonogram } from './heroDetails.ts'
+import { MONOGRAM_MAX, monogramFontSize, normalizeMonogram, pageMonogram, parentLine, sealMonogram } from './heroDetails.ts'
 
 test('parent line joins both parents and keeps the chosen relation', () => {
   assert.deepEqual(parentLine({ groomFather: ' 이정호 ', groomMother: '김미경', groomRelation: '장남' }, 'groom', '도윤'),
@@ -42,4 +42,21 @@ test('monogram font shrinks with length and never exceeds the original size', ()
   assert.ok(monogramFontSize('D&S') < 26)
   assert.ok(monogramFontSize('D & S') < monogramFontSize('D&S'))
   assert.ok(monogramFontSize('D & S') * 5 * 0.8 <= 36.01)
+})
+
+test('page monogram comes from the first visible hero only', () => {
+  const hero = (monogram: unknown, visible = true) => ({ id: 'h', type: 'hero', order: 0, visible, content: { monogram } })
+  assert.equal(pageMonogram({ blocks: [{ type: 'gallery', visible: true, content: {} }, hero('D&S')] }), 'D&S')
+  assert.equal(pageMonogram({ blocks: [hero('D&S', false)] }), '')
+  assert.equal(pageMonogram({ blocks: [hero('A&B', false), hero('D&S')] }), 'D&S')
+  assert.equal(sealMonogram(pageMonogram({ blocks: [hero('D&S', false)] })), '&')
+})
+
+test('page monogram tolerates missing or malformed page data', () => {
+  assert.equal(pageMonogram(null), '')
+  assert.equal(pageMonogram(undefined), '')
+  assert.equal(pageMonogram({}), '')
+  assert.equal(pageMonogram({ blocks: 'nope' }), '')
+  assert.equal(pageMonogram({ blocks: [null, 3, { type: 'hero', visible: true }] }), '')
+  assert.equal(pageMonogram({ blocks: [{ type: 'hero', visible: true, content: { monogram: 7 } }] }), '')
 })

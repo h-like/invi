@@ -38,6 +38,22 @@ export function normalizeMonogram(value: unknown): string {
   return value.replace(/[^A-Za-z& ]/g, '').replace(/ +/g, ' ').trimStart().slice(0, MONOGRAM_MAX)
 }
 
+/**
+ * The monogram stored on the page's hero block, as the guest page renders it: the first
+ * visible hero, matching PageRenderer. A hidden hero supplies nothing, so the seal falls
+ * back to "&" rather than showing initials the couple took off the page. page_data is
+ * stored unvalidated, so missing or non-array blocks and odd entries are tolerated.
+ */
+export function pageMonogram(pageData: unknown): string {
+  const blocks = (pageData as { blocks?: unknown } | null | undefined)?.blocks
+  if (!Array.isArray(blocks)) return ''
+  const hero = blocks.find((b): b is { content?: unknown } =>
+    !!b && typeof b === 'object' && (b as { type?: unknown }).type === 'hero' && !!(b as { visible?: unknown }).visible)
+  const content = hero?.content
+  const value = content && typeof content === 'object' ? (content as { monogram?: unknown }).monogram : undefined
+  return typeof value === 'string' ? value : ''
+}
+
 /** What the seal shows: the couple's initials, or the plain ampersand when none are set. */
 export function sealMonogram(value: unknown): string {
   return normalizeMonogram(value).trim() || '&'
