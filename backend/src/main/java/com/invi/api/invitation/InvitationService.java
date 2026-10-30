@@ -12,6 +12,7 @@ import com.invi.api.media.MediaLifecycle;
 import com.invi.api.media.MediaReferences;
 import com.invi.api.template.Template;
 import com.invi.api.template.TemplateRepository;
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -105,8 +106,7 @@ public class InvitationService {
         Invitation invitation = getOwnedOrThrow(memberId, id);
         JsonNode nextPageData = toEntityJson(pageData);
         Set<String> languageKeys = MediaReferences.extract(invitation.getLangVariants());
-        Set<String> before = new HashSet<>(MediaReferences.extract(invitation.getPageData()));
-        before.addAll(languageKeys);
+        Set<String> before = MediaReferences.ofInvitation(invitation);
         Set<String> after = new HashSet<>(MediaReferences.extract(nextPageData));
         after.addAll(languageKeys);
         lifecycle.referencesChanged(before, after);
@@ -123,13 +123,20 @@ public class InvitationService {
         }
     }
 
+    /** Takes the media lock so a postponed date is never lost to a concurrent expiry deletion. */
+    @Transactional
+    public InvitationDto updateWeddingDate(UUID memberId, UUID id, LocalDate weddingDate) {
+        lifecycle.lock();
+        Invitation invitation = getOwnedOrThrow(memberId, id);
+        invitation.updateWeddingDate(weddingDate);
+        return toDto(invitation);
+    }
+
     @Transactional
     public InvitationDto publish(UUID memberId, UUID id) {
         lifecycle.lock();
         Invitation invitation = getOwnedOrThrow(memberId, id);
-        Set<String> keys = new HashSet<>(MediaReferences.extract(invitation.getPageData()));
-        keys.addAll(MediaReferences.extract(invitation.getLangVariants()));
-        lifecycle.assertUsable(keys);
+        lifecycle.assertUsable(MediaReferences.ofInvitation(invitation));
         invitation.publish();
         return toDto(invitation);
     }

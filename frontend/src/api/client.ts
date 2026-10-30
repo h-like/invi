@@ -62,6 +62,12 @@ export const api = {
       body: JSON.stringify({ pageData }),
     }),
 
+  updateWeddingDate: (id: string, weddingDate: string) =>
+    request<Invitation>(`/api/invitations/${id}/wedding-date`, {
+      method: 'PUT',
+      body: JSON.stringify({ weddingDate }),
+    }),
+
   publishInvitation: (id: string) => request<Invitation>(`/api/invitations/${id}/publish`, { method: 'POST' }),
 
   getBySlug: (slug: string) => request<GuestInvitation>(`/api/invitations/slug/${slug}`),

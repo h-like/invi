@@ -47,6 +47,12 @@ public class InvitationController {
         return invitationService.updatePageData(currentMember.requireId(authentication), id, request.pageData());
     }
 
+    @PutMapping("/{id}/wedding-date")
+    public InvitationDto updateWeddingDate(
+            Authentication authentication, @PathVariable UUID id, @Valid @RequestBody UpdateWeddingDateRequest request) {
+        return invitationService.updateWeddingDate(currentMember.requireId(authentication), id, request.weddingDate());
+    }
+
     @PostMapping("/{id}/publish")
     public InvitationDto publish(Authentication authentication, @PathVariable UUID id) {
         return invitationService.publish(currentMember.requireId(authentication), id);

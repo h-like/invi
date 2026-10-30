@@ -49,6 +49,13 @@ public class MediaReferences {
         return keys;
     }
 
+    /** Every key an invitation's saved content references: page data plus language overrides. */
+    public static Set<String> ofInvitation(Invitation invitation) {
+        Set<String> keys = extract(invitation.getPageData());
+        keys.addAll(extract(invitation.getLangVariants()));
+        return keys;
+    }
+
     /** Iterative traversal has no depth/node cutoff and includes unknown fields and object field names. */
     public static Set<String> extract(JsonNode root) {
         Set<String> keys = new LinkedHashSet<>();

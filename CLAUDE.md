@@ -43,7 +43,7 @@ private JsonNode pageData;
 - **요청 바디**로 들어오는 JSON(`UpdatePageDataRequest.pageData`)은 Spring이 Jackson 3로 역직렬화하므로 타입이 `tools.jackson.databind.JsonNode`다. 서비스 레이어에서 `entityJsonMapper.readTree(node.toString())`로 Jackson 2 `JsonNode`로 변환한 뒤 엔티티에 반영한다(`InvitationService.toEntityJson()` 참고). `entityJsonMapper`는 `JacksonConfig`가 등록하는 Jackson 2 전용 빈이다.
 - 새 엔드포인트에서 JSONB 필드를 다룰 때는 이 패턴(엔티티=Jackson2, DTO=`@JsonRawValue String`, 입력 변환=서비스 레이어)을 그대로 따른다.
 
-**소프트 삭제**: 방명록처럼 "삭제 권한은 있지만 감사 추적이 필요한" 데이터는 물리 삭제 대신 `deletedAt(Instant, nullable)` 컬럼을 둔다. 무료 만료로 인한 청첩장 자체 삭제(15일 배치)는 예외로, 실제 레코드+R2 이미지를 지운다(개인정보 보관 최소화가 우선이라 소프트 삭제하지 않음).
+**소프트 삭제**: 방명록처럼 "삭제 권한은 있지만 감사 추적이 필요한" 데이터는 물리 삭제 대신 `deletedAt(Instant, nullable)` 컬럼을 둔다. 무료 만료로 인한 청첩장 자체 삭제(예식일+10일 배치, `InvitationExpiryService`)는 예외로, 실제 레코드를 지우고 R2 이미지는 `MediaLifecycle`로 넘겨 정리 작업이 지운다(개인정보 보관 최소화가 우선이라 소프트 삭제하지 않음). 기본 dry-run이며 규칙·설정은 `docs/INVITATION_EXPIRY.md` 참고.
 
 **테이블명 예외**: `user`는 PostgreSQL 예약어라 엔티티명을 `Member`로 한다(기획서/아키텍처 문서의 "User"와 동일 개념).
 

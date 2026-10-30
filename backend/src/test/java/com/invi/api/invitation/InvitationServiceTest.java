@@ -413,4 +413,34 @@ class InvitationServiceTest {
         assertThatThrownBy(() -> invitationService.publish(UUID.randomUUID(), id))
                 .isInstanceOf(ForbiddenException.class);
     }
+
+    @Test
+    void updateWeddingDate_locksThenChangesOwnedInvitation() {
+        UUID ownerId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        Template template = Template.builder().name("클래식").category("classic").build();
+        Invitation invitation = Invitation.builder().slug("s").weddingDate(LocalDate.of(2027, 3, 1))
+                .template(template).member(ownerWithId(ownerId)).build();
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+
+        InvitationDto dto = invitationService.updateWeddingDate(ownerId, id, LocalDate.of(2027, 5, 1));
+
+        assertThat(dto.weddingDate()).isEqualTo(LocalDate.of(2027, 5, 1));
+        InOrder order = inOrder(lifecycle, invitationRepository);
+        order.verify(lifecycle).lock();
+        order.verify(invitationRepository).findById(id);
+    }
+
+    @Test
+    void updateWeddingDate_throwsForbidden_whenCallerIsNotOwner() {
+        UUID id = UUID.randomUUID();
+        Template template = Template.builder().name("클래식").category("classic").build();
+        Invitation invitation = Invitation.builder().slug("s").weddingDate(LocalDate.of(2027, 3, 1))
+                .template(template).member(ownerWithId(UUID.randomUUID())).build();
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+
+        assertThatThrownBy(() -> invitationService.updateWeddingDate(UUID.randomUUID(), id, LocalDate.of(2027, 5, 1)))
+                .isInstanceOf(ForbiddenException.class);
+        assertThat(invitation.getWeddingDate()).isEqualTo(LocalDate.of(2027, 3, 1));
+    }
 }
