@@ -1,6 +1,7 @@
 package com.invi.api.rsvp;
 
 import com.invi.api.account.CurrentMember;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -25,8 +26,8 @@ public class RsvpController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public RsvpDto submit(@PathVariable UUID invitationId, @Valid @RequestBody CreateRsvpRequest request) {
-        return rsvpService.submit(invitationId, request);
+    public RsvpDto submit(HttpServletRequest http, @PathVariable UUID invitationId, @Valid @RequestBody CreateRsvpRequest request) {
+        return rsvpService.submit(invitationId, request, http.getRemoteAddr());
     }
 
     @GetMapping

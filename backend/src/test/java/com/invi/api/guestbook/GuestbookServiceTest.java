@@ -3,15 +3,22 @@ package com.invi.api.guestbook;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.invi.api.account.AuthProvider;
 import com.invi.api.account.Member;
 import com.invi.api.common.ForbiddenException;
+import com.invi.api.common.GuestWriteRateLimiter;
 import com.invi.api.common.NotFoundException;
+import com.invi.api.common.TooManyRequestsException;
 import com.invi.api.common.TestEntityIds;
 import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
+import com.invi.api.invitation.InvitationStatus;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,12 +33,13 @@ class GuestbookServiceTest {
 
     @Mock private GuestbookEntryRepository guestbookEntryRepository;
     @Mock private InvitationRepository invitationRepository;
+    @Mock private GuestWriteRateLimiter rateLimiter;
 
     private GuestbookService guestbookService;
 
     @BeforeEach
     void setUp() {
-        guestbookService = new GuestbookService(guestbookEntryRepository, invitationRepository);
+        guestbookService = new GuestbookService(guestbookEntryRepository, invitationRepository, rateLimiter);
     }
 
     private static Member ownerWithId(UUID id) {
@@ -43,12 +51,12 @@ class GuestbookServiceTest {
     @Test
     void submit_savesEntry_whenInvitationExists() {
         UUID invitationId = UUID.randomUUID();
-        Invitation invitation = Invitation.builder().slug("s").weddingDate(LocalDate.now()).build();
+        Invitation invitation = published();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
         when(guestbookEntryRepository.save(any(GuestbookEntry.class))).thenAnswer(inv -> inv.getArgument(0));
 
         GuestbookEntryDto result =
-                guestbookService.submit(invitationId, new CreateGuestbookRequest("친구1", "축하해!"));
+                guestbookService.submit(invitationId, new CreateGuestbookRequest("친구1", "축하해!"), "203.0.113.7");
 
         assertThat(result.author()).isEqualTo("친구1");
         assertThat(result.message()).isEqualTo("축하해!");
@@ -60,7 +68,7 @@ class GuestbookServiceTest {
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(
-                        () -> guestbookService.submit(invitationId, new CreateGuestbookRequest("A", "B")))
+                        () -> guestbookService.submit(invitationId, new CreateGuestbookRequest("A", "B"), "203.0.113.7"))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -119,5 +127,55 @@ class GuestbookServiceTest {
 
         assertThatThrownBy(() -> guestbookService.delete(ownerId, otherInvitationId, entryId))
                 .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void submit_countsAgainstTheRateLimitOnlyForAnExistingInvitation() {
+        UUID invitationId = UUID.randomUUID();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> guestbookService.submit(invitationId, new CreateGuestbookRequest("A", "B"), "203.0.113.7"))
+                .isInstanceOf(NotFoundException.class);
+        verifyNoInteractions(rateLimiter);
+    }
+
+    @Test
+    void submit_savesNothing_whenRateLimited() {
+        UUID invitationId = UUID.randomUUID();
+        Invitation invitation = published();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
+        doThrow(new TooManyRequestsException(60)).when(rateLimiter)
+                .acquire(GuestWriteRateLimiter.Kind.GUESTBOOK, invitationId, "203.0.113.7");
+
+        assertThatThrownBy(() -> guestbookService.submit(invitationId, new CreateGuestbookRequest("A", "B"), "203.0.113.7"))
+                .isInstanceOf(TooManyRequestsException.class);
+        verify(guestbookEntryRepository, never()).save(any());
+    }
+
+    @Test
+    void submit_treatsUnpublishedInvitationAsMissing_withoutCounting() {
+        UUID invitationId = UUID.randomUUID();
+        Invitation draft = Invitation.builder().slug("s").weddingDate(LocalDate.now()).build();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(draft));
+
+        assertThatThrownBy(() -> guestbookService.submit(invitationId, new CreateGuestbookRequest("A", "B"), "203.0.113.7"))
+                .isInstanceOf(NotFoundException.class);
+        verifyNoInteractions(rateLimiter);
+        verify(guestbookEntryRepository, never()).save(any());
+    }
+
+    @Test
+    void submit_releasesThePermit_whenSavingFails() {
+        UUID invitationId = UUID.randomUUID();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(published()));
+        when(guestbookEntryRepository.save(any())).thenThrow(new IllegalStateException("db down"));
+
+        assertThatThrownBy(() -> guestbookService.submit(invitationId, new CreateGuestbookRequest("A", "B"), "203.0.113.7"))
+                .isInstanceOf(IllegalStateException.class);
+        verify(rateLimiter).release(GuestWriteRateLimiter.Kind.GUESTBOOK, invitationId, "203.0.113.7");
+    }
+
+    private static Invitation published() {
+        return Invitation.builder().slug("s").weddingDate(LocalDate.now()).status(InvitationStatus.PUBLISHED).build();
     }
 }
