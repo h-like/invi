@@ -9,6 +9,8 @@ export const GROOM_RELATIONS = ['장남', '차남', '삼남', '아들']
 export const BRIDE_RELATIONS = ['장녀', '차녀', '삼녀', '딸']
 
 export type HeroSide = 'groom' | 'bride'
+/** Shown when the relation is left blank; the editor uses it as the placeholder so both agree. */
+export const DEFAULT_RELATION: Record<HeroSide, string> = { groom: '아들', bride: '딸' }
 export const PARENT_FIELDS: Record<HeroSide, { father: string; mother: string; relation: string }> = {
   groom: { father: 'groomFather', mother: 'groomMother', relation: 'groomRelation' },
   bride: { father: 'brideFather', mother: 'brideMother', relation: 'brideRelation' },
@@ -25,7 +27,7 @@ export function parentLine(content: Record<string, unknown>, side: HeroSide, chi
   const fields = PARENT_FIELDS[side]
   const parents = [clean(content[fields.father], PARENT_NAME_MAX), clean(content[fields.mother], PARENT_NAME_MAX)].filter(Boolean)
   if (!parents.length) return null
-  const relation = clean(content[fields.relation], RELATION_MAX) || (side === 'groom' ? '아들' : '딸')
+  const relation = clean(content[fields.relation], RELATION_MAX) || DEFAULT_RELATION[side]
   return { parents: parents.join(' · '), relation, child: child.trim() }
 }
 

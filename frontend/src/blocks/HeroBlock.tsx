@@ -15,13 +15,14 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
   const groomName = <span><small className="hero-role">신랑 </small>{groom}</span>
   const brideName = <span><small className="hero-role">신부 </small>{bride}</span>
   const greeting = <p className="hero-greeting">{text('greeting') || '소중한 여러분을 저희의 결혼식에 초대합니다.'}</p>
-  const lines = ([['groom', groom], ['bride', bride]] as [HeroSide, string][]).flatMap(([side, child]) => {
+  // Real names only: the '신랑'/'신부' fallbacks are role words, not the child's name.
+  const lines = ([['groom', text('groomName')], ['bride', text('brideName')]] as [HeroSide, string][]).flatMap(([side, child]) => {
     const line = parentLine(block.content, side, child)
     return line ? [{ side, ...line }] : []
   })
   const parents = lines.length > 0 && (
     <div className="hero-parents">
-      {lines.map(line => <p key={line.side} className="hero-parent-line"><span className="hero-parent-names">{line.parents}</span><span className="hero-parent-relation">의 {line.relation}</span> <strong className="hero-parent-child">{line.child}</strong></p>)}
+      {lines.map(line => <p key={line.side} className="hero-parent-line"><span className="hero-parent-names">{line.parents}</span><span className="hero-parent-relation">의 {line.relation}</span>{line.child && <> <strong className="hero-parent-child">{line.child}</strong></>}</p>)}
     </div>
   )
 

@@ -51,6 +51,8 @@ export function GuestPage() {
 }
 
 function heroMonogram(invitation: GuestInvitation): string {
-  const value = invitation.pageData?.blocks.find(b => b.type === 'hero')?.content.monogram
+  // page_data is stored unvalidated, so blocks may be missing; PageRenderer tolerates that too.
+  const blocks = Array.isArray(invitation.pageData?.blocks) ? invitation.pageData.blocks : []
+  const value = blocks.find(b => b.type === 'hero')?.content?.monogram
   return typeof value === 'string' ? value : ''
 }

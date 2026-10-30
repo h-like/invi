@@ -12,6 +12,10 @@ test('parent line works with one parent and falls back to a neutral relation', (
   assert.equal(parentLine({ groomFather: '이정호' }, 'groom', '도윤')?.relation, '아들')
 })
 
+test('parent line leaves the child empty rather than inventing a name', () => {
+  assert.equal(parentLine({ groomFather: '이정호' }, 'groom', '  ')?.child, '')
+})
+
 test('parent line is hidden without any parent name, whatever else is stored', () => {
   assert.equal(parentLine({}, 'groom', '도윤'), null)
   assert.equal(parentLine({ groomFather: '  ', groomMother: 3, groomRelation: '장남' }, 'groom', '도윤'), null)

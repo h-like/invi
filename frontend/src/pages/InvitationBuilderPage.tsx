@@ -8,7 +8,7 @@ import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { canSaveBeforeLeave, createSaveBeforeLeave, leaveDialogMode, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation, type LeaveDialogMode } from '../editor/navigation'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
 import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, patchContent, publishIssues, themeFeatures, updateBlock } from '../editor/model'
-import { BRIDE_RELATIONS, GROOM_RELATIONS, MONOGRAM_MAX, normalizeMonogram, PARENT_FIELDS, PARENT_NAME_MAX, RELATION_MAX, type HeroSide } from '../blocks/heroDetails'
+import { BRIDE_RELATIONS, DEFAULT_RELATION, GROOM_RELATIONS, MONOGRAM_MAX, normalizeMonogram, PARENT_FIELDS, PARENT_NAME_MAX, RELATION_MAX, type HeroSide } from '../blocks/heroDetails'
 
 // Chosen by leaveDialogMode(); pending photos cannot be saved, so that copy offers only staying or discarding.
 const LEAVE_COPY: Record<LeaveDialogMode, { title: string; description: string }> = {
@@ -265,7 +265,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 {PARENT_SIDES.map(({ side, title, relations }) => { const f = PARENT_FIELDS[side]; return <div key={side}><p className="editor-section-sub">{title}</p><div className="form-columns form-columns-3">
                   <label>아버지<input value={text(hero, f.father)} maxLength={PARENT_NAME_MAX} onChange={e => changeContent(hero, { [f.father]: e.target.value })} placeholder="아버지 성함" /></label>
                   <label>어머니<input value={text(hero, f.mother)} maxLength={PARENT_NAME_MAX} onChange={e => changeContent(hero, { [f.mother]: e.target.value })} placeholder="어머니 성함" /></label>
-                  <label>관계<input list={'relations-' + side} value={text(hero, f.relation)} maxLength={RELATION_MAX} onChange={e => changeContent(hero, { [f.relation]: e.target.value })} placeholder={relations[0]} /></label>
+                  <label>관계<input list={'relations-' + side} value={text(hero, f.relation)} maxLength={RELATION_MAX} onChange={e => changeContent(hero, { [f.relation]: e.target.value })} placeholder={DEFAULT_RELATION[side]} /></label>
                   <datalist id={'relations-' + side}>{relations.map(r => <option key={r} value={r} />)}</datalist>
                 </div></div> })}
               </section>}
