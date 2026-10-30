@@ -9,6 +9,7 @@ import { GuestbookBlock } from './GuestbookBlock'
 import { HeroBlock } from './HeroBlock'
 import { MapBlock } from './MapBlock'
 import { RsvpBlock } from './RsvpBlock'
+import './invitation.css'
 
 interface Props {
   pageData: PageData | null
@@ -28,8 +29,6 @@ export function PageRenderer({ pageData, weddingDate, invitationId, interactive 
     '--invite-bg': design.backgroundColor, '--invite-accent': accent, '--invite-ink': ink,
     '--invite-soft': soft, '--invite-size': design.fontSize === 'larger' ? '20px' : design.fontSize === 'large' ? '18px' : '16px',
     '--invite-font': FONT_STACKS[design.fontFamily],
-    '--ink': ink, '--ink-soft': soft,
-    '--surface': design.backgroundColor, '--surface-2': design.backgroundColor,
   } as CSSProperties
   const blocks = [...(pageData?.blocks ?? [])].filter(b => b.visible).sort((a, b) => a.order - b.order)
   return (

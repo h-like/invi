@@ -1,0 +1,69 @@
+/* Service UI design tokens (landing, editor, my invitations, login, guest management).
+   Structure follows the "Web Studio" reference: white ground, soft grey cards, pill
+   buttons, small shadows. The accent is rosewood instead of blue.
+   Guest invitations do not read these; they use --invite-* in blocks/invitation.css.
+   Light only for now; a dark theme would redefine the color tokens here. */
+:root {
+  /* Surfaces */
+  --color-bg: #ffffff;              /* page ground */
+  --color-surface: #f5f5f7;         /* grey card / band behind white cards */
+  --color-surface-raised: #ffffff;  /* card or panel sitting on --color-surface */
+
+  /* Text: all three pass 4.5:1 on both --color-bg and --color-surface */
+  --color-ink: #1d1d1f;             /* headings, primary text (16.8:1 on white) */
+  --color-ink-body: #424242;        /* running text (10.1:1) */
+  --color-ink-muted: #6e6e73;       /* captions, meta, placeholders' labels (5.1:1, 4.7:1 on surface) */
+
+  /* Lines */
+  --color-line: rgba(18, 18, 19, 0.12);        /* dividers, card outlines */
+  --color-line-strong: rgba(18, 18, 19, 0.22); /* input and secondary-button borders */
+  --color-grid: rgba(18, 18, 19, 0.06);        /* 60px background grid */
+
+  /* Accent: rosewood. White text on it is 7.3:1. */
+  --color-accent: #8e3b4a;
+  --color-accent-hover: #7a3140;
+  --color-on-accent: #ffffff;
+  --color-accent-tint: #f5e6e8;     /* selected chip, published badge ground */
+  --color-accent-tint-ink: #6e2b38; /* text on --color-accent-tint (7.6:1) */
+
+  /* Status. Danger is orange-red so it never reads as the rosewood accent. */
+  --color-danger: #c2410c;          /* 5.2:1 on white */
+  --color-danger-tint: #fdeee6;
+  --color-danger-line: #f2c3aa;
+  --color-success: #1a7f52;         /* 5.0:1 on white */
+  --color-success-tint: #e4f4ec;
+
+  /* Third-party brand buttons (required by provider guidelines) */
+  --color-kakao: #fee500;
+  --color-on-kakao: #191600;
+
+  --color-backdrop: rgba(29, 29, 31, 0.45);
+  --color-focus: var(--color-accent);
+
+  /* Type: Pretendard everywhere in the service UI (self-hosted, no font CDN). */
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: clamp(26px, 3vw, 36px);
+  --text-display: clamp(34px, 4.6vw, 60px);
+  --tracking-tight: -0.03em;  /* headings */
+  --tracking-label: 0.12em;   /* uppercase eyebrows */
+
+  /* Shape */
+  --radius-sm: 6px;     /* thumbnails, small marks */
+  --radius-md: 10px;    /* inputs, list rows, small cards */
+  --radius-lg: 20px;    /* panels, large cards, dialogs */
+  --radius-pill: 999px; /* every button and badge */
+
+  /* Elevation */
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration: 0.3s;
+}

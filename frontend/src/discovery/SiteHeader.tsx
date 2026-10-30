@@ -25,7 +25,7 @@ export function SiteHeader() {
           <NavLink to="/templates" className="discovery-nav-link">템플릿</NavLink>
           <div className="discovery-header-auth" aria-busy={loading}>
             {loading ? (
-              <span className="discovery-auth-placeholder" role="status"><span className="discovery-sr-only">계정 확인 중</span></span>
+              <span className="discovery-auth-placeholder" role="status"><span className="sr-only">계정 확인 중</span></span>
             ) : member ? (
               <>
                 <NavLink to="/invitations" className="discovery-nav-link">내 청첩장</NavLink>

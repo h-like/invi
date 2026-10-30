@@ -1,0 +1,126 @@
+/* Guest invitation: the published page (/i/:slug) and the editor preview.
+   Self-contained on purpose: it reads no service UI tokens and pins the element
+   defaults it used to inherit from App.css/index.css/builder.css, so restyling the
+   service UI never changes what guests see. Values were copied as they were at
+   the split; element rules use :where(.page-renderer) to keep their old specificity. */
+.page-renderer {
+  --inv-ink: var(--invite-ink);
+  --inv-ink-soft: var(--invite-soft);
+  --inv-surface: var(--invite-bg);
+  --inv-surface-2: var(--invite-bg);
+  --inv-error: #b5405a;
+  --inv-success: #2f6f62;
+  --inv-line: color-mix(in srgb, var(--invite-ink) 15%, transparent);
+  background: var(--invite-bg); color: var(--invite-ink); font: var(--invite-size)/1.9 var(--invite-font);
+  letter-spacing: 0.18px; text-align: left; color-scheme: light;
+  font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  overflow-wrap: anywhere;
+}
+.guest-page { max-width: 480px; margin: 0 auto; min-height: 100svh; background: white; }
+/* Own backdrop for the desktop gutter, so the guest view never depends on the service body. */
+.guest-backdrop { min-height: 100svh; background: #faf8fa; }
+
+/* Element defaults formerly inherited from the global stylesheets. */
+:where(.page-renderer), :where(.page-renderer) * { box-sizing: border-box; }
+:where(.page-renderer) p { margin: 0; }
+:where(.page-renderer) h1 { font-size: 24px; margin: 0 0 24px; letter-spacing: -1.68px; }
+:where(.page-renderer) h2 { font-size: 16px; margin: 0 0 12px; letter-spacing: -0.24px; line-height: 118%; color: var(--inv-ink-soft); }
+:where(.page-renderer) label { display: block; font-size: 14px; color: var(--inv-ink-soft); margin-bottom: 16px; }
+:where(.page-renderer) input, :where(.page-renderer) textarea, :where(.page-renderer) button { font: inherit; }
+:where(.page-renderer) input[type='text'], :where(.page-renderer) input[type='email'], :where(.page-renderer) input[type='password'], :where(.page-renderer) input[type='date'], :where(.page-renderer) input[type='number'], :where(.page-renderer) input:not([type]), :where(.page-renderer) textarea { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--inv-line); border-radius: 8px; background: var(--inv-surface); }
+:where(.page-renderer) button { padding: 10px 18px; border: none; border-radius: 8px; background: var(--inv-ink); color: white; cursor: pointer; transition: none; }
+:where(.page-renderer) button:disabled { opacity: 0.5; cursor: not-allowed; }
+:where(.page-renderer) button, :where(.page-renderer) a, :where(.page-renderer) input, :where(.page-renderer) textarea, :where(.page-renderer) select { -webkit-tap-highlight-color: transparent; }
+:where(.page-renderer) button:focus-visible, :where(.page-renderer) a:focus-visible, :where(.page-renderer) input:focus-visible, :where(.page-renderer) textarea:focus-visible, :where(.page-renderer) select:focus-visible, :where(.page-renderer) [tabindex]:focus-visible { outline: 3px solid #74634a; outline-offset: 3px; }
+
+/* Block base layout. */
+:where(.page-renderer) .block { padding: 32px 24px; border-bottom: 1px solid var(--inv-line); }
+:where(.page-renderer) .hero-block { text-align: center; padding: 64px 24px; }
+:where(.page-renderer) .hero-date { color: var(--inv-ink-soft); margin: 0 0 12px; }
+:where(.page-renderer) .hero-names { font-size: 28px; margin: 0; }
+:where(.page-renderer) .countdown-block { text-align: center; font-weight: 600; }
+:where(.page-renderer) .block-placeholder { color: var(--inv-ink-soft); font-size: 14px; }
+:where(.page-renderer) .block-error { color: var(--inv-error); font-size: 13px; }
+:where(.page-renderer) .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+:where(.page-renderer) .gallery-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
+:where(.page-renderer) .block-sub { color: var(--inv-ink-soft); font-size: 13px; }
+:where(.page-renderer) .account-group { margin-top: 12px; }
+:where(.page-renderer) .account-group-title { font-weight: 600; font-size: 13px; color: var(--inv-ink-soft); margin: 0 0 6px; }
+:where(.page-renderer) .account-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 14px; }
+:where(.page-renderer) .account-row button { padding: 4px 10px; font-size: 12px; background: var(--inv-surface-2); color: var(--inv-ink); border: 1px solid var(--inv-line); }
+:where(.page-renderer) .rsvp-attending { display: flex; gap: 16px; margin: 10px 0; font-size: 14px; }
+:where(.page-renderer) .rsvp-attending label { display: flex; align-items: center; gap: 6px; margin: 0; }
+:where(.page-renderer) .rsvp-block form, :where(.page-renderer) .guestbook-block form { display: flex; flex-direction: column; gap: 10px; }
+:where(.page-renderer) .block-success { color: var(--inv-success); font-weight: 600; text-align: center; }
+:where(.page-renderer) .guestbook-list { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+:where(.page-renderer) .guestbook-list li { padding: 10px 12px; background: var(--inv-surface-2); border-radius: 8px; font-size: 14px; }
+:where(.page-renderer) .guestbook-list li p { margin: 4px 0 0; }
+
+/* Shared published and preview invitation appearance. */
+.page-renderer .block { padding: 40px 24px; background: transparent; border-color: var(--inv-line); text-align: center; }
+.page-renderer h1, .page-renderer h2, .page-renderer h3 { font-family: inherit; color: var(--invite-accent); line-height: 1.6; font-weight: 500; }
+.page-renderer h3 { font-size: 1.12em; margin: 0 0 22px; }
+.page-renderer .invitation-eyebrow { font-family: Georgia, serif; font-size: .57em; color: var(--invite-accent); letter-spacing: .2em; margin: 0 0 14px; }
+.page-renderer .hero-block { padding: 24px 18px; border-bottom: 0; }
+.hero-frame { padding: 46px 18px 36px; }
+.invitation-theme-classic .hero-layout-frame .hero-frame { border: 1px solid var(--invite-accent); outline: 1px solid color-mix(in srgb, var(--invite-accent) 40%, transparent); outline-offset: -6px; }
+.invitation-theme-romantic .hero-layout-frame .hero-frame { border-top: 1px solid var(--invite-accent); border-radius: 46% 46% 0 0; padding-top: 60px; }
+.invitation-theme-modern .hero-layout-frame .hero-frame { border-top: 3px solid var(--invite-accent); text-align: left; padding-inline: 10px; }
+.page-renderer .hero-date { font-size: .69em; color: var(--invite-soft); margin: 24px 0; }
+.page-renderer .hero-names { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; font-size: 1.8em; letter-spacing: .03em; margin: 0 0 22px; }
+.invitation-theme-modern .hero-layout-frame .hero-names { justify-content: flex-start; }
+.page-renderer .hero-ampersand { font-family: Georgia, serif; font-size: .7em; font-style: italic; }
+.hero-cover { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; margin: 26px auto; }
+.page-renderer .hero-invitation-label { margin-top: 42px; }
+/* garden: rounded double frame with a leaf mark. */
+.invitation-theme-garden .hero-layout-frame .hero-frame { border: 1px solid var(--invite-accent); border-radius: 22px; outline: 1px solid color-mix(in srgb, var(--invite-accent) 35%, transparent); outline-offset: -7px; }
+.invitation-theme-garden .hero-layout-frame .hero-frame::before { content: '❦'; display: block; color: var(--invite-accent); font-size: 1.3em; line-height: 1; margin: -12px 0 18px; }
+/* hanji: a vermilion 囍 seal, wide-tracked names and faint paper fibres. */
+.page-renderer.invitation-theme-hanji { background-image: radial-gradient(color-mix(in srgb, var(--invite-ink) 5%, transparent) .6px, transparent .8px); background-size: 7px 9px; }
+.invitation-theme-hanji .hero-block::before { content: '囍'; display: inline-block; color: var(--invite-accent); border: 1.5px solid var(--invite-accent); border-radius: 3px; padding: 3px 7px; font-size: 1.05em; line-height: 1.3; margin-bottom: 20px; }
+.invitation-theme-hanji .hero-names { letter-spacing: .14em; }
+/* film: the cover becomes a white-bordered print. */
+.invitation-theme-film .hero-layout-photo-full { padding: 22px 20px 0; }
+.invitation-theme-film .hero-photo { border: 10px solid #fff; border-bottom-width: 34px; box-shadow: 0 6px 18px rgb(0 0 0 / .14); }
+.invitation-theme-film .hero-photo-caption .invitation-eyebrow { font-family: inherit; letter-spacing: .28em; }
+/* letterpress: heavy double rules like a pressed card. */
+.invitation-theme-letterpress .hero-layout-typographic { margin: 18px 18px 0; border-block: 5px double var(--invite-accent); }
+.invitation-theme-letterpress .hero-names { letter-spacing: .02em; }
+.invitation-theme-letterpress .hero-date-numeric { color: var(--invite-accent); }
+/* photo-full: the cover runs edge to edge with names over a bottom scrim. */
+.page-renderer .hero-layout-photo-full { padding: 0; }
+.hero-photo { position: relative; aspect-ratio: 3 / 4; overflow: hidden; color: #fff; }
+.hero-photo-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-photo::after { content: ''; position: absolute; inset: 45% 0 0; background: linear-gradient(transparent, rgb(0 0 0 / .62)); }
+.hero-photo-empty { aspect-ratio: 4 / 5; color: var(--invite-ink); background: color-mix(in srgb, var(--invite-accent) 16%, var(--invite-bg)); }
+.hero-photo-empty::after { display: none; }
+.hero-photo-caption { position: absolute; inset: auto 0 0; z-index: 1; padding: 0 22px 30px; text-align: left; }
+.page-renderer .hero-photo-caption .invitation-eyebrow, .page-renderer .hero-photo-caption .hero-names, .page-renderer .hero-photo-caption .hero-date { color: inherit; }
+.page-renderer .hero-photo-caption .hero-names { justify-content: flex-start; margin: 0 0 8px; }
+.page-renderer .hero-photo-caption .hero-date { margin: 0; opacity: .88; }
+.hero-photo-body { padding: 34px 24px 10px; }
+/* typographic: names carry the page; the photo becomes a small inset. */
+.page-renderer .hero-layout-typographic { padding: 56px 24px 28px; }
+.page-renderer .hero-names-stacked { flex-direction: column; gap: 0; font-size: 2.7em; line-height: 1.25; letter-spacing: -.02em; margin: 18px 0 26px; }
+.page-renderer .hero-names-stacked .hero-ampersand { font-size: .45em; margin: 6px 0; }
+.page-renderer .hero-layout-typographic .hero-date { display: flex; flex-direction: column; gap: 4px; margin: 0 0 30px; }
+.hero-date-numeric { font-size: 1.9em; font-weight: 400; letter-spacing: .08em; color: var(--invite-ink); }
+.hero-cover-inset { width: 62%; aspect-ratio: 1; margin: 0 auto 30px; }
+.hero-greeting { white-space: pre-wrap; font-size: .83em; line-height: 2.3; word-break: keep-all; overflow-wrap: break-word; }
+.page-renderer .block-placeholder, .page-renderer .block-sub { color: var(--invite-soft); font-size: .8em; }
+.page-renderer .countdown-block { font-size: .82em; font-weight: 400; }
+.page-renderer .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 16px 0; }
+.page-renderer .gallery-grid img { border-radius: 0; display: block; }
+.page-renderer .gallery-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.page-renderer .gallery-slider { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px; padding-bottom: 10px; }
+.page-renderer .gallery-slider img { flex: 0 0 90%; width: 90%; aspect-ratio: 4 / 5; scroll-snap-align: center; }
+.venue-directions { white-space: pre-wrap; margin-top: 22px; font-size: .8em; text-align: left; }
+.page-renderer input:not([type='radio']), .page-renderer textarea { font-family: inherit; font-size: .85em; color: var(--invite-ink); background: var(--invite-bg); border-color: var(--inv-line); }
+.page-renderer button { font-size: .8em; background: var(--invite-accent); color: var(--invite-bg); border: 1px solid var(--inv-line); }
+.page-renderer .account-row button { background: transparent; color: var(--invite-accent); }
+.page-renderer .account-row, .page-renderer .account-group-title, .page-renderer .rsvp-attending, .page-renderer .rsvp-attending label { font-size: .85em; }
+.page-renderer .account-group { text-align: left; }
+.page-renderer .block-success { color: var(--invite-accent); }
+.page-renderer .guestbook-list li { font-size: .85em; background: transparent; border: 1px solid var(--inv-line); text-align: left; }
+.page-renderer .guestbook-count { align-self: flex-end; color: var(--invite-soft); font-size: .7em; margin-top: -4px; }
+@media (prefers-reduced-motion: reduce) { .page-renderer * { scroll-behavior: auto; } }
