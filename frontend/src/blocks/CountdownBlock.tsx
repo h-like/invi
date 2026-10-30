@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Block } from '../api/types'
-import { calendarWeeks, countdownParts, parseWeddingMoment } from './calendar'
+import { calendarWeeks, countdownParts, parseWeddingMoment, WEDDING_TIME_ZONE } from './calendar'
 
 interface Props {
   block: Block
@@ -31,8 +31,8 @@ export function CountdownBlock({ block, weddingDate, weddingTime }: Props) {
 
   const { year, month, day } = moment
   const parts = countdownParts(moment.at, now)
-  const label = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(moment.at)
-  const time = moment.hasTime ? ' ' + new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' }).format(moment.at) : ''
+  const label = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: WEDDING_TIME_ZONE }).format(moment.at)
+  const time = moment.hasTime ? ' ' + new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit', timeZone: WEDDING_TIME_ZONE }).format(moment.at) : ''
   return (
     <section className="block countdown-block">
       <p className="invitation-eyebrow">WEDDING DAY</p><h3>예식 일시</h3>

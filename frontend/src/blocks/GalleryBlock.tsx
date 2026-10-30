@@ -33,11 +33,15 @@ function Lightbox({ images, start, onClose }: { images: string[]; start: number;
   useEffect(() => {
     const el = dialog.current
     // A modal <dialog> gives focus trapping, Escape and focus return for free.
-    el?.showModal()
+    const opener = document.activeElement as HTMLElement | null
+    if (el && !el.open) el.showModal()
     document.documentElement.classList.add('invite-modal-open')
+    // No close() here: it queues a `close` event that would call onClose, so a StrictMode
+    // remount would shut the viewer right after opening. Unmounting removes the dialog,
+    // so focus goes back to the photo by hand.
     return () => {
       document.documentElement.classList.remove('invite-modal-open')
-      if (el?.open) el.close()
+      opener?.focus({ preventScroll: true })
     }
   }, [])
 
