@@ -37,6 +37,7 @@ class HttpsTestProfileContractTest {
         assertThat(properties.getProperty("invi.auth.social-login-enabled")).isEqualTo("false");
         assertThat(properties.getProperty("invi.r2.cleanup.enabled")).isEqualTo("false");
         assertThat(properties.getProperty("invi.r2.cleanup.dry-run")).isEqualTo("true");
+        assertThat(properties.getProperty("invi.invitation.expiry.dry-run")).isEqualTo("true");
     }
 
     @Test

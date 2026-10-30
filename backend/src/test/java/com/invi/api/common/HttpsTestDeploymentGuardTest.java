@@ -215,6 +215,12 @@ class HttpsTestDeploymentGuardTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"false", ""})
+    void requiresInvitationExpiryDryRun(String value) {
+        rejects("invi.invitation.expiry.dry-run", value);
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"native", "none", ""})
     void requiresFrameworkForwardHeaders(String value) {
         rejects("server.forward-headers-strategy", value);
@@ -346,6 +352,7 @@ class HttpsTestDeploymentGuardTest {
                 .withProperty("invi.r2.bucket", "invi-https-test")
                 .withProperty("invi.r2.cleanup.enabled", "false")
                 .withProperty("invi.r2.cleanup.dry-run", "true")
+                .withProperty("invi.invitation.expiry.dry-run", "true")
                 .withProperty("server.forward-headers-strategy", "framework")
                 .withProperty("management.endpoints.web.exposure.include", "health")
                 .withProperty("management.endpoint.health.show-details", "never")

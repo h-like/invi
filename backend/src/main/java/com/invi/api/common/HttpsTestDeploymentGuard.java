@@ -42,6 +42,8 @@ public class HttpsTestDeploymentGuard {
 
         require(cleanup != null && !cleanup.enabled(), "invi.r2.cleanup.enabled");
         require(cleanup.dryRun(), "invi.r2.cleanup.dry-run");
+        // Test data never expires for real; switching off dry-run is a production decision.
+        exact(environment, "invi.invitation.expiry.dry-run", "true");
         exact(environment, "server.forward-headers-strategy", "framework");
         exact(environment, "management.endpoints.web.exposure.include", "health");
         exact(environment, "management.endpoint.health.show-details", "never");

@@ -80,6 +80,10 @@ invi:
       # Never inventory/delete a local or production bucket from a new test database.
       enabled: false
       dry-run: true
+  invitation:
+    expiry:
+      # Report-only on test data. Real deletion is decided before production.
+      dry-run: true
 
 logging:
   level:
