@@ -46,7 +46,7 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
 
   return (
     <section className="block rsvp-block">
-      <h3>참석 여부 전달</h3>
+      <p className="invitation-eyebrow">R.S.V.P.</p><h3>참석 여부 전달</h3>
       <form onSubmit={handleSubmit}>
         <input
           placeholder="이름"

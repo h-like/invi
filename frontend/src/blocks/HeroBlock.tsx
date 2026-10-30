@@ -10,6 +10,9 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
   const groom = text('groomName') || '신랑'
   const bride = text('brideName') || '신부'
   const cover = isImageUrl(text('coverImage')) ? text('coverImage') : ''
+  // Role labels are hidden unless a theme shows them; screen readers get them either way.
+  const groomName = <span><small className="hero-role">신랑 </small>{groom}</span>
+  const brideName = <span><small className="hero-role">신부 </small>{bride}</span>
   const greeting = <p className="hero-greeting">{text('greeting') || '소중한 여러분을 저희의 결혼식에 초대합니다.'}</p>
 
   if (layout === 'photo-full') {
@@ -20,7 +23,7 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
           {cover && <img className="hero-photo-image" src={cover} alt="두 사람의 웨딩 사진" />}
           <div className="hero-photo-caption">
             <p className="invitation-eyebrow">WE ARE GETTING MARRIED</p>
-            <h1 className="hero-names"><span>{groom}</span><span className="hero-ampersand">&amp;</span><span>{bride}</span></h1>
+            <h1 className="hero-names">{groomName}<span className="hero-ampersand">&amp;</span>{brideName}</h1>
             <p className="hero-date">{dateLabel}{time ? ' · ' + time : ''}</p>
           </div>
         </div>
@@ -34,7 +37,7 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
     return (
       <section className="block hero-block hero-layout-typographic">
         <p className="invitation-eyebrow">WE ARE GETTING MARRIED</p>
-        <h1 className="hero-names hero-names-stacked"><span>{groom}</span><span className="hero-ampersand">&amp;</span><span>{bride}</span></h1>
+        <h1 className="hero-names hero-names-stacked">{groomName}<span className="hero-ampersand">&amp;</span>{brideName}</h1>
         <p className="hero-date">{numeric && <strong className="hero-date-numeric">{numeric}</strong>}<span>{dateLabel}{time ? ' · ' + time : ''}</span></p>
         {cover && <img className="hero-cover hero-cover-inset" src={cover} alt="두 사람의 웨딩 사진" />}
         {greeting}
@@ -45,9 +48,9 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
   return (
     <section className="block hero-block hero-layout-frame">
       <div className="hero-frame">
-        <p className="invitation-eyebrow">WE ARE GETTING MARRIED</p>
+        <p className="invitation-eyebrow hero-tagline">We are getting married</p>
         <p className="hero-date">{dateLabel}{time ? ' · ' + time : ''}</p>
-        <h1 className="hero-names"><span>{groom}</span><span className="hero-ampersand">&amp;</span><span>{bride}</span></h1>
+        <h1 className="hero-names">{groomName}<span className="hero-ampersand">&amp;</span>{brideName}</h1>
         {cover && <img className="hero-cover" src={cover} alt="두 사람의 웨딩 사진" />}
         <p className="invitation-eyebrow hero-invitation-label">INVITATION</p>
         {greeting}

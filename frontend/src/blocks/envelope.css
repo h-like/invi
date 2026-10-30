@@ -1,0 +1,108 @@
+/* Envelope intro (EnvelopeIntro.tsx). Layers are fixed and drawn in a 340×236 box scaled
+   by --env-s; the letter stays in flow between them:
+   back(1) < letter(2) < ground mask(3) < front pocket(4) < flap(5) < wax(6) < tools(20).
+   Colours derive from the invitation's paper and accent so a recoloured theme still matches. */
+.envelope {
+  --env-ground: color-mix(in srgb, var(--env-paper) 85%, #5a4440);
+  --env-wine-deep: color-mix(in srgb, var(--env-wine) 70%, #000);
+  --env-wine-dark: color-mix(in srgb, var(--env-wine) 52%, #000);
+  --env-wine-lift: color-mix(in srgb, var(--env-wine) 88%, #fff);
+  --env-s: 1; --env-drop: 0px; --env-l: 0px; --env-t: 300px; --env-h: 236px; --env-col-l: 0px; --env-col-w: 100%;
+  min-height: 100svh;
+  background: var(--env-ground);
+}
+html.envelope-locked, html.envelope-locked body { overflow: hidden; }
+.envelope:not([data-stage='read']) .envelope-letter { position: relative; z-index: 2; }
+/* While tucked in, only the letter paper shows; the ground comes from .envelope. */
+.envelope:not([data-stage='read']) .page-renderer { background: transparent; }
+.envelope[data-stage='open'] { touch-action: none; cursor: grab; }
+.envelope-letter:focus { outline: none; }
+.envelope-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.env-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.env-lay {
+  position: fixed; left: var(--env-l); top: var(--env-t); width: 340px; height: 236px;
+  transform-origin: 0 0; transform: translateY(var(--env-drop)) scale(var(--env-s)); pointer-events: none;
+}
+.env-lay-back { z-index: 1; }
+.env-lay-flap { z-index: 5; }
+.env-lay-flap.is-behind { z-index: 1; }
+.env-lay-front { z-index: 4; }
+.env-lay-wax { z-index: 6; }
+.env-back { position: absolute; inset: 0; border-radius: 3px; background: linear-gradient(180deg, var(--env-wine-dark), var(--env-wine-deep)); }
+.env-shadow { position: absolute; inset: 0; border-radius: 3px; box-shadow: 0 18px 30px -12px rgb(50 10 18 / .55), 0 2px 4px rgb(50 10 18 / .25); }
+
+.env-pocket div { position: absolute; inset: 0; }
+.env-pocket-side { background: linear-gradient(180deg, var(--env-wine-lift), var(--env-wine)); }
+.env-pocket-left { clip-path: polygon(0 0, 50% 60%, 0 100%); }
+.env-pocket-right { clip-path: polygon(100% 0, 50% 60%, 100% 100%); }
+.env-pocket-bottom { clip-path: polygon(0 100%, 50% 54%, 100% 100%); background: linear-gradient(180deg, color-mix(in srgb, var(--env-wine) 80%, #fff), var(--env-wine) 70%); }
+.env-pocket-shade { filter: drop-shadow(0 -2px 2px rgb(30 4 10 / .35)); }
+
+.env-flap {
+  position: absolute; inset: 0; transform-origin: 50% 0; transform-style: preserve-3d;
+  transform: perspective(1100px) rotateX(0deg); transition: transform .95s cubic-bezier(.55, 0, .25, 1);
+}
+.envelope.is-open .env-flap { transform: perspective(1100px) rotateX(180deg); }
+.env-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.env-flap-front { clip-path: polygon(0 0, 100% 0, 50% 65%); background: linear-gradient(180deg, var(--env-wine-lift) 0%, var(--env-wine) 60%, var(--env-wine-deep) 100%); }
+.env-flap-inner { transform: rotateX(180deg); clip-path: polygon(0 100%, 100% 100%, 50% 35%); background: linear-gradient(0deg, var(--env-wine-dark), var(--env-wine-deep)); }
+.env-flap-shadow { position: absolute; inset: 0; transition: opacity .4s; }
+.env-flap-shadow::before { content: ''; position: absolute; inset: 0; clip-path: polygon(0 0, 100% 0, 50% 67%); background: rgb(25 3 8 / .45); filter: blur(3px); transform: translateY(3px); }
+.envelope.is-open .env-flap-shadow { opacity: 0; }
+
+/* The wax seal is split along the flap edge: the top half rides the flap. */
+.env-wax { position: absolute; left: 130px; top: 113px; width: 80px; height: 80px; }
+.env-wax svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.env-wax-top { transform-style: preserve-3d; transform: translateZ(1px) translateX(var(--wx, 0px)); transition: transform .25s; }
+.env-wax-top svg { backface-visibility: hidden; -webkit-backface-visibility: hidden; filter: drop-shadow(0 2px 2px rgb(40 10 0 / .45)); }
+.env-wax-top .env-wax-under { transform: rotateX(180deg); }
+.env-wax-top.is-lifted { transform: translateZ(1px) translate(var(--wx, 0px), -2px) rotate(-5deg); }
+.env-wax-bottom { transform: translateX(var(--wx, 0px)); transition: transform .25s; }
+.env-wax-bottom svg { filter: drop-shadow(0 3px 3px rgb(40 10 0 / .45)); }
+.env-wax-bottom.is-settled { transform: translate(calc(var(--wx, 0px) * .3), 1px) rotate(3deg); }
+.env-crack path { fill: none; stroke: #4a3208; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; transition: opacity .3s; }
+.envelope.is-cracked .env-crack path { opacity: 0; }
+.env-seal-hit {
+  position: absolute; left: 122px; top: 105px; width: 96px; height: 96px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; cursor: grab; pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+.env-seal-hit:focus-visible { outline: 2px solid var(--env-paper); outline-offset: 3px; }
+.envelope:not([data-stage='sealed']) .env-seal-hit { pointer-events: none; }
+.env-chip { position: absolute; width: 7px; height: 6px; background: radial-gradient(circle at 35% 30%, #f2d68e, #a8812c); pointer-events: none; }
+
+/* Ground under the envelope hides the part of the letter still inside. */
+.env-mask {
+  position: fixed; left: var(--env-col-l); width: var(--env-col-w); z-index: 3; pointer-events: none;
+  top: calc(var(--env-t) + var(--env-h) - 3px); height: calc(100vh + 240px);
+  background: var(--env-ground); transform: translateY(var(--env-drop));
+}
+.env-hint { position: absolute; left: 0; right: 0; top: 30px; margin: 0; text-align: center; font-size: 13px; color: color-mix(in srgb, var(--env-wine) 55%, #3a3030); opacity: 0; transition: opacity .4s; }
+/* Landscape phones: EnvelopeIntro leaves only ~56px under the envelope. */
+@media (max-height: 480px) { .env-hint { top: 8px; } }
+.env-hint span { display: block; margin-bottom: 4px; font: 18px Georgia, serif; color: var(--env-wine); }
+.envelope[data-stage='sealed'] .env-hint-seal, .envelope[data-stage='open'] .env-hint-pull { opacity: 1; }
+.env-hint-seal span { animation: env-sway 1.6s ease-in-out infinite; }
+.env-hint-pull span { animation: env-rise 1.4s ease-in-out infinite; }
+@keyframes env-sway { 0%, 100% { transform: translateX(-8px); } 50% { transform: translateX(8px); } }
+@keyframes env-rise { 0% { transform: translateY(8px); opacity: .3; } 60% { transform: translateY(-6px); opacity: 1; } 100% { transform: translateY(-10px); opacity: 0; } }
+
+.envelope.is-animating .env-lay, .envelope.is-animating .env-mask, .envelope.is-animating .envelope-letter { transition: transform .7s cubic-bezier(.22, .8, .25, 1); }
+
+.envelope-tools {
+  position: fixed; z-index: 20; display: flex; gap: 6px;
+  top: calc(env(safe-area-inset-top, 0px) + 12px); right: max(12px, calc(50vw - 240px + 12px));
+}
+.envelope-pill {
+  padding: 7px 13px; border: 1px solid color-mix(in srgb, var(--env-wine) 35%, transparent); border-radius: 999px;
+  background: color-mix(in srgb, var(--env-paper) 85%, transparent); color: var(--env-wine);
+  font: 12px/1.4 system-ui, sans-serif; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.envelope-pill:focus-visible { outline: 2px solid var(--env-wine); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .env-flap { transition-duration: .01s; }
+  .env-hint span { animation: none; }
+  /* Matches the shorter reduced-motion timers in EnvelopeIntro, so finish() never cuts a slide short. */
+  .envelope.is-animating .env-lay, .envelope.is-animating .env-mask, .envelope.is-animating .envelope-letter { transition-duration: .2s; }
+}

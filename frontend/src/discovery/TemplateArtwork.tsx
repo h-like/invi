@@ -59,7 +59,7 @@ export function TemplateArtwork({ template, compact = false }: TemplateArtworkPr
           <div className="discovery-cover-shadow-paper" />
           <div className="discovery-cover-paper">
             <span className="discovery-cover-overline">{variant === 'modern' ? 'OUR NEW CHAPTER' : variant === 'hanji' ? '혼례에 모십니다' : 'THE WEDDING INVITATION'}</span>
-            {variant === 'hanji' ? <span className="discovery-cover-seal">囍</span> : variant === 'film' ? <span className="discovery-cover-photo" /> : variant !== 'letterpress' && <BotanicalSprig floral={variant === 'romantic'} />}
+            {variant === 'hanji' ? <span className="discovery-cover-seal">囍</span> : variant === 'seal' ? <span className="discovery-cover-wax">&amp;</span> : variant === 'film' ? <span className="discovery-cover-photo" /> : variant !== 'letterpress' && <BotanicalSprig floral={variant === 'romantic'} />}
             <span className="discovery-cover-title">{variant === 'minimal' ? <>you<br /><i>& me.</i></> : variant === 'modern' ? <>With<br /><i>love.</i></> : variant === 'hanji' ? <>백년가약</> : variant === 'film' ? <>Our day</> : variant === 'letterpress' ? <>Save<br />the Date</> : <>We are<br /><i>getting married</i></>}</span>
             <span className="discovery-cover-rule" />
             <span className="discovery-cover-korean">우리의 새로운 시작에<br />당신을 초대합니다</span>

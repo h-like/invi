@@ -134,6 +134,11 @@
 .discovery-artwork-film { aspect-ratio: .82; background: #d9d3ca; }
 .discovery-artwork-film .discovery-cover-paper { background: #fff; color: #5b4f45; inset: 10% 14% 14%; padding: 5% 5% 14%; transform: rotate(-4deg); box-shadow: 0 8px 22px rgb(0 0 0 / .16); }
 .discovery-artwork-film .discovery-cover-shadow-paper { display: none; }
+/* seal: a wine envelope behind a cream letter closed with a gold wax seal. */
+.discovery-artwork-seal .discovery-cover-paper { background: #f4eee3; color: #6e1c28; outline: 1px dotted #6e1c2855; outline-offset: -8px; transform: rotate(-3deg); }
+.discovery-artwork-seal .discovery-cover-shadow-paper { background: linear-gradient(160deg, #80293a, #4c111b); transform: rotate(6deg); }
+.discovery-artwork-seal .discovery-cover-title i { font-family: "Pinyon Script", "Snell Roundhand", cursive; font-style: normal; font-size: .9em; }
+.discovery-cover-wax { display: grid; place-items: center; width: 22cqw; aspect-ratio: 1; margin: 12% 0 8%; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #f6e0a0, #d1aa52 45%, #8c6a22); box-shadow: 0 2px 4px #3c1a0040, inset 0 0 0 .4cqw #8a672199; color: #7a5a1a; font: 8cqw/1 "Pinyon Script", Georgia, serif; }
 .discovery-artwork-film .discovery-cover-photo { align-self: stretch; flex: 1; background: linear-gradient(160deg, #cfd6d8, #e9ddd1 55%, #b9a99a); }
 .discovery-artwork-film .discovery-cover-title { font-family: system-ui, sans-serif; font-style: normal; font-size: 8cqw; margin-top: 6%; }
 .discovery-artwork-letterpress { aspect-ratio: .74; background: #d5d9e0; }

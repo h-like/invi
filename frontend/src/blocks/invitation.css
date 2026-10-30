@@ -108,7 +108,8 @@
 .hero-cover-inset { width: 62%; aspect-ratio: 1; margin: 0 auto 30px; }
 .hero-greeting { white-space: pre-wrap; font-size: .83em; line-height: 2.3; word-break: keep-all; overflow-wrap: break-word; }
 .page-renderer .block-placeholder, .page-renderer .block-sub { color: var(--invite-soft); font-size: .8em; }
-.page-renderer .countdown-block { font-size: .82em; font-weight: 400; }
+.page-renderer .countdown-block { font-weight: 400; }
+.page-renderer .countdown-message { font-size: .82em; }
 .page-renderer .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 16px 0; }
 .page-renderer .gallery-grid img { border-radius: 0; display: block; }
 .page-renderer .gallery-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -123,4 +124,101 @@
 .page-renderer .block-success { color: var(--invite-accent); }
 .page-renderer .guestbook-list li { font-size: .85em; background: transparent; border: 1px solid var(--inv-line); text-align: left; }
 .page-renderer .guestbook-count { align-self: flex-end; color: var(--invite-soft); font-size: .7em; margin-top: -4px; }
+/* Hero role labels stay readable to screen readers; themes may show them. */
+.page-renderer .hero-role { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.page-renderer .hero-tagline { text-transform: uppercase; }
+
+/* Countdown: month calendar and a live clock. */
+.page-renderer .countdown-when { font-size: .85em; margin: 0 0 18px; }
+.page-renderer .calendar-title { font-family: Georgia, serif; font-size: .9em; letter-spacing: .2em; color: var(--invite-accent); margin: 0 0 6px; }
+.page-renderer .calendar { width: 100%; max-width: 300px; margin: 0 auto; border-collapse: collapse; border-block: 1px solid var(--inv-line); font-size: .8em; font-variant-numeric: tabular-nums; }
+.page-renderer .calendar th { padding: 12px 0 6px; font: .75em Georgia, serif; letter-spacing: .1em; color: var(--invite-soft); }
+.page-renderer .calendar td { height: 36px; padding: 0; text-align: center; }
+.page-renderer .calendar tbody tr:last-child td { padding-bottom: 8px; }
+.page-renderer .calendar td span { display: inline-grid; place-items: center; width: 30px; height: 30px; }
+.page-renderer .calendar .is-sunday { color: color-mix(in srgb, #c2414f 70%, var(--invite-ink)); }
+.page-renderer .calendar .is-wedding-day span { border-radius: 50%; background: var(--invite-accent); color: var(--invite-bg); font-weight: 700; }
+.page-renderer .countdown-clock { display: flex; justify-content: center; gap: 8px; margin: 20px 0 14px; font-variant-numeric: tabular-nums; }
+.page-renderer .countdown-clock div { display: flex; flex-direction: column; align-items: center; min-width: 56px; padding: 8px 4px; border: 1px solid var(--inv-line); border-radius: 4px; }
+.page-renderer .countdown-clock b { font-size: 1.2em; font-weight: 500; line-height: 1.4; color: var(--invite-accent); }
+.page-renderer .countdown-clock small { font: .6em Georgia, serif; letter-spacing: .2em; color: var(--invite-soft); }
+
+/* Gallery: tappable photos open a full-window viewer (guest page only). */
+.page-renderer .gallery-open { display: block; padding: 0; border: 0; border-radius: 0; background: none; cursor: zoom-in; }
+.page-renderer .gallery-slider .gallery-open { flex: 0 0 90%; scroll-snap-align: center; }
+.page-renderer .gallery-slider .gallery-open img { width: 100%; flex: none; }
+.gallery-lightbox { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: calc(env(safe-area-inset-top, 0px) + 60px) 16px calc(env(safe-area-inset-bottom, 0px) + 36px); border: 0; background: rgb(20 12 14 / .94); color: #f4ece4; touch-action: pan-y; }
+.gallery-lightbox[open] { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+.gallery-lightbox::backdrop { background: transparent; }
+.gallery-lightbox img { max-width: min(100%, 560px); max-height: 74svh; object-fit: contain; user-select: none; -webkit-user-select: none; }
+.page-renderer .gallery-lightbox button { width: 40px; height: 40px; padding: 0; border: 1px solid rgb(244 236 228 / .35); border-radius: 999px; background: none; color: inherit; font-size: 18px; line-height: 1; }
+.page-renderer .gallery-lightbox .lightbox-close { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); right: 16px; font-size: 15px; }
+.lightbox-bar { display: flex; align-items: center; gap: 22px; font: 13px Georgia, serif; letter-spacing: .2em; }
+html.invite-modal-open { overflow: hidden; }
+
+/* Map: search links instead of an embedded map. */
+.page-renderer .map-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 18px; }
+.page-renderer .map-link { display: inline-flex; align-items: center; padding: 8px 14px; border: 1px solid color-mix(in srgb, var(--invite-accent) 40%, transparent); border-radius: 4px; background: transparent; color: var(--invite-accent); font-size: .75em; line-height: 1.4; text-decoration: none; }
+
+/* Accounts: one collapsible group per side. */
+.page-renderer .account-note { margin: -10px 0 18px; }
+.page-renderer .account-group summary { display: flex; justify-content: space-between; align-items: center; margin: 0; padding: 12px 16px; border: 1px solid var(--inv-line); border-radius: 6px; cursor: pointer; list-style: none; }
+.page-renderer .account-group summary::-webkit-details-marker { display: none; }
+.page-renderer .account-group summary::after { content: ''; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-3px) rotate(45deg); transition: transform .25s; }
+.page-renderer .account-group[open] summary { border-radius: 6px 6px 0 0; }
+.page-renderer .account-group[open] summary::after { transform: translateY(2px) rotate(-135deg); }
+.page-renderer .account-group .account-row { gap: 10px; padding: 10px 16px; border: 1px solid var(--inv-line); border-top: 0; }
+.page-renderer .account-group .account-row:last-child { border-radius: 0 0 6px 6px; }
+.page-renderer .account-group .account-row button { flex: none; }
+
+/* Sections fade up as they scroll in (themes that opt in, guest page only). */
+.has-reveal .reveal-item { opacity: .15; transform: translateY(18px); transition: opacity .8s ease, transform .8s cubic-bezier(.2, .7, .2, 1); }
+.has-reveal .reveal-item.is-revealed { opacity: 1; transform: none; }
+
+/* seal: a scalloped cream letter on a muted ground, wine ink, script accents. */
+.page-renderer.invitation-theme-seal {
+  --seal-ground: color-mix(in srgb, var(--invite-bg) 85%, #5a4440);
+  --seal-paper-2: color-mix(in srgb, var(--invite-bg) 93%, #6a4020);
+  --seal-script: "Pinyon Script", "Snell Roundhand", cursive;
+  --inv-line: color-mix(in srgb, var(--invite-accent) 16%, transparent);
+  padding: 16px 16px 56px; background: var(--seal-ground);
+}
+.invitation-theme-seal .page-sheet { position: relative; z-index: 2; margin: 7px; padding: 22px 10px 40px; background: var(--invite-bg); }
+.invitation-theme-seal .page-sheet::before { content: ''; position: absolute; inset: -7px; z-index: -1; background: radial-gradient(circle at 7px 7px, var(--invite-bg) 6px, transparent 6.6px) 0 0 / 14px 14px; }
+.invitation-theme-seal .page-sheet::after { content: ''; position: absolute; inset: 10px; border: 1.5px dotted color-mix(in srgb, var(--invite-accent) 26%, transparent); pointer-events: none; }
+.page-renderer.invitation-theme-seal .block { padding: 38px 18px; border-bottom: 0; }
+.invitation-theme-seal .invitation-eyebrow { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; font-size: .7em; letter-spacing: .34em; opacity: .8; margin: 0 0 4px; }
+.page-renderer.invitation-theme-seal h3 { font-weight: 700; font-size: 1.06em; letter-spacing: .1em; margin: 0 0 18px; }
+.invitation-theme-seal .block h3::after, .invitation-theme-seal .hero-greeting::before { content: ''; display: block; width: 150px; height: 14px; margin: 14px auto 0; background: currentColor; opacity: .7; -webkit-mask: var(--seal-ornament) center / contain no-repeat; mask: var(--seal-ornament) center / contain no-repeat; }
+.page-renderer.invitation-theme-seal { --seal-ornament: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 150 14'%3E%3Cg fill='none' stroke='black' stroke-width='.9'%3E%3Cpath d='M4 7H58M92 7H146'/%3E%3Cpath d='M75 2l5 5-5 5-5-5z'/%3E%3C/g%3E%3Ccircle cx='63' cy='7' r='1.4'/%3E%3Ccircle cx='87' cy='7' r='1.4'/%3E%3C/svg%3E"); }
+.invitation-theme-seal .hero-greeting::before { margin: 0 auto 18px; color: var(--invite-accent); }
+.page-renderer.invitation-theme-seal .hero-block { padding: 14px 8px 8px; }
+.invitation-theme-seal .hero-layout-frame .hero-frame { display: flex; flex-direction: column; align-items: center; padding: 16px 0 0; }
+.invitation-theme-seal .hero-layout-frame .hero-frame::before { content: 'WEDDING INVITATION'; order: -1; margin-bottom: 18px; font: 600 .7em "Cormorant Garamond", Georgia, serif; letter-spacing: .34em; color: var(--invite-accent); }
+.invitation-theme-seal .hero-layout-frame .hero-cover { order: 1; width: 100%; max-width: 280px; margin: 0 auto 20px; padding: 6px; border: 1px solid color-mix(in srgb, var(--invite-accent) 30%, transparent); border-radius: 999px 999px 4px 4px; background: var(--invite-bg); }
+.invitation-theme-seal .hero-layout-frame .hero-tagline { order: 2; margin: 0 0 14px; font: 2.25em/1.05 var(--seal-script); letter-spacing: 0; text-transform: none; opacity: 1; }
+.invitation-theme-seal .hero-layout-frame .hero-names { order: 3; margin: 0; }
+.invitation-theme-seal .hero-layout-frame .hero-date { order: 4; margin: 14px 0 0; }
+.invitation-theme-seal .hero-layout-frame .hero-invitation-label { order: 5; margin-top: 76px; }
+.invitation-theme-seal .hero-layout-frame .hero-invitation-label::after { content: '초대합니다'; display: block; margin-top: 4px; font: 700 calc(1.06em / .7) var(--invite-font); letter-spacing: .1em; }
+.invitation-theme-seal .hero-layout-frame .hero-greeting { order: 6; margin-top: 18px; }
+.invitation-theme-seal .hero-names { align-items: baseline; gap: 12px; font-size: 1.3em; font-weight: 700; letter-spacing: .06em; }
+.invitation-theme-seal .hero-names > span:not(.hero-ampersand) { display: inline-flex; flex-direction: column; align-items: center; }
+.invitation-theme-seal .hero-role { position: static; width: auto; height: auto; overflow: visible; clip-path: none; font-size: .48em; font-weight: 400; letter-spacing: .2em; color: var(--invite-soft); }
+.invitation-theme-seal .hero-ampersand { font-family: var(--seal-script); font-style: normal; font-weight: 400; font-size: 1.35em; }
+.invitation-theme-seal .hero-date { font-family: "Cormorant Garamond", var(--invite-font); font-weight: 600; font-size: .9em; letter-spacing: .12em; color: var(--invite-accent); }
+.invitation-theme-seal .hero-greeting { font-size: .875em; line-height: 1.95; }
+.invitation-theme-seal .calendar-title { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; font-size: 1.35em; }
+.invitation-theme-seal .calendar th, .invitation-theme-seal .countdown-clock small { font-family: "Cormorant Garamond", Georgia, serif; }
+.invitation-theme-seal .countdown-clock div { border: 0; background: var(--seal-paper-2); }
+.invitation-theme-seal .countdown-clock b { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; }
+.invitation-theme-seal .gallery-grid { gap: 4px; }
+.invitation-theme-seal .gallery-grid img { border-radius: 2px; }
+.invitation-theme-seal .venue-name { font-weight: 700; color: var(--invite-accent); }
+.invitation-theme-seal .account-group summary { background: var(--seal-paper-2); color: var(--invite-accent); font-weight: 700; }
+.invitation-theme-seal .account-group .account-row { background: var(--invite-bg); }
+.invitation-theme-seal .account-group + .account-group { margin-top: 8px; }
+.page-renderer.invitation-theme-seal .guestbook-list li { border: 0; background: var(--seal-paper-2); }
+.page-renderer.invitation-theme-seal .guestbook-block::after { content: 'Thank you'; display: block; margin-top: 72px; font: 2.5em/1.2 var(--seal-script); color: var(--invite-accent); }
+@media (prefers-reduced-motion: reduce) { .has-reveal .reveal-item { transform: none; transition: opacity .3s; } }
 @media (prefers-reduced-motion: reduce) { .page-renderer * { scroll-behavior: auto; } }
