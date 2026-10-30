@@ -1,8 +1,4 @@
 /* Service UI element defaults and shared pages. Colors, radii and type come from tokens.css. */
-body {
-  color: var(--color-ink);
-}
-
 .page {
   max-width: 720px;
   margin: 0 auto;
@@ -109,6 +105,10 @@ button.publish-button:not(:disabled):hover {
 }
 
 .logout-button {
+  display: inline-block;
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  font-weight: 600;
   background: none;
   color: var(--color-ink-body);
   font-size: 13px;

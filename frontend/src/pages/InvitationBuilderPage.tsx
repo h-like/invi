@@ -228,7 +228,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   return (
     <main className={'builder-page' + (previewOnly ? ' is-preview-only' : '')}>
       <header className="builder-header">
-        <Link className="builder-brand" to="/">invi<span className="builder-brand-dot">.</span><small>우리의 시작을 담다</small></Link>
+        <Link className="builder-brand" to="/" aria-label="invi 홈">invi<span className="builder-brand-dot">.</span><small>우리의 시작을 담다</small></Link>
         <div className="builder-header-actions">
           <span className="save-state" role="status">{busy ? '저장 중...' : photoPending ? '새 사진 처리 · 확인 필요' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
           <button type="button" className="secondary-button" disabled={photoPending} onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>

@@ -29,13 +29,15 @@ export function GuestPage() {
   }
 
   return (
-    <main className="guest-page">
-      <PageRenderer
-        pageData={invitation.pageData}
-        weddingDate={invitation.weddingDate}
-        invitationId={invitation.id}
-        interactive
-      />
-    </main>
+    <div className="guest-backdrop">
+      <main className="guest-page">
+        <PageRenderer
+          pageData={invitation.pageData}
+          weddingDate={invitation.weddingDate}
+          invitationId={invitation.id}
+          interactive
+        />
+      </main>
+    </div>
   )
 }

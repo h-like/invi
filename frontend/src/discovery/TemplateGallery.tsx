@@ -57,7 +57,7 @@ export function TemplateGallery({
       <div aria-busy={state.status === 'loading'}>
         {state.status === 'loading' && (
           <>
-            <p role="status" className="discovery-sr-only">템플릿을 불러오는 중입니다.</p>
+            <p role="status" className="sr-only">템플릿을 불러오는 중입니다.</p>
             <div className="discovery-masonry discovery-skeletons" aria-hidden="true">
               {[0, 1, 2, 3].map((item) => <div className="discovery-skeleton" key={item}><div /><span /></div>)}
             </div>
@@ -82,7 +82,7 @@ export function TemplateGallery({
                     <div><span className="discovery-template-category">{categoryLabels[template.category.toLowerCase()] || template.category}</span><h3>{template.name}</h3></div>
                     <span className="discovery-card-arrow" aria-hidden="true">↗</span>
                   </div>
-                  <span className="discovery-sr-only">템플릿 상세 보기</span>
+                  <span className="sr-only">템플릿 상세 보기</span>
                 </Link>
               </li>
             ))}
