@@ -6,9 +6,10 @@ spring:
     username: invi
     password: invi
   flyway:
-    # Databases that ddl-auto built before Flyway have tables but no history: mark them
-    # as V1 and let V2 catch them up. An empty database runs every migration.
-    baseline-on-migrate: true
+    # Off by default, so Flyway refuses a non-empty database that has no history instead
+    # of assuming it already matches V1. Only https-test turns it on, for its one database
+    # that ddl-auto built before the switch (V2 catches it up).
+    baseline-on-migrate: false
     baseline-version: 1
   jpa:
     hibernate:

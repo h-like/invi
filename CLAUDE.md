@@ -45,7 +45,7 @@ private JsonNode pageData;
 
 **소프트 삭제**: 방명록처럼 "삭제 권한은 있지만 감사 추적이 필요한" 데이터는 물리 삭제 대신 `deletedAt(Instant, nullable)` 컬럼을 둔다. 무료 만료로 인한 청첩장 자체 삭제(예식일+10일 배치, `InvitationExpiryService`)는 예외로, 실제 레코드를 지우고 R2 이미지는 `MediaLifecycle`로 넘겨 정리 작업이 지운다(개인정보 보관 최소화가 우선이라 소프트 삭제하지 않음). 기본 dry-run이며 규칙·설정은 `docs/INVITATION_EXPIRY.md` 참고.
 
-**스키마 변경 (Flyway)**: 스키마는 `backend/src/main/resources/db/migration`의 Flyway 마이그레이션만 바꾼다. Hibernate는 `ddl-auto: validate`로 엔티티와 일치하는지만 확인한다(https-test 배포 가드도 `validate`만 허용). 엔티티에 컬럼·제약을 추가하거나 바꾸면 같은 커밋에 다음 번호 `V{n}__설명.sql`을 추가한다. 이미 적용된 마이그레이션 파일은 수정하지 않는다. enum 값을 늘리면 그 컬럼의 CHECK 제약을 마이그레이션에서 다시 만든다. `V1__baseline.sql`은 전환 시점 Hibernate 스키마 그대로(제약 이름 포함)이고, 그 전에 `ddl-auto`로 만들어진 DB는 `baseline-on-migrate`로 V1에 표시된 뒤 `V2`가 빠진 부분을 보충한다.
+**스키마 변경 (Flyway)**: 스키마는 `backend/src/main/resources/db/migration`의 Flyway 마이그레이션만 바꾼다. Hibernate는 `ddl-auto: validate`로 엔티티와 일치하는지만 확인한다(https-test 배포 가드도 `validate`만 허용). 엔티티에 컬럼·제약을 추가하거나 바꾸면 같은 커밋에 다음 번호 `V{n}__설명.sql`을 추가한다. 이미 적용된 마이그레이션 파일은 수정하지 않는다. enum 값을 늘리면 그 컬럼의 CHECK 제약을 마이그레이션에서 다시 만든다. `V1__baseline.sql`은 전환 시점 Hibernate 스키마 그대로(제약 이름 포함)다. `baseline-on-migrate`는 기본으로 꺼져 있어서, 이력 없이 테이블만 있는 DB는 기동을 거절한다. https-test 프로필만 켜 둔다. 그 프로필의 Neon DB는 `51e6e1b` 때 `ddl-auto`로 만들어졌으므로 V1로 표시한 뒤 `V2`가 그 이후 바뀐 부분을 보충한다(`FlywayLegacyBaselineTest`). V2는 그보다 오래된 DB까지 맞춰 주지는 않는다.
 
 **테이블명 예외**: `user`는 PostgreSQL 예약어라 엔티티명을 `Member`로 한다(기획서/아키텍처 문서의 "User"와 동일 개념).
 
