@@ -237,6 +237,10 @@ export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: P
     let pullDrag: { y: number; base: number } | null = null
     function finish() {
       timers.forEach(clearTimeout)
+      // Drop the slide transition first: removing the padding and the transform together is
+      // a no-op in place, but with the transition still on, the letter would jump up by the
+      // padding and then slide back down.
+      el!.classList.remove('is-animating')
       wrap!.style.transform = ''
       wrap!.style.paddingTop = ''
       html.classList.remove('envelope-locked')
@@ -254,8 +258,8 @@ export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: P
       if (target === 1) {
         setStage('pulling')
         audio.rustle(0, 0.6, 0.12)
-        later(finish, reduce ? 220 : 720)
-      } else later(() => el!.classList.remove('is-animating'), 720)
+        later(finish, reduce ? 220 : 870)
+      } else later(() => el!.classList.remove('is-animating'), 870)
     }
     const onDown = (e: PointerEvent) => {
       if (stage !== 'open' || (e.target as Element | null)?.closest?.('.envelope-tools')) return
