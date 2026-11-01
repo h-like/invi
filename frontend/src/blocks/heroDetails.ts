@@ -32,6 +32,16 @@ export function parentLine(content: Record<string, unknown>, side: HeroSide, chi
   return { parents: parents.join(' · '), relation, child: child.trim() }
 }
 
+/** "의 장남": the part between the parents and the child, shared by the hero and the editor preview. */
+export function relationPhrase(line: ParentLine): string {
+  return '의 ' + line.relation
+}
+
+/** The whole line as plain text, e.g. "이정호 · 김미경의 장남 도윤". */
+export function formatParentLine(line: ParentLine): string {
+  return line.parents + relationPhrase(line) + (line.child ? ' ' + line.child : '')
+}
+
 /** Latin letters, "&" and single spaces only, at most MONOGRAM_MAX characters. */
 export function normalizeMonogram(value: unknown): string {
   if (typeof value !== 'string') return ''

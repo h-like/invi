@@ -8,7 +8,7 @@ import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { canSaveBeforeLeave, createSaveBeforeLeave, leaveDialogMode, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation, type LeaveDialogMode } from '../editor/navigation'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
 import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, patchContent, publishIssues, themeFeatures, updateBlock } from '../editor/model'
-import { BRIDE_RELATIONS, DEFAULT_RELATION, GROOM_RELATIONS, MONOGRAM_MAX, normalizeMonogram, PARENT_FIELDS, parentLine, PARENT_NAME_MAX, RELATION_MAX, type HeroSide } from '../blocks/heroDetails'
+import { BRIDE_RELATIONS, DEFAULT_RELATION, formatParentLine, GROOM_RELATIONS, MONOGRAM_MAX, normalizeMonogram, PARENT_FIELDS, parentLine, PARENT_NAME_MAX, RELATION_MAX, type HeroSide } from '../blocks/heroDetails'
 
 // Chosen by leaveDialogMode(); pending photos cannot be saved, so that copy offers only staying or discarding.
 const LEAVE_COPY: Record<LeaveDialogMode, { title: string; description: string }> = {
@@ -267,7 +267,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                   <label>어머니<input value={text(hero, f.mother)} maxLength={PARENT_NAME_MAX} onChange={e => changeContent(hero, { [f.mother]: e.target.value })} placeholder="어머니 성함" /></label>
                   <label>관계<input list={'relations-' + side} value={text(hero, f.relation)} maxLength={RELATION_MAX} onChange={e => changeContent(hero, { [f.relation]: e.target.value })} placeholder={DEFAULT_RELATION[side]} /></label>
                   <datalist id={'relations-' + side}>{relations.map(r => <option key={r} value={r} />)}</datalist>
-                </div><p className="editor-section-hint">{preview ? `표시: ${preview.parents}의 ${preview.relation}${preview.child ? ' ' + preview.child : ''}` : '표시 안 함'}</p></div> })}
+                </div><p className="editor-section-hint">{preview ? '표시: ' + formatParentLine(preview) : '표시 안 함'}</p></div> })}
               </section>}
               {hero && themeFeatures(design.theme).envelopeIntro && <section className="editor-section"><h2>실링 이니셜 <small>와인 실링 레터</small></h2><label>봉투 실링에 새길 영문 이니셜<MonogramInput value={text(hero, 'monogram')} onChange={monogram => changeContent(hero, { monogram })} /></label><p className="editor-section-hint" id="monogram-hint">영문·&·공백으로 최대 {MONOGRAM_MAX}자. 비워 두면 &로 표시됩니다. 하객 화면의 봉투에서 볼 수 있어요.</p></section>}
               {hero && <section className="editor-section"><h2>초대의 글</h2><label>인사말<textarea rows={6} maxLength={1500} value={text(hero, 'greeting')} onChange={e => changeContent(hero, { greeting: e.target.value })} placeholder="소중한 분들께 전할 초대의 글을 써 주세요." /></label>

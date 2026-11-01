@@ -1,6 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MONOGRAM_MAX, monogramFontSize, normalizeMonogram, pageMonogram, parentLine, sealMonogram } from './heroDetails.ts'
+import { formatParentLine, MONOGRAM_MAX, monogramFontSize, normalizeMonogram, pageMonogram, parentLine, sealMonogram } from './heroDetails.ts'
+
+test('formatted parent line matches what the hero shows, with or without the child', () => {
+  assert.equal(formatParentLine({ parents: '이정호 · 김미경', relation: '장남', child: '도윤' }), '이정호 · 김미경의 장남 도윤')
+  assert.equal(formatParentLine({ parents: '박선영', relation: '딸', child: '' }), '박선영의 딸')
+})
 
 test('parent line joins both parents and keeps the chosen relation', () => {
   assert.deepEqual(parentLine({ groomFather: ' 이정호 ', groomMother: '김미경', groomRelation: '장남' }, 'groom', '도윤'),

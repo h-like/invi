@@ -21,8 +21,9 @@ import org.springframework.context.annotation.Import;
 
 /**
  * Runs against the real PostgreSQL (like the context test; CI provides it) with the app's
- * own ddl-auto=update, so it also proves the nullable side/meal columns are added to an
- * existing table. Each test rolls back.
+ * own ddl-auto=update. It checks that side/meal are stored as enum names and that rows
+ * without them load as null; it does not prove the upgrade of an older table, since CI
+ * starts from an empty database. Each test rolls back.
  */
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=update")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

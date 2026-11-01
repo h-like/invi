@@ -132,7 +132,8 @@
 .page-renderer input:not([type='radio']), .page-renderer textarea { font-family: inherit; font-size: .85em; color: var(--invite-ink); background: var(--invite-bg); border-color: var(--inv-line); }
 .page-renderer button { font-size: .8em; background: var(--invite-accent); color: var(--invite-bg); border: 1px solid var(--inv-line); }
 .page-renderer .account-row button { background: transparent; color: var(--invite-accent); }
-.page-renderer .account-row, .page-renderer .account-group-title, .page-renderer .rsvp-segment legend { font-size: .8em; color: var(--invite-soft); }
+.page-renderer .account-row, .page-renderer .account-group-title { font-size: .85em; }
+.page-renderer .rsvp-segment legend { font-size: .8em; color: var(--invite-soft); }
 .page-renderer .rsvp-segment-options label { font-size: .85em; }
 .page-renderer .account-group { text-align: left; }
 .page-renderer .block-success { color: var(--invite-accent); }
