@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, patchContent, publishIssues, readableColor, contrastRatio, updateBlock } from './model.ts'
+import { readFileSync } from 'node:fs'
+import { FONT_FACES } from '../blocks/fonts.ts'
+import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, partClassNames, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, themeFeatures, themeLook, TOKEN_VARS, tokenStyle, updateBlock, type PartSlot } from './model.ts'
 
 test('reordering normalizes order without losing design, hidden flags or future fields', () => {
   const original = { ...createEmptyPage(), design: DESIGN_PRESETS[2].design, futureSetting: { retained: true } }
@@ -39,11 +41,42 @@ test('theme registry is well-formed and every seeded template design round-trips
   const codes = DESIGN_PRESETS.map(p => p.code)
   assert.equal(new Set(codes).size, codes.length)
   for (const preset of DESIGN_PRESETS) {
-    // The backend seeds template code === design.theme; CSS uses the theme as a class name.
+    // The backend seeds template code === design.theme.
     assert.equal(preset.design.theme, preset.code)
     assert.match(preset.code, /^[a-z][a-z0-9-]*$/)
     assert.ok(preset.name && preset.description)
     assert.deepEqual(getPageDesign({ blocks: [], design: preset.design }), preset.design)
+    // A typo in themes.json would silently drop a part, token or font, so reject unknowns.
+    for (const [slot, value] of Object.entries(preset.parts ?? {})) {
+      assert.ok((PART_OPTIONS[slot as PartSlot] as readonly string[] | undefined)?.includes(value), `${preset.code}.parts.${slot}=${value}`)
+    }
+    for (const name of Object.keys(preset.tokens ?? {})) assert.ok(name in TOKEN_VARS, `${preset.code}.tokens.${name}`)
+    for (const id of Object.values(preset.fonts ?? {})) assert.ok(id in FONT_FACES, `${preset.code}.fonts ${id}`)
+  }
+})
+
+test('theme look resolves parts to classes, tokens to custom properties and features', () => {
+  const seal = themeLook('seal')
+  assert.ok(partClassNames(seal.parts).includes('part-hero-frame-letter'))
+  assert.ok(partClassNames(seal.parts).includes('part-heading-ornament-diamond-rule'))
+  assert.deepEqual(themeFeatures('seal'), { envelopeIntro: true, reveal: true })
+  // Plain defaults add no classes, so a theme without parts renders the base styles.
+  assert.deepEqual(partClassNames(themeLook('minimal').parts), [])
+  assert.deepEqual(themeFeatures('minimal'), { envelopeIntro: false, reveal: false })
+  assert.deepEqual(themeFeatures('missing'), { envelopeIntro: false, reveal: false })
+  assert.deepEqual(tokenStyle({ numeralColor: 'red', line: '' }), { '--theme-numeral': 'red' })
+})
+
+test('invitation CSS styles parts, never theme names', () => {
+  const css = readFileSync(new URL('../blocks/invitation.css', import.meta.url), 'utf8')
+  assert.doesNotMatch(css, /invitation-theme-/)
+  for (const slot of Object.keys(PART_OPTIONS) as PartSlot[]) {
+    for (const value of PART_OPTIONS[slot].slice(1)) {
+      // envelope and motion are behaviour (EnvelopeIntro, reveal), not CSS.
+      if (slot === 'envelope' || slot === 'motion') continue
+      const name = partClassNames({ ...themeLook('minimal').parts, [slot]: value })[0]
+      assert.ok(css.includes('.' + name + ' ') || css.includes('.' + name + ','), `no CSS for ${name}`)
+    }
   }
 })
 

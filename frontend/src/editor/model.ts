@@ -1,4 +1,5 @@
 import type { Block, BlockType, HeroLayout, PageData, PageDesign } from '../api/types.ts'
+import type { ThemeFonts } from '../blocks/fonts.ts'
 import themes from './themes.json' with { type: 'json' }
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
@@ -12,20 +13,72 @@ export const HERO_LAYOUTS: { value: HeroLayout; label: string }[] = [
   { value: 'typographic', label: '큰 이름 타이포' },
 ]
 
-export interface DesignPreset { code: string; name: string; description: string; design: PageDesign }
+// A theme's look is data: one choice per part slot, a few CSS tokens and its fonts.
+// invitation.css styles parts (`part-<slot>-<value>`), never theme names, so any theme
+// can reuse any part. The first option of each slot is the plain default.
+export const PART_OPTIONS = {
+  sheet: ['plain', 'letter'],
+  texture: ['none', 'fibre'],
+  heroFrame: ['none', 'double-rule', 'arch', 'top-bar', 'rounded-double', 'pressed-rules', 'letter'],
+  heroMark: ['none', 'leaf', 'stamp'],
+  photoFrame: ['none', 'print', 'arch'],
+  typeset: ['plain', 'formal'],
+  headingOrnament: ['none', 'diamond-rule'],
+  surfaces: ['outlined', 'tinted'],
+  closing: ['none', 'thank-you'],
+  envelope: ['none', 'wax-seal'],
+  motion: ['none', 'reveal'],
+} as const
+export type PartSlot = keyof typeof PART_OPTIONS
+export type ThemeParts = { [S in PartSlot]: (typeof PART_OPTIONS)[S][number] }
+
+// Token name -> the CSS custom property it sets on .page-renderer.
+export const TOKEN_VARS = {
+  line: '--inv-line',
+  nameTracking: '--theme-name-tracking',
+  numeralColor: '--theme-numeral',
+} as const
+export type ThemeTokens = Partial<Record<keyof typeof TOKEN_VARS, string>>
+export interface ThemeLook { parts: ThemeParts; tokens: ThemeTokens; fonts: ThemeFonts }
+
+export interface DesignPreset {
+  code: string; name: string; description: string; design: PageDesign
+  // Kept beside `design`, not in it: the seeder copies `design` into pages, and a look
+  // read from the preset lets old pages pick up template improvements.
+  parts?: Partial<ThemeParts>; tokens?: ThemeTokens; fonts?: ThemeFonts
+}
 
 // Single source for themes: the backend TemplateSeeder reads the same file, so a
 // template's code, theme and defaults never drift from what the editor offers.
 export const DESIGN_PRESETS: DesignPreset[] = themes as DesignPreset[]
 
-// Behaviour a theme adds on top of its CSS. Kept here rather than in themes.json so the
-// seeded design stays plain data and old pages never carry stale flags.
-export interface ThemeFeatures { envelopeIntro: boolean; reveal: boolean }
-const THEME_FEATURES: Record<string, ThemeFeatures> = {
-  seal: { envelopeIntro: true, reveal: true },
+const DEFAULT_PARTS = Object.fromEntries(Object.entries(PART_OPTIONS).map(([slot, values]) => [slot, values[0]])) as ThemeParts
+
+export function themeLook(theme: string): ThemeLook {
+  const preset = DESIGN_PRESETS.find(p => p.design.theme === theme)
+  const parts = { ...DEFAULT_PARTS }
+  for (const slot of Object.keys(PART_OPTIONS) as PartSlot[]) {
+    const value = preset?.parts?.[slot]
+    if ((PART_OPTIONS[slot] as readonly string[]).includes(value as string)) (parts as Record<PartSlot, string>)[slot] = value as string
+  }
+  return { parts, tokens: { ...preset?.tokens }, fonts: { ...preset?.fonts } }
 }
+
+// Only non-default parts get a class; the defaults are the unprefixed base styles.
+export function partClassNames(parts: ThemeParts): string[] {
+  return (Object.keys(parts) as PartSlot[]).filter(slot => parts[slot] !== DEFAULT_PARTS[slot])
+    .map(slot => 'part-' + slot.replace(/[A-Z]/g, c => '-' + c.toLowerCase()) + '-' + parts[slot])
+}
+
+export function tokenStyle(tokens: ThemeTokens): Record<string, string> {
+  return Object.fromEntries((Object.keys(TOKEN_VARS) as (keyof typeof TOKEN_VARS)[]).flatMap(name => tokens[name] ? [[TOKEN_VARS[name], tokens[name]]] : []))
+}
+
+// Behaviour a theme adds on top of its CSS, derived from its parts.
+export interface ThemeFeatures { envelopeIntro: boolean; reveal: boolean }
 export function themeFeatures(theme: string): ThemeFeatures {
-  return THEME_FEATURES[theme] ?? { envelopeIntro: false, reveal: false }
+  const { parts } = themeLook(theme)
+  return { envelopeIntro: parts.envelope !== 'none', reveal: parts.motion === 'reveal' }
 }
 
 // Original sample copy. No competitor text or artwork is reused.
