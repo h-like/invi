@@ -1,4 +1,4 @@
-import type { Block, BlockType, HeroLayout, PageData, PageDesign } from '../api/types.ts'
+import type { Block, BlockType, HeroLayout, LookOverrides, PageData, PageDesign } from '../api/types.ts'
 import type { ThemeFonts } from '../blocks/fonts.ts'
 import themes from './themes.json' with { type: 'json' }
 
@@ -37,8 +37,22 @@ export const TOKEN_VARS = {
   line: '--inv-line',
   nameTracking: '--theme-name-tracking',
   numeralColor: '--theme-numeral',
+  ground: '--theme-ground',
+  paper2: '--theme-paper-2',
 } as const
-export type ThemeTokens = Partial<Record<keyof typeof TOKEN_VARS, string>>
+export type TokenName = keyof typeof TOKEN_VARS
+export type ThemeTokens = Partial<Record<TokenName, string>>
+
+// What a couple may set per token. Presets are trusted CSS, but page overrides become
+// inline custom properties, so they are limited to plain hex colours and fixed values
+// (no url(), no third-party requests).
+export const NAME_TRACKING_OPTIONS = [
+  { value: '-.02em', label: '좁게' }, { value: '.03em', label: '보통' },
+  { value: '.08em', label: '넓게' }, { value: '.14em', label: '아주 넓게' },
+] as const
+export const TOKEN_KINDS: Record<TokenName, 'color' | 'tracking'> = {
+  ground: 'color', paper2: 'color', line: 'color', numeralColor: 'color', nameTracking: 'tracking',
+}
 export interface ThemeLook { parts: ThemeParts; tokens: ThemeTokens; fonts: ThemeFonts }
 
 export interface DesignPreset {
@@ -54,14 +68,58 @@ export const DESIGN_PRESETS: DesignPreset[] = themes as DesignPreset[]
 
 const DEFAULT_PARTS = Object.fromEntries(Object.entries(PART_OPTIONS).map(([slot, values]) => [slot, values[0]])) as ThemeParts
 
+function isPartValue(slot: PartSlot, value: unknown): boolean {
+  return (PART_OPTIONS[slot] as readonly string[]).includes(value as string)
+}
+
 export function themeLook(theme: string): ThemeLook {
   const preset = DESIGN_PRESETS.find(p => p.design.theme === theme)
   const parts = { ...DEFAULT_PARTS }
   for (const slot of Object.keys(PART_OPTIONS) as PartSlot[]) {
     const value = preset?.parts?.[slot]
-    if ((PART_OPTIONS[slot] as readonly string[]).includes(value as string)) (parts as Record<PartSlot, string>)[slot] = value as string
+    if (isPartValue(slot, value)) (parts as Record<PartSlot, string>)[slot] = value as string
   }
   return { parts, tokens: { ...preset?.tokens }, fonts: { ...preset?.fonts } }
+}
+
+function isTokenValue(name: TokenName, value: unknown): value is string {
+  return TOKEN_KINDS[name] === 'color'
+    ? typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
+    : NAME_TRACKING_OPTIONS.some(o => o.value === value)
+}
+
+/** Keeps only known slots/tokens with allowed values; undefined when nothing is left. */
+export function sanitizeLook(raw: unknown): LookOverrides | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const { parts: rawParts, tokens: rawTokens } = raw as { parts?: Record<string, unknown>; tokens?: Record<string, unknown> }
+  const parts: Record<string, string> = {}, tokens: Record<string, string> = {}
+  for (const slot of Object.keys(PART_OPTIONS) as PartSlot[]) {
+    const value = rawParts?.[slot]
+    if (isPartValue(slot, value)) parts[slot] = value as string
+  }
+  for (const name of Object.keys(TOKEN_KINDS) as TokenName[]) {
+    const value = rawTokens?.[name]
+    if (isTokenValue(name, value)) tokens[name] = value
+  }
+  const look: LookOverrides = {}
+  if (Object.keys(parts).length) look.parts = parts
+  if (Object.keys(tokens).length) look.tokens = tokens
+  return look.parts || look.tokens ? look : undefined
+}
+
+// Parts that draw with the decorative faces; a theme that doesn't name one gets these.
+const FALLBACK_FACES = { script: 'pinyon-script', display: 'cormorant-garamond' } as const
+
+/** The theme's look with the couple's overrides applied. */
+export function pageLook(design: PageDesign): ThemeLook {
+  const base = themeLook(design.theme)
+  const look = sanitizeLook(design.look)
+  const parts = { ...base.parts, ...look?.parts } as ThemeParts
+  const fonts = { ...base.fonts }
+  const formal = parts.heroFrame === 'letter' || parts.typeset === 'formal'
+  if ((formal || parts.closing === 'thank-you') && !fonts.script) fonts.script = FALLBACK_FACES.script
+  if (formal && !fonts.display) fonts.display = FALLBACK_FACES.display
+  return { parts, tokens: { ...base.tokens, ...look?.tokens }, fonts }
 }
 
 // Only non-default parts get a class; the defaults are the unprefixed base styles.
@@ -76,9 +134,49 @@ export function tokenStyle(tokens: ThemeTokens): Record<string, string> {
 
 // Behaviour a theme adds on top of its CSS, derived from its parts.
 export interface ThemeFeatures { envelopeIntro: boolean; reveal: boolean }
-export function themeFeatures(theme: string): ThemeFeatures {
-  const { parts } = themeLook(theme)
+export function themeFeatures({ parts }: ThemeLook): ThemeFeatures {
   return { envelopeIntro: parts.envelope !== 'none', reveal: parts.motion === 'reveal' }
+}
+
+// Editor labels. `layouts` marks options that only show with that hero layout.
+export const PART_LABELS: { [S in PartSlot]: { label: string; options: Record<ThemeParts[S], string>; layouts?: Partial<Record<ThemeParts[S], HeroLayout>> } } = {
+  sheet: { label: '종이', options: { plain: '기본', letter: '물결 테두리 편지지' } },
+  texture: { label: '종이 질감', options: { none: '없음', fibre: '한지 섬유' } },
+  heroFrame: {
+    label: '첫 화면 장식',
+    options: { none: '없음', 'double-rule': '이중 테두리', arch: '아치', 'top-bar': '굵은 윗선', 'rounded-double': '둥근 이중 테두리', 'pressed-rules': '두 줄 괘선', letter: '편지 구성' },
+    layouts: { 'double-rule': 'frame', arch: 'frame', 'top-bar': 'frame', 'rounded-double': 'frame', letter: 'frame', 'pressed-rules': 'typographic' },
+  },
+  heroMark: { label: '첫 화면 마크', options: { none: '없음', leaf: '잎사귀 ❦', stamp: '囍 낙관' }, layouts: { leaf: 'frame' } },
+  photoFrame: { label: '대표 사진 테두리', options: { none: '없음', print: '인화 사진', arch: '아치' }, layouts: { print: 'photo-full', arch: 'frame' } },
+  typeset: { label: '글자 조판', options: { plain: '기본', formal: '격식 있게' } },
+  headingOrnament: { label: '제목 장식', options: { none: '없음', 'diamond-rule': '마름모 장식선' } },
+  surfaces: { label: '카드 표면', options: { outlined: '테두리', tinted: '색 면' } },
+  closing: { label: '마무리', options: { none: '없음', 'thank-you': 'Thank you 서명' } },
+  envelope: { label: '봉투 인트로', options: { none: '사용 안 함', 'wax-seal': '실링 봉투' } },
+  motion: { label: '스크롤 효과', options: { none: '없음', reveal: '천천히 나타나기' } },
+}
+
+export const TOKEN_LABELS: Record<TokenName, string> = {
+  ground: '바깥 배경 (편지지)', paper2: '카드 면 색', line: '구분선 색', numeralColor: '날짜 숫자 색', nameTracking: '이름 자간',
+}
+
+function mixHex(a: string, b: string, weightA: number): string {
+  const ca = a.match(/[0-9a-f]{2}/gi)!.map(c => parseInt(c, 16)), cb = b.match(/[0-9a-f]{2}/gi)!.map(c => parseInt(c, 16))
+  return '#' + ca.map((v, i) => Math.round(v * weightA + cb[i] * (1 - weightA)).toString(16).padStart(2, '0')).join('')
+}
+
+/** A hex close to what a colour token shows when not overridden, to seed the picker. */
+export function tokenColorHint(name: TokenName, design: PageDesign): string {
+  const raw = themeLook(design.theme).tokens[name]
+  if (raw && /^#[0-9a-f]{6}$/i.test(raw)) return raw
+  const bg = design.backgroundColor, accent = readableColor(design.accentColor, bg), ink = readableColor('#36302b', bg)
+  switch (name) {
+    case 'ground': return mixHex(bg, '#5a4440', .85)
+    case 'paper2': return mixHex(bg, '#6a4020', .93)
+    case 'line': return raw?.includes('--invite-accent') ? mixHex(accent, bg, .16) : mixHex(ink, bg, .15)
+    default: return raw?.includes('--invite-accent') ? accent : ink
+  }
 }
 
 // Original sample copy. No competitor text or artwork is reused.
@@ -113,7 +211,12 @@ export function getPageDesign(page: PageData | null): PageDesign {
     fontSize: raw?.fontSize === 'large' || raw?.fontSize === 'larger' ? raw.fontSize : 'normal',
     // Pages saved before heroLayout existed keep the layout they were designed with.
     heroLayout: HERO_LAYOUTS.find(l => l.value === raw?.heroLayout)?.value ?? 'frame',
+    ...withLook(sanitizeLook(raw?.look)),
   }
+}
+
+function withLook(look: LookOverrides | undefined): { look?: LookOverrides } {
+  return look ? { look } : {}
 }
 
 function luminance(hex: string): number {

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { FONT_FACES } from '../blocks/fonts.ts'
-import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, partClassNames, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, themeFeatures, themeLook, TOKEN_VARS, tokenStyle, updateBlock, type PartSlot } from './model.ts'
+import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, pageLook, partClassNames, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, themeFeatures, themeLook, TOKEN_VARS, tokenStyle, updateBlock, type PartSlot } from './model.ts'
 
 test('reordering normalizes order without losing design, hidden flags or future fields', () => {
   const original = { ...createEmptyPage(), design: DESIGN_PRESETS[2].design, futureSetting: { retained: true } }
@@ -59,11 +59,11 @@ test('theme look resolves parts to classes, tokens to custom properties and feat
   const seal = themeLook('seal')
   assert.ok(partClassNames(seal.parts).includes('part-hero-frame-letter'))
   assert.ok(partClassNames(seal.parts).includes('part-heading-ornament-diamond-rule'))
-  assert.deepEqual(themeFeatures('seal'), { envelopeIntro: true, reveal: true })
+  assert.deepEqual(themeFeatures(seal), { envelopeIntro: true, reveal: true })
   // Plain defaults add no classes, so a theme without parts renders the base styles.
   assert.deepEqual(partClassNames(themeLook('minimal').parts), [])
-  assert.deepEqual(themeFeatures('minimal'), { envelopeIntro: false, reveal: false })
-  assert.deepEqual(themeFeatures('missing'), { envelopeIntro: false, reveal: false })
+  assert.deepEqual(themeFeatures(themeLook('minimal')), { envelopeIntro: false, reveal: false })
+  assert.deepEqual(themeFeatures(themeLook('missing')), { envelopeIntro: false, reveal: false })
   assert.deepEqual(tokenStyle({ numeralColor: 'red', line: '' }), { '--theme-numeral': 'red' })
 })
 
@@ -111,3 +111,33 @@ test('drafts can be incomplete; publishing checks only displayed required sectio
 })
 
 // Run with Node 22.18+ or 24+: node --test src/editor/model.test.ts
+
+test('look overrides keep only known parts and safe token values', () => {
+  const raw = {
+    parts: { sheet: 'letter', heroFrame: 'nope', bogus: 'x', envelope: 'wax-seal' },
+    tokens: { ground: '#112233', line: 'url(https://evil.example/x.png)', paper2: 'red', nameTracking: '.14em', numeralColor: '#ABCDEF', extra: '#000000' },
+  }
+  assert.deepEqual(sanitizeLook(raw), {
+    parts: { sheet: 'letter', envelope: 'wax-seal' },
+    tokens: { ground: '#112233', nameTracking: '.14em', numeralColor: '#ABCDEF' },
+  })
+  assert.equal(sanitizeLook({ parts: { heroFrame: 'nope' }, tokens: { nameTracking: '9em' } }), undefined)
+  assert.equal(sanitizeLook('letter'), undefined)
+})
+
+test('page look layers overrides on the theme and survives design edits', () => {
+  const design = { ...DESIGN_PRESETS.find(p => p.code === 'minimal')!.design, look: { parts: { closing: 'thank-you', envelope: 'wax-seal' }, tokens: { line: '#cc0000' } } }
+  const look = pageLook(design)
+  assert.equal(look.parts.closing, 'thank-you')
+  assert.equal(look.parts.sheet, 'plain')
+  assert.equal(tokenStyle(look.tokens)['--inv-line'], '#cc0000')
+  assert.deepEqual(themeFeatures(look), { envelopeIntro: true, reveal: false })
+  // A script part on a theme without a script face still gets a real script font.
+  assert.equal(look.fonts.script, 'pinyon-script')
+  assert.equal(look.fonts.display, undefined)
+  // getPageDesign keeps a valid look (editor edits merge over it) and drops a broken one.
+  assert.deepEqual(getPageDesign({ blocks: [], design }).look, design.look)
+  assert.equal('look' in getPageDesign({ blocks: [], design: { ...design, look: { parts: { sheet: '<x>' } } } }), false)
+  // Seal keeps its own faces; a part set back to its template value is just the template.
+  assert.equal(pageLook({ ...DESIGN_PRESETS.find(p => p.code === 'seal')!.design }).fonts.display, 'cormorant-garamond')
+})

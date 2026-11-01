@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type RefObject } from 'react'
 import type { PageData } from '../api/types'
-import { getPageDesign, partClassNames, readableColor, themeFeatures, themeLook, tokenStyle } from '../editor/model'
+import { getPageDesign, pageLook, partClassNames, readableColor, themeFeatures, tokenStyle } from '../editor/model'
 import { AccountBlock } from './AccountBlock'
 import { CountdownBlock } from './CountdownBlock'
 import { fontStack, fontVars, loadInvitationFont } from './fonts'
@@ -21,8 +21,9 @@ interface Props {
 // One renderer for both the editor preview and the published invitation.
 export function PageRenderer({ pageData, weddingDate, invitationId, interactive }: Props) {
   const design = getPageDesign(pageData)
-  const look = themeLook(design.theme)
-  useEffect(() => { void loadInvitationFont(design.fontFamily, themeLook(design.theme).fonts) }, [design.fontFamily, design.theme])
+  const look = pageLook(design)
+  const fontsKey = JSON.stringify(look.fonts)
+  useEffect(() => { void loadInvitationFont(design.fontFamily, JSON.parse(fontsKey)) }, [design.fontFamily, fontsKey])
   const accent = readableColor(design.accentColor, design.backgroundColor)
   const ink = readableColor('#36302b', design.backgroundColor)
   const soft = readableColor('#74695e', design.backgroundColor)
@@ -36,7 +37,7 @@ export function PageRenderer({ pageData, weddingDate, invitationId, interactive 
   const hero = blocks.find(b => b.type === 'hero')
   const weddingTime = typeof hero?.content.weddingTime === 'string' ? hero.content.weddingTime : ''
   // Editor previews re-render on every keystroke, so sections only fade in for guests.
-  const reveal = interactive && themeFeatures(design.theme).reveal
+  const reveal = interactive && themeFeatures(look).reveal
   const sheet = useRef<HTMLDivElement>(null)
   useReveal(sheet, reveal)
   return (

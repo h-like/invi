@@ -152,3 +152,10 @@
 .leave-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .leave-actions button { font-size: var(--text-sm); padding: 10px 14px; }
 .leave-dialog .leave-error { padding: 12px; border: 1px solid var(--color-danger-line); background: var(--color-danger-tint); color: var(--color-danger); border-radius: var(--radius-sm); font-size: var(--text-sm); }
+
+/* Fine-tuning panel: a dot marks fields changed from the template. */
+.look-editor .look-changed::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--color-accent); vertical-align: middle; }
+.look-token { display: flex; align-items: flex-end; gap: 6px; min-width: 0; }
+.look-token label { flex: 1; min-width: 0; }
+.builder-page .look-editor .look-reset { flex: none; height: 42px; padding: 0 10px; font-size: var(--text-xs); }
+.builder-page .look-editor .look-reset-all { margin-top: 18px; width: 100%; }

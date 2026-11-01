@@ -116,7 +116,7 @@
 .hero-photo-body { padding: 34px 24px 10px; }
 /* typographic: names carry the page; the photo becomes a small inset. */
 .page-renderer .hero-layout-typographic { padding: 56px 24px 28px; }
-.page-renderer .hero-names-stacked { flex-direction: column; gap: 0; font-size: 2.7em; line-height: 1.25; letter-spacing: -.02em; margin: 18px 0 26px; }
+.page-renderer .hero-names-stacked { flex-direction: column; gap: 0; font-size: 2.7em; line-height: 1.25; letter-spacing: var(--theme-name-tracking, -.02em); margin: 18px 0 26px; }
 .page-renderer .hero-names-stacked .hero-ampersand { font-size: .45em; margin: 6px 0; }
 .page-renderer .hero-layout-typographic .hero-date { display: flex; flex-direction: column; gap: 4px; margin: 0 0 30px; }
 .hero-date-numeric { font-size: 1.9em; font-weight: 400; letter-spacing: .08em; color: var(--theme-numeral, var(--invite-ink)); }
@@ -222,7 +222,9 @@ html.invite-modal-open { overflow: hidden; }
 .part-hero-frame-letter .hero-layout-frame .hero-invitation-label { order: 5; margin-top: 76px; }
 .part-hero-frame-letter .hero-layout-frame .hero-invitation-label::after { content: '초대합니다'; display: block; margin-top: 4px; font: 700 calc(1.06em / .7) var(--invite-font); letter-spacing: .1em; }
 .part-hero-frame-letter .hero-layout-frame .hero-greeting { order: 6; margin-top: 18px; }
-.part-typeset-formal .hero-names { align-items: baseline; gap: 12px; font-size: 1.3em; font-weight: 700; letter-spacing: .06em; }
+.part-typeset-formal .hero-names { align-items: baseline; gap: 12px; font-size: 1.3em; font-weight: 700; letter-spacing: var(--theme-name-tracking, .06em); }
+/* Stacked names stay centred: baseline alignment in a column would pin them left. */
+.part-typeset-formal .hero-names-stacked { align-items: center; }
 .part-typeset-formal .hero-names > span:not(.hero-ampersand) { display: inline-flex; flex-direction: column; align-items: center; }
 .part-typeset-formal .hero-role { position: static; width: auto; height: auto; overflow: visible; clip-path: none; font-size: .48em; font-weight: 400; letter-spacing: .2em; color: var(--invite-soft); }
 .part-typeset-formal .hero-ampersand { font-family: var(--theme-script), "Snell Roundhand", cursive; font-style: normal; font-weight: 400; font-size: 1.35em; }

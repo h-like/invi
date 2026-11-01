@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import { EnvelopeIntro } from '../blocks/EnvelopeIntro'
 import { PageRenderer } from '../blocks/PageRenderer'
 import { pageMonogram } from '../blocks/heroDetails'
-import { getPageDesign, themeFeatures } from '../editor/model'
+import { getPageDesign, pageLook, themeFeatures } from '../editor/model'
 import type { GuestInvitation } from '../api/types'
 
 export function GuestPage() {
@@ -43,7 +43,7 @@ export function GuestPage() {
   return (
     <div className="guest-backdrop">
       <main className="guest-page">
-        {themeFeatures(design.theme).envelopeIntro
+        {themeFeatures(pageLook(design)).envelopeIntro
           ? <EnvelopeIntro paper={design.backgroundColor} wine={design.accentColor} monogram={pageMonogram(invitation.pageData)} storageKey={'invi:envelope:' + invitation.id}>{page}</EnvelopeIntro>
           : page}
       </main>
