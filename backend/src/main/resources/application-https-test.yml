@@ -10,8 +10,8 @@ spring:
       connection-timeout: 30000
   jpa:
     hibernate:
-      # Only a fresh, isolated test DB. Production schema migration is a separate decision.
-      ddl-auto: update
+      # Flyway migrates the test DB; HttpsTestDeploymentGuard refuses anything but validate.
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:

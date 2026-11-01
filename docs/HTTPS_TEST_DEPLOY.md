@@ -76,7 +76,7 @@
 - `TEST_OWNER_EMAIL`, `TEST_OWNER_PASSWORD`: 이 환경 전용 로그인 계정.
 - `PORT`: 호스팅이 주입하는 내부 수신 포트. 미지정 시 8080이다. 개발 PC의 5173/8080을 외부로 전달하지 않는다.
 
-프로필은 DB 연결 풀을 작게 유지하고 SQL/bind 로그와 상세 서버 오류를 숨긴다. actuator 노출은 health뿐이다. `ddl-auto=update`는 **새로운 격리 테스트 DB**를 위한 것으로 실제 운영 마이그레이션 정책을 확정한 것은 아니다.
+프로필은 DB 연결 풀을 작게 유지하고 SQL/bind 로그와 상세 서버 오류를 숨긴다. actuator 노출은 health뿐이다. 스키마는 기동 시 Flyway가 마이그레이션하고 Hibernate는 `ddl-auto=validate`로 확인만 한다(가드가 다른 값을 거절). `ddl-auto=update`로 만들어진 기존 테스트 DB는 첫 기동 때 V1 기준점으로 표시되고 V2가 이후 추가된 컬럼·제약을 보충한다.
 
 ## 호스팅 선택과 비용 확인
 
