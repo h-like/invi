@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import { api } from '../api/client'
-import { clampGuestCount, GUEST_COUNT_MAX, GUEST_NAME_MAX, RSVP_MESSAGE_MAX } from './guestLimits'
+import { clampGuestCount, GUEST_COUNT_MAX, guestCountDraft, GUEST_NAME_MAX, RSVP_MESSAGE_MAX } from './guestLimits'
 import { RSVP_MEAL_OPTIONS, RSVP_SIDE_OPTIONS, type RsvpMeal, type RsvpSide } from './rsvpOptions'
 
 interface Props {
@@ -11,7 +11,9 @@ interface Props {
 export function RsvpBlock({ invitationId, interactive }: Props) {
   const [guestName, setGuestName] = useState('')
   const [attending, setAttending] = useState(true)
-  const [guestCount, setGuestCount] = useState(1)
+  // Kept as text so a cleared field stays empty while typing; a number state would put the
+  // 0 back and mobile keyboards then produce "03".
+  const [guestCount, setGuestCount] = useState('1')
   const [side, setSide] = useState<RsvpSide | null>(null)
   const [meal, setMeal] = useState<RsvpMeal | null>(null)
   const [message, setMessage] = useState('')
@@ -31,7 +33,7 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
       await api.submitRsvp(invitationId, {
         guestName,
         attending,
-        guestCount,
+        guestCount: clampGuestCount(Number(guestCount)),
         message: message || undefined,
         side,
         meal: attending && meal ? meal : undefined,
@@ -77,12 +79,10 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
         <Segmented legend="참석 여부" name="attending" options={ATTENDING_OPTIONS} value={attending ? 'yes' : 'no'} onChange={v => setAttending(v === 'yes')} disabled={!interactive} />
         {attending && <Segmented legend="식사 여부" name="meal" options={RSVP_MEAL_OPTIONS} value={meal} onChange={setMeal} disabled={!interactive} />}
         <input
-          type="number"
-          min={0}
-          max={GUEST_COUNT_MAX}
-          placeholder="인원 수"
+          inputMode="numeric"
+          placeholder={`인원 수 (최대 ${GUEST_COUNT_MAX}명)`}
           value={guestCount}
-          onChange={(e) => setGuestCount(clampGuestCount(Number(e.target.value)))}
+          onChange={(e) => setGuestCount(guestCountDraft(e.target.value))}
           disabled={!interactive}
         />
         <textarea
