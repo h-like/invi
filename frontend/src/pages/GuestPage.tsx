@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { EnvelopeIntro } from '../blocks/EnvelopeIntro'
 import { PageRenderer } from '../blocks/PageRenderer'
+import { pageMonogram } from '../blocks/heroDetails'
 import { getPageDesign, themeFeatures } from '../editor/model'
 import type { GuestInvitation } from '../api/types'
 
@@ -43,7 +44,7 @@ export function GuestPage() {
     <div className="guest-backdrop">
       <main className="guest-page">
         {themeFeatures(design.theme).envelopeIntro
-          ? <EnvelopeIntro paper={design.backgroundColor} wine={design.accentColor} storageKey={'invi:envelope:' + invitation.id}>{page}</EnvelopeIntro>
+          ? <EnvelopeIntro paper={design.backgroundColor} wine={design.accentColor} monogram={pageMonogram(invitation.pageData)} storageKey={'invi:envelope:' + invitation.id}>{page}</EnvelopeIntro>
           : page}
       </main>
     </div>

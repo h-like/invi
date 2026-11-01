@@ -7,5 +7,7 @@ public record RsvpDto(
         String guestName,
         Boolean attending,
         Integer guestCount,
-        String message) {
+        String message,
+        RsvpSide side,
+        RsvpMeal meal) {
 }

@@ -279,3 +279,39 @@ button.publish-button:not(:disabled):hover {
 .guest-admin-list li p {
   margin: 4px 0 0;
 }
+
+.rsvp-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.rsvp-summary div {
+  padding: 10px 12px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+}
+
+.rsvp-summary dt {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
+.rsvp-summary dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rsvp-tag {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  font-size: 12px;
+}
+
+.rsvp-summary .rsvp-summary-wide {
+  grid-column: 1 / -1;
+}

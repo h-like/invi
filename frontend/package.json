@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "build:https-test": "tsc -b && vite build --mode https-test",
     "lint": "oxlint",
-    "test": "node --test src/api/config.test.ts src/editor/model.test.ts src/editor/persistence.test.ts src/editor/photoPolicy.test.ts src/editor/coverUpload.test.ts src/editor/galleryUpload.test.ts src/editor/putPhoto.test.ts src/discovery/flow.test.ts src/blocks/guestLimits.test.ts src/blocks/calendar.test.ts src/editor/navigation.test.ts",
+    "test": "node --test src/api/config.test.ts src/editor/model.test.ts src/editor/persistence.test.ts src/editor/photoPolicy.test.ts src/editor/coverUpload.test.ts src/editor/galleryUpload.test.ts src/editor/putPhoto.test.ts src/discovery/flow.test.ts src/blocks/guestLimits.test.ts src/blocks/calendar.test.ts src/blocks/heroDetails.test.ts src/blocks/rsvpOptions.test.ts src/editor/navigation.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,10 +1,11 @@
 package com.invi.api.rsvp;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -24,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 @WebMvcTest(RsvpController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class})
@@ -58,6 +60,28 @@ class RsvpControllerTest {
     }
 
     @Test
+    void submit_passesSideAndMeal() throws Exception {
+        post("{\"guestName\":\"하객\",\"attending\":true,\"guestCount\":1,\"side\":\"GROOM\",\"meal\":\"UNDECIDED\"}")
+                .andExpect(status().isCreated());
+        verify(rsvpService).submit(eq(invitationId), argThat(r -> r.side() == RsvpSide.GROOM && r.meal() == RsvpMeal.UNDECIDED), any());
+    }
+
+    @Test
+    void submit_acceptsMissingSideAndMeal_forOlderClients() throws Exception {
+        post("{\"guestName\":\"하객\",\"attending\":true,\"guestCount\":1}").andExpect(status().isCreated());
+        verify(rsvpService).submit(eq(invitationId), argThat(r -> r.side() == null && r.meal() == null), any());
+    }
+
+    @Test
+    void submit_rejectsUnknownSideOrMeal() throws Exception {
+        post("{\"guestName\":\"하객\",\"attending\":true,\"guestCount\":1,\"side\":\"FRIEND\"}")
+                .andExpect(status().isBadRequest());
+        post("{\"guestName\":\"하객\",\"attending\":true,\"guestCount\":1,\"meal\":\"MAYBE\"}")
+                .andExpect(status().isBadRequest());
+        verify(rsvpService, never()).submit(any(), any(), any());
+    }
+
+    @Test
     void submit_returns429WithRetryAfter_whenRateLimited() throws Exception {
         when(rsvpService.submit(any(), any(), any())).thenThrow(new TooManyRequestsException(30));
 
@@ -69,9 +93,13 @@ class RsvpControllerTest {
     private ResultActions submit(String name, int count, String message)
             throws Exception {
         String messageJson = message == null ? "null" : "\"" + message + "\"";
-        return mvc.perform(post("/api/invitations/{id}/rsvps", invitationId)
+        return post("{\"guestName\":\"" + name + "\",\"attending\":true,\"guestCount\":" + count
+                + ",\"message\":" + messageJson + "}");
+    }
+
+    private ResultActions post(String json) throws Exception {
+        return mvc.perform(MockMvcRequestBuilders.post("/api/invitations/{id}/rsvps", invitationId)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"guestName\":\"" + name + "\",\"attending\":true,\"guestCount\":" + count
-                        + ",\"message\":" + messageJson + "}"));
+                .content(json));
     }
 }

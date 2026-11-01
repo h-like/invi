@@ -53,7 +53,7 @@ class RsvpServiceTest {
     void submit_savesRsvp_whenInvitationExists() {
         UUID invitationId = UUID.randomUUID();
         Invitation invitation = published();
-        CreateRsvpRequest request = new CreateRsvpRequest("홍길동", true, 2, "축하합니다");
+        CreateRsvpRequest request = new CreateRsvpRequest("홍길동", true, 2, "축하합니다", RsvpSide.BRIDE, RsvpMeal.YES);
 
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
         when(rsvpRepository.save(any(Rsvp.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -63,6 +63,21 @@ class RsvpServiceTest {
         assertThat(result.guestName()).isEqualTo("홍길동");
         assertThat(result.attending()).isTrue();
         assertThat(result.guestCount()).isEqualTo(2);
+        assertThat(result.side()).isEqualTo(RsvpSide.BRIDE);
+        assertThat(result.meal()).isEqualTo(RsvpMeal.YES);
+    }
+
+    @Test
+    void submit_dropsMealAnswer_whenNotAttending() {
+        UUID invitationId = UUID.randomUUID();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(published()));
+        when(rsvpRepository.save(any(Rsvp.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        RsvpDto result = rsvpService.submit(
+                invitationId, new CreateRsvpRequest("A", false, 0, null, RsvpSide.GROOM, RsvpMeal.YES), "203.0.113.7");
+
+        assertThat(result.side()).isEqualTo(RsvpSide.GROOM);
+        assertThat(result.meal()).isNull();
     }
 
     @Test
@@ -71,7 +86,7 @@ class RsvpServiceTest {
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(
-                        () -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null), "203.0.113.7"))
+                        () -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null, null, null), "203.0.113.7"))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -90,6 +105,9 @@ class RsvpServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).guestName()).isEqualTo("김철수");
+        // Saved before side/meal existed: both stay empty instead of failing.
+        assertThat(result.get(0).side()).isNull();
+        assertThat(result.get(0).meal()).isNull();
     }
 
     @Test
@@ -121,7 +139,7 @@ class RsvpServiceTest {
         UUID invitationId = UUID.randomUUID();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null), "203.0.113.7"))
+        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null, null, null), "203.0.113.7"))
                 .isInstanceOf(NotFoundException.class);
         verifyNoInteractions(rateLimiter);
     }
@@ -134,7 +152,7 @@ class RsvpServiceTest {
         doThrow(new TooManyRequestsException(60)).when(rateLimiter)
                 .acquire(GuestWriteRateLimiter.Kind.RSVP, invitationId, "203.0.113.7");
 
-        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null), "203.0.113.7"))
+        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null, null, null), "203.0.113.7"))
                 .isInstanceOf(TooManyRequestsException.class);
         verify(rsvpRepository, never()).save(any());
     }
@@ -145,7 +163,7 @@ class RsvpServiceTest {
         Invitation draft = Invitation.builder().slug("s").weddingDate(LocalDate.now()).build();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(draft));
 
-        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null), "203.0.113.7"))
+        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null, null, null), "203.0.113.7"))
                 .isInstanceOf(NotFoundException.class);
         verifyNoInteractions(rateLimiter);
         verify(rsvpRepository, never()).save(any());
@@ -157,7 +175,7 @@ class RsvpServiceTest {
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(published()));
         when(rsvpRepository.save(any())).thenThrow(new IllegalStateException("db down"));
 
-        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null), "203.0.113.7"))
+        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null, null, null), "203.0.113.7"))
                 .isInstanceOf(IllegalStateException.class);
         verify(rateLimiter).release(GuestWriteRateLimiter.Kind.RSVP, invitationId, "203.0.113.7");
     }

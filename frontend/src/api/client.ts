@@ -2,6 +2,7 @@ import { getToken } from '../auth/token'
 import { API_BASE } from './baseUrl'
 import { putPhoto } from '../editor/putPhoto'
 import type { PhotoUploadOptions } from '../editor/coverUpload'
+import type { RsvpMeal, RsvpSide } from '../blocks/rsvpOptions'
 import type {
   GuestInvitation,
   GuestbookEntryItem,
@@ -79,7 +80,7 @@ export const api = {
 
   submitRsvp: (
     invitationId: string,
-    body: { guestName: string; attending: boolean; guestCount: number; message?: string },
+    body: { guestName: string; attending: boolean; guestCount: number; message?: string; side?: RsvpSide; meal?: RsvpMeal },
   ) =>
     request<RsvpEntry>(`/api/invitations/${invitationId}/rsvps`, {
       method: 'POST',

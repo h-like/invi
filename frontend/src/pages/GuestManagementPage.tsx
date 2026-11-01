@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { GuestbookEntryItem, RsvpEntry } from '../api/types'
+import { mealLabel, sideLabel, summarizeRsvps } from '../blocks/rsvpOptions'
 
 export function GuestManagementPage() {
   const { id } = useParams<{ id: string }>()
@@ -29,9 +30,7 @@ export function GuestManagementPage() {
     }
   }
 
-  const attendingCount = rsvps
-    ?.filter((r) => r.attending)
-    .reduce((sum, r) => sum + r.guestCount, 0)
+  const summary = rsvps ? summarizeRsvps(rsvps) : null
 
   return (
     <main className="page">
@@ -45,7 +44,15 @@ export function GuestManagementPage() {
       {error && <p className="form-error">{error}</p>}
 
       <section className="editor-section" style={{ borderTop: 'none', paddingTop: 0 }}>
-        <h2>참석 응답{rsvps ? ` (${rsvps.length}건, 참석 ${attendingCount}명)` : ''}</h2>
+        <h2>참석 응답{summary ? ` (${summary.total.responses}건, 참석 ${summary.total.guests}명)` : ''}</h2>
+        {summary && summary.total.responses > 0 && (
+          <dl className="rsvp-summary">
+            <div><dt>신랑측</dt><dd>{summary.side.GROOM.responses}건 · 참석 {summary.side.GROOM.guests}명</dd></div>
+            <div><dt>신부측</dt><dd>{summary.side.BRIDE.responses}건 · 참석 {summary.side.BRIDE.guests}명</dd></div>
+            {summary.side.unknown.responses > 0 && <div><dt>구분 없음</dt><dd>{summary.side.unknown.responses}건 · 참석 {summary.side.unknown.guests}명</dd></div>}
+            <div className="rsvp-summary-wide"><dt>식사 (참석 인원)</dt><dd>예정 {summary.meal.YES}명 · 안 함 {summary.meal.NO}명 · 미정 {summary.meal.UNDECIDED}명{summary.meal.unknown > 0 ? ` · 응답 없음 ${summary.meal.unknown}명` : ''}</dd></div>
+          </dl>
+        )}
         {!rsvps ? (
           <p className="guest-admin-empty">불러오는 중...</p>
         ) : rsvps.length === 0 ? (
@@ -54,7 +61,8 @@ export function GuestManagementPage() {
           <ul className="guest-admin-list">
             {rsvps.map((rsvp) => (
               <li key={rsvp.id}>
-                <strong>{rsvp.guestName}</strong> — {rsvp.attending ? `참석 (${rsvp.guestCount}명)` : '불참'}
+                <strong>{rsvp.guestName}</strong>{rsvp.side && <span className="rsvp-tag">{sideLabel(rsvp.side)}</span>} — {rsvp.attending ? `참석 (${rsvp.guestCount}명)` : '불참'}
+                {rsvp.attending && rsvp.meal && ` · ${mealLabel(rsvp.meal)}`}
                 {rsvp.message && <p>{rsvp.message}</p>}
               </li>
             ))}

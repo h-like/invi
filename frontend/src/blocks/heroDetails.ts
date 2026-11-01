@@ -1,0 +1,80 @@
+// Optional hero extras stored in hero.content: parents' names (혼주) and the wax-seal
+// monogram. page_data stays schema-free, so every reader tolerates missing or odd values.
+
+export const PARENT_NAME_MAX = 20
+export const RELATION_MAX = 10
+export const MONOGRAM_MAX = 5
+
+// Neutral word first: birth order is the couple's choice, never assumed.
+export const GROOM_RELATIONS = ['아들', '장남', '차남', '삼남']
+export const BRIDE_RELATIONS = ['딸', '장녀', '차녀', '삼녀']
+
+export type HeroSide = 'groom' | 'bride'
+/** Shown when the relation is left blank; the editor uses it as the placeholder so both agree. */
+export const DEFAULT_RELATION: Record<HeroSide, string> = { groom: '아들', bride: '딸' }
+export const PARENT_FIELDS: Record<HeroSide, { father: string; mother: string; relation: string }> = {
+  groom: { father: 'groomFather', mother: 'groomMother', relation: 'groomRelation' },
+  bride: { father: 'brideFather', mother: 'brideMother', relation: 'brideRelation' },
+}
+
+export interface ParentLine { parents: string; relation: string; child: string }
+
+function clean(value: unknown, max: number): string {
+  return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
+
+/** "이정호 · 김미경" + "의 장남" + child, or null when neither parent is named. */
+export function parentLine(content: Record<string, unknown>, side: HeroSide, child: string): ParentLine | null {
+  const fields = PARENT_FIELDS[side]
+  const parents = [clean(content[fields.father], PARENT_NAME_MAX), clean(content[fields.mother], PARENT_NAME_MAX)].filter(Boolean)
+  if (!parents.length) return null
+  const relation = clean(content[fields.relation], RELATION_MAX) || DEFAULT_RELATION[side]
+  return { parents: parents.join(' · '), relation, child: child.trim() }
+}
+
+/** "의 장남": the part between the parents and the child, shared by the hero and the editor preview. */
+export function relationPhrase(line: ParentLine): string {
+  return '의 ' + line.relation
+}
+
+/** The whole line as plain text, e.g. "이정호 · 김미경의 장남 도윤". */
+export function formatParentLine(line: ParentLine): string {
+  return line.parents + relationPhrase(line) + (line.child ? ' ' + line.child : '')
+}
+
+/** Latin letters, "&" and single spaces only, at most MONOGRAM_MAX characters. */
+export function normalizeMonogram(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return value.replace(/[^A-Za-z& ]/g, '').replace(/ +/g, ' ').trimStart().slice(0, MONOGRAM_MAX)
+}
+
+/**
+ * The monogram stored on the page's hero block, as the guest page renders it: the first
+ * visible hero, matching PageRenderer. A hidden hero supplies nothing, so the seal falls
+ * back to "&" rather than showing initials the couple took off the page. page_data is
+ * stored unvalidated, so missing or non-array blocks and odd entries are tolerated.
+ */
+export function pageMonogram(pageData: unknown): string {
+  const blocks = (pageData as { blocks?: unknown } | null | undefined)?.blocks
+  if (!Array.isArray(blocks)) return ''
+  const hero = blocks.find((b): b is { content?: unknown } =>
+    !!b && typeof b === 'object' && (b as { type?: unknown }).type === 'hero' && !!(b as { visible?: unknown }).visible)
+  const content = hero?.content
+  const value = content && typeof content === 'object' ? (content as { monogram?: unknown }).monogram : undefined
+  return typeof value === 'string' ? value : ''
+}
+
+/** What the seal shows: the couple's initials, or the plain ampersand when none are set. */
+export function sealMonogram(value: unknown): string {
+  return normalizeMonogram(value).trim() || '&'
+}
+
+/**
+ * First-guess font size for the seal text inside its 25-radius pool: the inner ring leaves
+ * about 36 units, and Pinyon Script capitals run near 0.8em with their swashes. The seal
+ * measures the real width once the font has loaded and shrinks further if needed.
+ */
+export function monogramFontSize(text: string): number {
+  const glyphs = Math.max(1, text.length)
+  return Math.min(26, Math.round(36 / (glyphs * 0.8) * 10) / 10)
+}

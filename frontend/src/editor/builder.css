@@ -28,6 +28,7 @@
 .builder-fields textarea { resize: vertical; line-height: 1.8; }
 .form-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-columns > label { min-width: 0; }
+.form-columns-3 { grid-template-columns: 1fr 1fr minmax(0, .8fr); }
 .date-change { display: flex; gap: 6px; align-items: stretch; }
 .date-change input { flex: 1; min-width: 0; }
 .date-change button { flex: none; padding-inline: 14px; border-radius: var(--radius-sm); }
