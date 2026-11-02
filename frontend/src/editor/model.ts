@@ -28,6 +28,13 @@ export const PART_OPTIONS = {
   closing: ['none', 'thank-you'],
   envelope: ['none', 'wax-seal'],
   motion: ['none', 'reveal'],
+  // Envelope details; they only show while `envelope` is on.
+  envelopeFlap: ['pointed', 'round', 'straight'],
+  envelopeMaterial: ['smooth', 'linen', 'kraft', 'velvet'],
+  envelopeLiner: ['none', 'dots', 'stripes', 'gingham'],
+  sealColor: ['gold', 'wine', 'silver', 'forest', 'navy'],
+  sealEmblem: ['monogram', 'heart', 'leaf', 'star'],
+  envelopeDecor: ['none', 'ribbon', 'sprig', 'stamp'],
 } as const
 export type PartSlot = keyof typeof PART_OPTIONS
 export type ThemeParts = { [S in PartSlot]: (typeof PART_OPTIONS)[S][number] }
@@ -39,6 +46,8 @@ export const TOKEN_VARS = {
   numeralColor: '--theme-numeral',
   ground: '--theme-ground',
   paper2: '--theme-paper-2',
+  // Read by EnvelopeIntro, which wraps the renderer; harmless on .page-renderer itself.
+  envelopeColor: '--env-wine',
 } as const
 export type TokenName = keyof typeof TOKEN_VARS
 export type ThemeTokens = Partial<Record<TokenName, string>>
@@ -51,7 +60,7 @@ export const NAME_TRACKING_OPTIONS = [
   { value: '.08em', label: '넓게' }, { value: '.14em', label: '아주 넓게' },
 ] as const
 export const TOKEN_KINDS: Record<TokenName, 'color' | 'tracking'> = {
-  ground: 'color', paper2: 'color', line: 'color', numeralColor: 'color', nameTracking: 'tracking',
+  ground: 'color', paper2: 'color', line: 'color', numeralColor: 'color', nameTracking: 'tracking', envelopeColor: 'color',
 }
 export interface ThemeLook { parts: ThemeParts; tokens: ThemeTokens; fonts: ThemeFonts }
 
@@ -155,10 +164,22 @@ export const PART_LABELS: { [S in PartSlot]: { label: string; options: Record<Th
   closing: { label: '마무리', options: { none: '없음', 'thank-you': 'Thank you 서명' } },
   envelope: { label: '봉투 인트로', options: { none: '사용 안 함', 'wax-seal': '실링 봉투' } },
   motion: { label: '스크롤 효과', options: { none: '없음', reveal: '천천히 나타나기' } },
+  envelopeFlap: { label: '덮개 모양', options: { pointed: '뾰족', round: '둥근', straight: '일자' } },
+  envelopeMaterial: { label: '소재', options: { smooth: '매끈한 종이', linen: '린넨', kraft: '크라프트', velvet: '벨벳' } },
+  envelopeLiner: { label: '안감', options: { none: '민무늬', dots: '물방울', stripes: '줄무늬', gingham: '깅엄 체크' } },
+  sealColor: { label: '실링 색', options: { gold: '골드', wine: '와인', silver: '실버', forest: '포레스트', navy: '네이비' } },
+  sealEmblem: { label: '실링 문양', options: { monogram: '이니셜', heart: '하트', leaf: '잎사귀', star: '별' } },
+  envelopeDecor: { label: '장식', options: { none: '없음', ribbon: '리본', sprig: '마른 꽃', stamp: '우표' } },
 }
 
 export const TOKEN_LABELS: Record<TokenName, string> = {
-  ground: '바깥 배경 (편지지)', paper2: '카드 면 색', line: '구분선 색', numeralColor: '날짜 숫자 색', nameTracking: '이름 자간',
+  ground: '바깥 배경 (편지지)', paper2: '카드 면 색', line: '구분선 색', numeralColor: '날짜 숫자 색', nameTracking: '이름 자간', envelopeColor: '봉투 색',
+}
+
+/** The envelope's colour: the couple's pick, else the accent colour as before. */
+export function envelopeColor(design: PageDesign, look: ThemeLook): string {
+  const value = look.tokens.envelopeColor
+  return value && /^#[0-9a-f]{6}$/i.test(value) ? value : design.accentColor
 }
 
 function mixHex(a: string, b: string, weightA: number): string {
@@ -174,6 +195,7 @@ export function tokenColorHint(name: TokenName, design: PageDesign): string {
   switch (name) {
     case 'ground': return mixHex(bg, '#5a4440', .85)
     case 'paper2': return mixHex(bg, '#6a4020', .93)
+    case 'envelopeColor': return design.accentColor
     case 'line': return raw?.includes('--invite-accent') ? mixHex(accent, bg, .16) : mixHex(ink, bg, .15)
     default: return raw?.includes('--invite-accent') ? accent : ink
   }

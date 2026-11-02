@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { FONT_FACES } from '../blocks/fonts.ts'
-import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, pageLook, partClassNames, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, themeFeatures, themeLook, TOKEN_VARS, tokenStyle, updateBlock, type PartSlot } from './model.ts'
+import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, envelopeColor, pageLook, partClassNames, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, themeFeatures, themeLook, TOKEN_VARS, tokenStyle, updateBlock, type PartSlot } from './model.ts'
 
 test('reordering normalizes order without losing design, hidden flags or future fields', () => {
   const original = { ...createEmptyPage(), design: DESIGN_PRESETS[2].design, futureSetting: { retained: true } }
@@ -67,13 +67,16 @@ test('theme look resolves parts to classes, tokens to custom properties and feat
   assert.deepEqual(tokenStyle({ numeralColor: 'red', line: '' }), { '--theme-numeral': 'red' })
 })
 
+const ENVELOPE_DETAIL_SLOTS: PartSlot[] = ['envelopeFlap', 'envelopeMaterial', 'envelopeLiner', 'sealColor', 'sealEmblem', 'envelopeDecor']
+
 test('invitation CSS styles parts, never theme names', () => {
   const css = readFileSync(new URL('../blocks/invitation.css', import.meta.url), 'utf8')
   assert.doesNotMatch(css, /invitation-theme-/)
   for (const slot of Object.keys(PART_OPTIONS) as PartSlot[]) {
     for (const value of PART_OPTIONS[slot].slice(1)) {
-      // envelope and motion are behaviour (EnvelopeIntro, reveal), not CSS.
-      if (slot === 'envelope' || slot === 'motion') continue
+      // envelope and motion are behaviour (EnvelopeIntro, reveal); the envelope details are
+      // drawn by envelope.css and envelopeArt.tsx (checked below).
+      if (slot === 'envelope' || slot === 'motion' || ENVELOPE_DETAIL_SLOTS.includes(slot)) continue
       const name = partClassNames({ ...themeLook('minimal').parts, [slot]: value })[0]
       assert.ok(css.includes('.' + name + ' ') || css.includes('.' + name + ','), `no CSS for ${name}`)
     }
@@ -140,4 +143,18 @@ test('page look layers overrides on the theme and survives design edits', () => 
   assert.equal('look' in getPageDesign({ blocks: [], design: { ...design, look: { parts: { sheet: '<x>' } } } }), false)
   // Seal keeps its own faces; a part set back to its template value is just the template.
   assert.equal(pageLook({ ...DESIGN_PRESETS.find(p => p.code === 'seal')!.design }).fonts.display, 'cormorant-garamond')
+})
+
+test('every envelope shape, material and liner has envelope CSS, and colour falls back to accent', () => {
+  const css = readFileSync(new URL('../blocks/envelope.css', import.meta.url), 'utf8')
+  for (const [slot, prefix] of [['envelopeFlap', 'env-shape-'], ['envelopeMaterial', 'env-material-'], ['envelopeLiner', 'env-liner-']] as const) {
+    for (const value of PART_OPTIONS[slot].slice(1)) assert.ok(css.includes('.' + prefix + value + ' '), `no CSS for ${prefix}${value}`)
+  }
+  const seal = DESIGN_PRESETS.find(p => p.code === 'seal')!.design
+  assert.equal(envelopeColor(seal, pageLook(seal)), seal.accentColor)
+  const custom = { ...seal, look: { tokens: { envelopeColor: '#123456' }, parts: { envelopeFlap: 'round', sealColor: 'navy' } } }
+  assert.equal(envelopeColor(custom, pageLook(custom)), '#123456')
+  assert.equal(pageLook(custom).parts.envelopeFlap, 'round')
+  // The seal template keeps the original envelope: every detail slot at its first option.
+  for (const slot of ENVELOPE_DETAIL_SLOTS) assert.equal(themeLook('seal').parts[slot], PART_OPTIONS[slot][0])
 })
