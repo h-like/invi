@@ -8,7 +8,7 @@ import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { LookEditor } from '../editor/LookEditor'
 import { canSaveBeforeLeave, createSaveBeforeLeave, leaveDialogMode, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation, type LeaveDialogMode } from '../editor/navigation'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
-import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, pageLook, patchContent, publishIssues, themeFeatures, updateBlock } from '../editor/model'
+import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, pageLook, patchContent, publishIssues, sealShowsInitials, updateBlock } from '../editor/model'
 import { BRIDE_RELATIONS, DEFAULT_RELATION, formatParentLine, GROOM_RELATIONS, MONOGRAM_MAX, normalizeMonogram, PARENT_FIELDS, parentLine, PARENT_NAME_MAX, RELATION_MAX, type HeroSide } from '../blocks/heroDetails'
 
 // Chosen by leaveDialogMode(); pending photos cannot be saved, so that copy offers only staying or discarding.
@@ -270,7 +270,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                   <datalist id={'relations-' + side}>{relations.map(r => <option key={r} value={r} />)}</datalist>
                 </div><p className="editor-section-hint">{preview ? '표시: ' + formatParentLine(preview) : '표시 안 함'}</p></div> })}
               </section>}
-              {hero && themeFeatures(pageLook(design)).envelopeIntro && <section className="editor-section"><h2>실링 이니셜 <small>봉투 인트로</small></h2><label>봉투 실링에 새길 영문 이니셜<MonogramInput value={text(hero, 'monogram')} onChange={monogram => changeContent(hero, { monogram })} /></label><p className="editor-section-hint" id="monogram-hint">영문·&·공백으로 최대 {MONOGRAM_MAX}자. 비워 두면 &로 표시됩니다. 하객 화면의 봉투에서 볼 수 있어요.</p></section>}
+              {hero && sealShowsInitials(pageLook(design)) && <section className="editor-section"><h2>실링 이니셜 <small>봉투 인트로</small></h2><label>봉투 실링에 새길 영문 이니셜<MonogramInput value={text(hero, 'monogram')} onChange={monogram => changeContent(hero, { monogram })} /></label><p className="editor-section-hint" id="monogram-hint">영문·&·공백으로 최대 {MONOGRAM_MAX}자. 비워 두면 &로 표시됩니다. 하객 화면의 봉투에서 볼 수 있어요.</p></section>}
               {hero && <section className="editor-section"><h2>초대의 글</h2><label>인사말<textarea rows={6} maxLength={1500} value={text(hero, 'greeting')} onChange={e => changeContent(hero, { greeting: e.target.value })} placeholder="소중한 분들께 전할 초대의 글을 써 주세요." /></label>
                 <p className="editor-section-hint">샘플 문구를 선택하면 현재 인사말을 바꿉니다.</p><div className="sample-buttons">{GREETING_SAMPLES.map(sample => <button type="button" key={sample.name} onClick={() => { if (!text(hero, 'greeting') || window.confirm('현재 인사말을 샘플 문구로 바꿀까요?')) changeContent(hero, { greeting: sample.text }) }}>{sample.name}</button>)}</div>
               </section>}

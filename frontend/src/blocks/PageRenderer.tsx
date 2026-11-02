@@ -22,8 +22,8 @@ interface Props {
 export function PageRenderer({ pageData, weddingDate, invitationId, interactive }: Props) {
   const design = getPageDesign(pageData)
   const look = pageLook(design)
-  const fontsKey = JSON.stringify(look.fonts)
-  useEffect(() => { void loadInvitationFont(design.fontFamily, JSON.parse(fontsKey)) }, [design.fontFamily, fontsKey])
+  const { serif, script, display } = look.fonts
+  useEffect(() => { void loadInvitationFont(design.fontFamily, { serif, script, display }) }, [design.fontFamily, serif, script, display])
   const accent = readableColor(design.accentColor, design.backgroundColor)
   const ink = readableColor('#36302b', design.backgroundColor)
   const soft = readableColor('#74695e', design.backgroundColor)

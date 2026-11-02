@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { FONT_FACES } from '../blocks/fonts.ts'
-import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, envelopeColor, pageLook, partClassNames, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, themeFeatures, themeLook, TOKEN_VARS, tokenStyle, updateBlock, type PartSlot } from './model.ts'
+import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, envelopeColor, pageLook, partClassNames, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, sealShowsInitials, themeFeatures, themeLook, tokenColorHint, TOKEN_VARS, tokenStyle, updateBlock, withPart, withToken, type PartSlot } from './model.ts'
 
 test('reordering normalizes order without losing design, hidden flags or future fields', () => {
   const original = { ...createEmptyPage(), design: DESIGN_PRESETS[2].design, futureSetting: { retained: true } }
@@ -157,4 +157,28 @@ test('every envelope shape, material and liner has envelope CSS, and colour fall
   assert.equal(pageLook(custom).parts.envelopeFlap, 'round')
   // The seal template keeps the original envelope: every detail slot at its first option.
   for (const slot of ENVELOPE_DETAIL_SLOTS) assert.equal(themeLook('seal').parts[slot], PART_OPTIONS[slot][0])
+})
+
+test('editor changes store only what differs from the template', () => {
+  const hanji = DESIGN_PRESETS.find(p => p.code === 'hanji')!.design
+  let design = { ...hanji, look: withPart(hanji, 'sheet', 'letter') }
+  assert.deepEqual(design.look, { parts: { sheet: 'letter' } })
+  // Choosing the template's own value drops the override instead of freezing it.
+  assert.equal(withPart(design, 'sheet', 'plain'), undefined)
+  assert.equal(withPart(hanji, 'heroMark', 'stamp'), undefined)
+  assert.equal(withToken(hanji, 'nameTracking', '.14em'), undefined)
+  design = { ...design, look: withToken(design, 'line', '#cc0000') }
+  assert.deepEqual(design.look, { parts: { sheet: 'letter' }, tokens: { line: '#cc0000' } })
+  // Dragging the picker back to its starting colour, or pressing 기본, is the template again.
+  assert.deepEqual(withToken(design, 'line', tokenColorHint('line', design).toUpperCase()), { parts: { sheet: 'letter' } })
+  assert.deepEqual(withToken(design, 'line'), { parts: { sheet: 'letter' } })
+  assert.equal(withToken(design, 'line', 'url(x)')?.tokens, undefined)
+})
+
+test('envelope colour is not a page CSS variable, and initials show only with the monogram emblem', () => {
+  assert.deepEqual(tokenStyle({ envelopeColor: '#123456', ground: '#010203' }), { '--theme-ground': '#010203' })
+  const seal = DESIGN_PRESETS.find(p => p.code === 'seal')!.design
+  assert.equal(sealShowsInitials(pageLook(seal)), true)
+  assert.equal(sealShowsInitials(pageLook({ ...seal, look: { parts: { sealEmblem: 'heart' } } })), false)
+  assert.equal(sealShowsInitials(themeLook('minimal')), false)
 })

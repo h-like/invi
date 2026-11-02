@@ -39,15 +39,16 @@ export const PART_OPTIONS = {
 export type PartSlot = keyof typeof PART_OPTIONS
 export type ThemeParts = { [S in PartSlot]: (typeof PART_OPTIONS)[S][number] }
 
-// Token name -> the CSS custom property it sets on .page-renderer.
+// Token name -> the CSS custom property it sets on .page-renderer; null for tokens read
+// elsewhere.
 export const TOKEN_VARS = {
   line: '--inv-line',
   nameTracking: '--theme-name-tracking',
   numeralColor: '--theme-numeral',
   ground: '--theme-ground',
   paper2: '--theme-paper-2',
-  // Read by EnvelopeIntro, which wraps the renderer; harmless on .page-renderer itself.
-  envelopeColor: '--env-wine',
+  // The envelope wraps the renderer and gets this through envelopeColor().
+  envelopeColor: null,
 } as const
 export type TokenName = keyof typeof TOKEN_VARS
 export type ThemeTokens = Partial<Record<TokenName, string>>
@@ -91,10 +92,12 @@ export function themeLook(theme: string): ThemeLook {
   return { parts, tokens: { ...preset?.tokens }, fonts: { ...preset?.fonts } }
 }
 
+export function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
+}
+
 function isTokenValue(name: TokenName, value: unknown): value is string {
-  return TOKEN_KINDS[name] === 'color'
-    ? typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
-    : NAME_TRACKING_OPTIONS.some(o => o.value === value)
+  return TOKEN_KINDS[name] === 'color' ? isHexColor(value) : NAME_TRACKING_OPTIONS.some(o => o.value === value)
 }
 
 /** Keeps only known slots/tokens with allowed values; undefined when nothing is left. */
@@ -119,16 +122,35 @@ export function sanitizeLook(raw: unknown): LookOverrides | undefined {
 // Parts that draw with the decorative faces; a theme that doesn't name one gets these.
 const FALLBACK_FACES = { script: 'pinyon-script', display: 'cormorant-garamond' } as const
 
-/** The theme's look with the couple's overrides applied. */
+/** The theme's look with the couple's overrides applied; `design` comes from getPageDesign, which sanitized them. */
 export function pageLook(design: PageDesign): ThemeLook {
   const base = themeLook(design.theme)
-  const look = sanitizeLook(design.look)
+  const look = design.look
   const parts = { ...base.parts, ...look?.parts } as ThemeParts
   const fonts = { ...base.fonts }
   const formal = parts.heroFrame === 'letter' || parts.typeset === 'formal'
   if ((formal || parts.closing === 'thank-you') && !fonts.script) fonts.script = FALLBACK_FACES.script
   if (formal && !fonts.display) fonts.display = FALLBACK_FACES.display
   return { parts, tokens: { ...base.tokens, ...look?.tokens }, fonts }
+}
+
+// Editor changes store only what differs from the template, so template updates still
+// reach the page and "template default" is one choice away.
+export function withPart(design: PageDesign, slot: PartSlot, value: string): LookOverrides | undefined {
+  const parts = { ...design.look?.parts }
+  if (value === themeLook(design.theme).parts[slot]) delete parts[slot]
+  else parts[slot] = value
+  return sanitizeLook({ ...design.look, parts })
+}
+
+/** Clears the token when unset or set back to what the template shows (its value or the picker's seed colour). */
+export function withToken(design: PageDesign, name: TokenName, value?: string): LookOverrides | undefined {
+  const tokens = { ...design.look?.tokens }
+  const isDefault = !value || value === themeLook(design.theme).tokens[name]
+    || (TOKEN_KINDS[name] === 'color' && value.toLowerCase() === tokenColorHint(name, design).toLowerCase())
+  if (isDefault) delete tokens[name]
+  else tokens[name] = value
+  return sanitizeLook({ ...design.look, tokens })
 }
 
 // Only non-default parts get a class; the defaults are the unprefixed base styles.
@@ -138,13 +160,21 @@ export function partClassNames(parts: ThemeParts): string[] {
 }
 
 export function tokenStyle(tokens: ThemeTokens): Record<string, string> {
-  return Object.fromEntries((Object.keys(TOKEN_VARS) as (keyof typeof TOKEN_VARS)[]).flatMap(name => tokens[name] ? [[TOKEN_VARS[name], tokens[name]]] : []))
+  return Object.fromEntries((Object.keys(TOKEN_VARS) as TokenName[]).flatMap(name => {
+    const cssVar = TOKEN_VARS[name], value = tokens[name]
+    return cssVar && value ? [[cssVar, value]] : []
+  }))
 }
 
 // Behaviour a theme adds on top of its CSS, derived from its parts.
 export interface ThemeFeatures { envelopeIntro: boolean; reveal: boolean }
 export function themeFeatures({ parts }: ThemeLook): ThemeFeatures {
   return { envelopeIntro: parts.envelope !== 'none', reveal: parts.motion === 'reveal' }
+}
+
+/** The initials are pressed into the wax only with the envelope on and the monogram emblem. */
+export function sealShowsInitials(look: ThemeLook): boolean {
+  return themeFeatures(look).envelopeIntro && look.parts.sealEmblem === 'monogram'
 }
 
 // Editor labels. `layouts` marks options that only show with that hero layout.
@@ -179,7 +209,7 @@ export const TOKEN_LABELS: Record<TokenName, string> = {
 /** The envelope's colour: the couple's pick, else the accent colour as before. */
 export function envelopeColor(design: PageDesign, look: ThemeLook): string {
   const value = look.tokens.envelopeColor
-  return value && /^#[0-9a-f]{6}$/i.test(value) ? value : design.accentColor
+  return isHexColor(value) ? value : design.accentColor
 }
 
 function mixHex(a: string, b: string, weightA: number): string {
@@ -190,14 +220,15 @@ function mixHex(a: string, b: string, weightA: number): string {
 /** A hex close to what a colour token shows when not overridden, to seed the picker. */
 export function tokenColorHint(name: TokenName, design: PageDesign): string {
   const raw = themeLook(design.theme).tokens[name]
-  if (raw && /^#[0-9a-f]{6}$/i.test(raw)) return raw
+  const fromAccent = !!raw?.includes('--invite-accent')
+  if (isHexColor(raw)) return raw
   const bg = design.backgroundColor, accent = readableColor(design.accentColor, bg), ink = readableColor('#36302b', bg)
   switch (name) {
     case 'ground': return mixHex(bg, '#5a4440', .85)
     case 'paper2': return mixHex(bg, '#6a4020', .93)
     case 'envelopeColor': return design.accentColor
-    case 'line': return raw?.includes('--invite-accent') ? mixHex(accent, bg, .16) : mixHex(ink, bg, .15)
-    default: return raw?.includes('--invite-accent') ? accent : ink
+    case 'line': return fromAccent ? mixHex(accent, bg, .16) : mixHex(ink, bg, .15)
+    default: return fromAccent ? accent : ink
   }
 }
 
@@ -217,7 +248,7 @@ export function isImageUrl(value: unknown): value is string {
 }
 
 function color(value: unknown, fallback: string): string {
-  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback
+  return isHexColor(value) ? value : fallback
 }
 
 export function getPageDesign(page: PageData | null): PageDesign {

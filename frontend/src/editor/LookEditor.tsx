@@ -1,7 +1,7 @@
 import type { HeroLayout, LookOverrides, PageDesign } from '../api/types'
 import { EnvelopePreview } from '../blocks/EnvelopePreview'
 import { ENVELOPE_SLOTS } from '../blocks/envelopeArt'
-import { envelopeColor, HERO_LAYOUTS, NAME_TRACKING_OPTIONS, PART_LABELS, PART_OPTIONS, pageLook, sanitizeLook, themeLook, TOKEN_KINDS, TOKEN_LABELS, tokenColorHint, type PartSlot, type TokenName } from './model'
+import { envelopeColor, HERO_LAYOUTS, NAME_TRACKING_OPTIONS, PART_LABELS, PART_OPTIONS, pageLook, themeLook, TOKEN_KINDS, TOKEN_LABELS, tokenColorHint, withPart, withToken, type PartSlot, type TokenName } from './model'
 
 const SLOT_GROUPS: { title: string; slots: PartSlot[] }[] = [
   { title: '종이와 첫 화면', slots: ['sheet', 'texture', 'heroFrame', 'heroMark', 'photoFrame'] },
@@ -13,25 +13,18 @@ const TOKEN_ORDER: TokenName[] = ['ground', 'paper2', 'line', 'numeralColor', 'n
 
 type SlotMeta = { label: string; options: Record<string, string>; layouts?: Record<string, HeroLayout> }
 
-// Fine-tuning on top of the chosen template: only what differs from it is stored, so
-// "template default" is always one choice away and template updates still reach the page.
+// Fine-tuning on top of the chosen template; withPart/withToken store only what differs.
 export function LookEditor({ design, monogram, onChange }: { design: PageDesign; monogram?: string; onChange: (look: LookOverrides | undefined) => void }) {
   const base = themeLook(design.theme)
-  const look = sanitizeLook(design.look) ?? {}
+  const look = design.look ?? {}
   const changed = Object.keys(look.parts ?? {}).length + Object.keys(look.tokens ?? {}).length
   const resolved = pageLook(design)
 
-  function setPart(slot: PartSlot, value: string) {
-    const parts = { ...look.parts }
-    if (value === base.parts[slot]) delete parts[slot]
-    else parts[slot] = value
-    onChange(sanitizeLook({ ...look, parts }))
-  }
   function partSelect(slot: PartSlot) {
     const meta = PART_LABELS[slot] as SlotMeta
     const overridden = look.parts?.[slot] !== undefined
     return <label key={slot} className={overridden ? 'look-changed' : undefined}>{meta.label}
-      <select value={look.parts?.[slot] ?? base.parts[slot]} onChange={e => setPart(slot, e.target.value)}>
+      <select value={look.parts?.[slot] ?? base.parts[slot]} onChange={e => onChange(withPart(design, slot, e.target.value))}>
         {(PART_OPTIONS[slot] as readonly string[]).map(value => {
           const only = meta.layouts?.[value]
           const hidden = only && only !== design.heroLayout ? ` (${HERO_LAYOUTS.find(l => l.value === only)?.label}에서 보임)` : ''
@@ -48,10 +41,7 @@ export function LookEditor({ design, monogram, onChange }: { design: PageDesign;
     </div>
   }
   function setToken(name: TokenName, value?: string) {
-    const tokens = { ...look.tokens }
-    if (value) tokens[name] = value
-    else delete tokens[name]
-    onChange(sanitizeLook({ ...look, tokens }))
+    onChange(withToken(design, name, value))
   }
 
   return (

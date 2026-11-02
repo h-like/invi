@@ -20,7 +20,7 @@ export function EnvelopePreview({ paper, wine, parts, monogram }: { paper: strin
           <EnvelopeFront decor={parts.envelopeDecor} />
           <div className="env-lay env-lay-wax"><EnvelopeWaxBottom flap={parts.envelopeFlap} svg={svg} /></div>
         </div>
-        <button type="button" className="secondary-button" aria-pressed={open} onClick={() => setOpen(o => !o)}>{open ? '닫힌 모습 보기' : '열린 모습 보기'}</button>
+        <button type="button" className="secondary-button" onClick={() => setOpen(o => !o)}>{open ? '닫힌 모습 보기' : '열린 모습 보기'}</button>
       </div>
     </EnvelopeIds>
   )
