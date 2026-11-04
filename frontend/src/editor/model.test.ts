@@ -138,6 +138,10 @@ test('page look layers overrides on the theme and survives design edits', () => 
   // A script part on a theme without a script face still gets a real script font.
   assert.equal(look.fonts.script, 'pinyon-script')
   assert.equal(look.fonts.display, undefined)
+  // The seal's initials need it too; an emblem in their place does not.
+  const minimal = DESIGN_PRESETS.find(p => p.code === 'minimal')!.design
+  assert.equal(pageLook({ ...minimal, look: { parts: { envelope: 'wax-seal' } } }).fonts.script, 'pinyon-script')
+  assert.equal(pageLook({ ...minimal, look: { parts: { envelope: 'wax-seal', sealEmblem: 'heart' } } }).fonts.script, undefined)
   // getPageDesign keeps a valid look (editor edits merge over it) and drops a broken one.
   assert.deepEqual(getPageDesign({ blocks: [], design }).look, design.look)
   assert.equal('look' in getPageDesign({ blocks: [], design: { ...design, look: { parts: { sheet: '<x>' } } } }), false)

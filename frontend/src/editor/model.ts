@@ -129,7 +129,9 @@ export function pageLook(design: PageDesign): ThemeLook {
   const parts = { ...base.parts, ...look?.parts } as ThemeParts
   const fonts = { ...base.fonts }
   const formal = parts.heroFrame === 'letter' || parts.typeset === 'formal'
-  if ((formal || parts.closing === 'thank-you') && !fonts.script) fonts.script = FALLBACK_FACES.script
+  // The seal's initials are drawn in the script face too.
+  const initials = parts.envelope !== 'none' && parts.sealEmblem === 'monogram'
+  if ((formal || parts.closing === 'thank-you' || initials) && !fonts.script) fonts.script = FALLBACK_FACES.script
   if (formal && !fonts.display) fonts.display = FALLBACK_FACES.display
   return { parts, tokens: { ...base.tokens, ...look?.tokens }, fonts }
 }
