@@ -92,6 +92,8 @@ html.envelope-locked, html.envelope-locked body { overflow: hidden; }
    these durations to time the end of the slide. */
 .envelope.is-animating .envelope-letter { transition: transform .85s cubic-bezier(.45, 0, .2, 1); }
 .envelope.is-animating .env-lay, .envelope.is-animating .env-mask { transition: transform .7s cubic-bezier(.5, 0, .3, 1) var(--env-lag, 0s); }
+/* After a drag (or a snap-back) everything is already moving, so start at speed and ease out. */
+.envelope.is-animating.is-from-drag .envelope-letter, .envelope.is-animating.is-from-drag .env-lay, .envelope.is-animating.is-from-drag .env-mask { transition-timing-function: cubic-bezier(.22, .8, .25, 1); }
 
 .envelope-tools {
   position: fixed; z-index: 20; display: flex; gap: 6px;
