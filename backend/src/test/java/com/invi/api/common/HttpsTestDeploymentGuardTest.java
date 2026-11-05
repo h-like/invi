@@ -249,8 +249,8 @@ class HttpsTestDeploymentGuardTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"create-drop", "create", "none", "validate", ""})
-    void requiresUpdateForFreshIsolatedTestDatabase(String value) {
+    @ValueSource(strings = {"create-drop", "create", "none", "update", ""})
+    void requiresValidateSoOnlyFlywayChangesTheSchema(String value) {
         rejects("spring.jpa.hibernate.ddl-auto", value);
     }
 
@@ -370,7 +370,7 @@ class HttpsTestDeploymentGuardTest {
                 .withProperty("server.forward-headers-strategy", "framework")
                 .withProperty("management.endpoints.web.exposure.include", "health")
                 .withProperty("management.endpoint.health.show-details", "never")
-                .withProperty("spring.jpa.hibernate.ddl-auto", "update")
+                .withProperty("spring.jpa.hibernate.ddl-auto", "validate")
                 .withProperty("invi.auth.registration-enabled", "false")
                 .withProperty("invi.auth.social-login-enabled", "false");
         environment.setActiveProfiles("https-test");

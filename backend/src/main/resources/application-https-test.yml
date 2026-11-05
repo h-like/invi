@@ -8,10 +8,13 @@ spring:
       maximum-pool-size: 3
       minimum-idle: 0
       connection-timeout: 30000
+  flyway:
+    # The Neon test DB was built by ddl-auto at 51e6e1b: mark it V1 once, then V2 catches it up.
+    baseline-on-migrate: true
   jpa:
     hibernate:
-      # Only a fresh, isolated test DB. Production schema migration is a separate decision.
-      ddl-auto: update
+      # Flyway migrates the test DB; HttpsTestDeploymentGuard refuses anything but validate.
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:

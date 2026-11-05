@@ -1,17 +1,20 @@
 spring:
   application:
     name: invi-api
-  sql:
-    init:
-      mode: always
-      separator: "^^^"
   datasource:
     url: jdbc:postgresql://localhost:5433/invi
     username: invi
     password: invi
+  flyway:
+    # Off by default, so Flyway refuses a non-empty database that has no history instead
+    # of assuming it already matches V1. Only https-test turns it on, for its one database
+    # that ddl-auto built before the switch (V2 catches it up).
+    baseline-on-migrate: false
+    baseline-version: 1
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway owns the schema (db/migration); Hibernate only checks it matches the entities.
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:

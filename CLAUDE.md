@@ -45,6 +45,8 @@ private JsonNode pageData;
 
 **소프트 삭제**: 방명록처럼 "삭제 권한은 있지만 감사 추적이 필요한" 데이터는 물리 삭제 대신 `deletedAt(Instant, nullable)` 컬럼을 둔다. 무료 만료로 인한 청첩장 자체 삭제(예식일+10일 배치, `InvitationExpiryService`)는 예외로, 실제 레코드를 지우고 R2 이미지는 `MediaLifecycle`로 넘겨 정리 작업이 지운다(개인정보 보관 최소화가 우선이라 소프트 삭제하지 않음). 기본 dry-run이며 규칙·설정은 `docs/INVITATION_EXPIRY.md` 참고.
 
+**스키마 변경 (Flyway)**: 스키마는 `backend/src/main/resources/db/migration`의 Flyway 마이그레이션만 바꾼다. Hibernate는 `ddl-auto: validate`로 엔티티와 일치하는지만 확인한다(https-test 배포 가드도 `validate`만 허용). 엔티티에 컬럼·제약을 추가하거나 바꾸면 같은 커밋에 다음 번호 `V{n}__설명.sql`을 추가한다. 이미 적용된 마이그레이션 파일은 수정하지 않는다. enum 값을 늘리면 그 컬럼의 CHECK 제약을 마이그레이션에서 다시 만든다. `V1__baseline.sql`은 전환 시점 Hibernate 스키마 그대로(제약 이름 포함)다. `baseline-on-migrate`는 기본으로 꺼져 있어서, 이력 없이 테이블만 있는 DB는 기동을 거절한다. https-test 프로필만 켜 둔다. 그 프로필의 Neon DB는 `51e6e1b` 때 `ddl-auto`로 만들어졌으므로 V1로 표시한 뒤 `V2`가 그 이후 바뀐 부분을 보충한다(`FlywayLegacyBaselineTest`). V2는 그보다 오래된 DB까지 맞춰 주지는 않는다.
+
 **테이블명 예외**: `user`는 PostgreSQL 예약어라 엔티티명을 `Member`로 한다(기획서/아키텍처 문서의 "User"와 동일 개념).
 
 ## page_data 블록 스키마
@@ -80,7 +82,7 @@ private JsonNode pageData;
 | `Member` | `member` | provider(KAKAO/GOOGLE), providerId, email, name | providerId+provider로 유니크 |
 | `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt | slug는 서브도메인과 1:1 |
 | `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋 원본은 `frontend/src/editor/themes.json` 하나 — 에디터 `DESIGN_PRESETS`가 import하고, `backend/build.gradle`이 `presets/themes.json`으로 복사해 `TemplateSeeder`가 읽는다(Dockerfile도 이 파일을 복사). `code` = `category` = `design.theme`. 시더는 `pageData.design`을 직접 저장한다. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
-| `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal은 nullable(이전 응답·이전 클라이언트 호환), 불참이면 meal은 저장하지 않음. 값 종류를 늘리면 Hibernate가 기존 enum CHECK 제약을 갱신하지 않으므로 `schema.sql`에서 제약을 다시 만든다 |
+| `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal은 nullable(이전 응답·이전 클라이언트 호환), 불참이면 meal은 저장하지 않음. 값 종류를 늘리면 새 Flyway 마이그레이션에서 CHECK 제약을 다시 만든다 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
 
 ## 인증 (Kakao / Google 로그인)
