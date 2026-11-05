@@ -185,7 +185,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   // Saved immediately, apart from the draft: free invitations are deleted 10 days after this date.
   async function saveWeddingDate() {
-    if (!invitation || dateSaving || !dateInput || dateInput === invitation.weddingDate) return
+    if (!invitation || dateSaving || loadingLatest || !dateInput || dateInput === invitation.weddingDate) return
     setDateSaving(true)
     setDateStatus('')
     try {
@@ -205,7 +205,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }
 
   async function persist(publish: boolean): Promise<boolean> {
-    if (!invitation || !draft || persistence.isRunning()) return false
+    // While the latest copy loads, a save would go out from the old one and its edits be replaced.
+    if (!invitation || !draft || loadingLatest || persistence.isRunning()) return false
     if (hasPendingPhotos()) { setError('새 사진의 업로드를 완료하거나 실패한 사진을 재시도·삭제한 뒤 저장·공개해 주세요.'); return false }
     setError(null)
     setFailedAction(null)
@@ -277,11 +278,11 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
         <div className="builder-header-actions">
           <span className="save-state" role="status">{busy ? '저장 중...' : photoPending ? '새 사진 처리 · 확인 필요' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
           <button type="button" className="secondary-button" disabled={photoPending} onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>
-          <button type="button" className="secondary-button" disabled={busy || dateSaving || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
-          <button type="button" className="publish-button" disabled={busy || dateSaving || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
+          <button type="button" className="secondary-button" disabled={busy || loadingLatest || dateSaving || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
+          <button type="button" className="publish-button" disabled={busy || loadingLatest || dateSaving || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
-      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
+      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
       <div className="builder-layout">
         <aside className="builder-panel" aria-label="청첩장 편집">
           <div className="builder-intro"><p className="builder-eyebrow">YOUR WEDDING, YOUR MOOD</p><h1>우리다운 초대장</h1><p>하나씩 채우면, 오른쪽에서 바로 완성돼요.</p></div>
@@ -289,7 +290,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           <nav className="builder-tabs" aria-label="편집 설정">
             {([['content', '내용'], ['design', '디자인'], ['sections', '섹션 구성']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={panel === value} disabled={photoPending} onClick={() => setPanel(value)}>{label}</button>)}
           </nav>
-          <fieldset className="builder-fields" disabled={busy}>
+          <fieldset className="builder-fields" disabled={busy || loadingLatest}>
             <legend className="sr-only">청첩장 편집 항목</legend>
             {panel === 'content' && <>
               {hero && <section className="editor-section"><h2>두 사람의 이름</h2><div className="form-columns">

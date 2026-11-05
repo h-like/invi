@@ -281,3 +281,65 @@ test('a running page save turns a wedding-date save away, and a failed date save
   assert.deepEqual(await controller.saveWeddingDate(invitation(), '2027-06-01'), { kind: 'failed', detail: '예식일 서버 오류 (500)' })
   assert.equal(controller.isRunning(), false)
 })
+
+const staleError = () => Object.assign(new Error('다른 곳에서 먼저 저장된 내용이 있어 저장하지 않았습니다.'), { status: 409, code: STALE_VERSION })
+/** The same page as the server returns it: jsonb reorders object keys. */
+function reordered(page: PageData): PageData {
+  const [hero] = page.blocks
+  return { blocks: [{ visible: hero.visible, type: hero.type, style: hero.style, order: hero.order, id: hero.id, content: { brideName: hero.content.brideName, groomName: hero.content.groomName } }], futureSetting: page.futureSetting } as PageData
+}
+
+test('a save that landed without a response is saved on top of, not reported as stale', async () => {
+  const first = draft('처음 이름'), edited = draft('고친 이름')
+  const sent: number[] = []
+  let calls = 0
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async (_id, page, version) => {
+      sent.push(version)
+      calls++
+      if (calls === 1) throw new TypeError('Failed to fetch')
+      if (version === 3) throw staleError()
+      return { ...invitation(page), version: version + 1 }
+    },
+    getInvitation: async () => ({ ...invitation(reordered(first)), version: 4 }),
+  }))
+  assert.equal((await controller.run(invitation(), first, false)).kind, 'save-failed')
+  const retry = await controller.run(invitation(), edited, false)
+  assert.deepEqual(sent, [3, 3, 4])
+  assert.equal(retry.kind === 'completed' && retry.invitation.version, 5)
+})
+
+test('after a lost save, a copy someone else changed is still stale', async () => {
+  let calls = 0
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async () => { calls++; if (calls === 1) throw new TypeError('Failed to fetch'); throw staleError() },
+    getInvitation: async () => ({ ...invitation(draft('다른 기기')), version: 4 }),
+  }))
+  await controller.run(invitation(), draft('처음 이름'), false)
+  assert.equal((await controller.run(invitation(), draft('처음 이름'), false)).kind, 'stale')
+  assert.equal(calls, 2)
+})
+
+test('a publish that landed while offline is picked up by the retry instead of a stale error', async () => {
+  const saved = { ...invitation(), version: 4 }
+  let reads = 0
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async (_id, page, version) => {
+      if (version === 4) throw staleError()
+      // Saving on top of the landed publish keeps the page published.
+      return { ...invitation(page), status: version === 5 ? 'PUBLISHED' : 'DRAFT', version: version + 1 }
+    },
+    publishInvitation: async () => { throw new TypeError('Failed to fetch') },
+    getInvitation: async () => {
+      reads++
+      if (reads === 1) throw new TypeError('Failed to fetch')
+      return { ...saved, status: 'PUBLISHED', version: 5 }
+    },
+  }))
+  const first = await controller.run({ ...invitation(), version: 3 }, draft(), true)
+  assert.equal(first.kind, 'publish-failed')
+  // The caller adopts `saved` (version 4); the publish already took it to 5.
+  const retry = await controller.run(saved, draft(), true)
+  assert.equal(retry.kind, 'completed')
+  if (retry.kind === 'completed') { assert.equal(retry.shared, true); assert.equal(retry.invitation.version, 6) }
+})
