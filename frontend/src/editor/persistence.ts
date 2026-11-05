@@ -3,6 +3,8 @@ import type { Invitation, PageData } from '../api/types.ts'
 export interface PersistenceClient {
   updatePageData: (id: string, pageData: PageData, version: number) => Promise<Invitation>
   publishInvitation: (id: string) => Promise<Invitation>
+  updateWeddingDate: (id: string, weddingDate: string) => Promise<Invitation>
+  getInvitation: (id: string) => Promise<Invitation>
 }
 
 export type PersistenceOutcome =
@@ -12,6 +14,11 @@ export type PersistenceOutcome =
   | { kind: 'stale'; detail: string }
   | { kind: 'publish-failed'; saved: Invitation; detail: string }
   | { kind: 'completed'; invitation: Invitation; shared: boolean }
+
+export type DateSaveOutcome =
+  | { kind: 'busy' }
+  | { kind: 'failed'; detail: string }
+  | { kind: 'saved'; invitation: Invitation }
 
 /** Error code the API sends with a 409 when the saved copy is newer than the editor's. */
 export const STALE_VERSION = 'STALE_VERSION'
@@ -32,6 +39,10 @@ function errorDetail(error: unknown, fallback: string): string {
  * A failed save never calls publish. A failed publish returns the successfully
  * saved invitation so the UI can distinguish the partial success. Retries always
  * save the current draft again; they do not publish an earlier cached draft.
+ *
+ * Wedding-date saves share the same guard. Every write bumps the stored version, so two
+ * writes from this tab in flight at once would make the second look stale (or leave the
+ * screen on an older version); one at a time, each response's version is this tab's own.
  */
 export function createInvitationPersistence(client: PersistenceClient) {
   let running = false
@@ -61,11 +72,40 @@ export function createInvitationPersistence(client: PersistenceClient) {
           }
           return { kind: 'completed', invitation: published, shared: true }
         } catch (error) {
+          const confirmed = await publishedAnyway(saved)
+          if (confirmed) return { kind: 'completed', invitation: confirmed, shared: true }
           return { kind: 'publish-failed', saved, detail: errorDetail(error, '공개 요청 결과를 확인하지 못했습니다.') }
         }
       } finally {
         running = false
       }
     },
+
+    async saveWeddingDate(invitation: Invitation, weddingDate: string): Promise<DateSaveOutcome> {
+      if (running) return { kind: 'busy' }
+      running = true
+      try {
+        return { kind: 'saved', invitation: await client.updateWeddingDate(invitation.id, weddingDate) }
+      } catch (error) {
+        return { kind: 'failed', detail: errorDetail(error, '예식일을 변경하지 못했습니다.') }
+      } finally {
+        running = false
+      }
+    },
+  }
+
+  /**
+   * A publish whose response was lost may still have been applied, bumping the version past
+   * `saved`; keeping `saved` would make the retry look stale. Exactly one step past `saved`
+   * and PUBLISHED can only be that publish (any other save or a save-and-publish elsewhere
+   * moves it further), so only then is the stored copy adopted. Anything else stays a failure.
+   */
+  async function publishedAnyway(saved: Invitation): Promise<Invitation | null> {
+    try {
+      const current = await client.getInvitation(saved.id)
+      return current.status === 'PUBLISHED' && current.version === saved.version + 1 ? current : null
+    } catch {
+      return null
+    }
   }
 }

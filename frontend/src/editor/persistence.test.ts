@@ -12,6 +12,11 @@ function draft(name = '검증 신랑'): PageData {
 function invitation(pageData = draft()): Invitation {
   return { id: 'test-id', slug: 'test-invitation', templateId: 'test-template', weddingDate: '2027-05-22', status: 'DRAFT', plan: 'FREE', pageData, langVariants: null, version: 3 }
 }
+/** Methods a test doesn't care about fail loudly, so an unexpected call shows up as a failure. */
+function stub(client: Partial<PersistenceClient>): PersistenceClient {
+  const unexpected = async (): Promise<Invitation> => { throw new Error('unexpected call') }
+  return { updatePageData: unexpected, publishInvitation: unexpected, updateWeddingDate: unexpected, getInvitation: unexpected, ...client }
+}
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -23,10 +28,10 @@ test('save failure leaves the draft untouched and never calls publish', async ()
   const page = draft()
   const original = JSON.stringify(page)
   let publishCalls = 0
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => { throw new Error('저장 서버 오류 (503)') },
     publishInvitation: async () => { publishCalls++; return invitation() },
-  })
+  }))
   const result = await controller.run(invitation(), page, false)
   assert.deepEqual(result, { kind: 'save-failed', detail: '저장 서버 오류 (503)' })
   assert.equal(JSON.stringify(page), original)
@@ -36,10 +41,10 @@ test('save failure leaves the draft untouched and never calls publish', async ()
 
 test('save failure while requesting publish stops the chain before publish', async () => {
   let publishCalls = 0
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => { throw new TypeError('Failed to fetch') },
     publishInvitation: async () => { publishCalls++; return invitation() },
-  })
+  }))
   assert.equal((await controller.run(invitation(), draft(), true)).kind, 'save-failed')
   assert.equal(publishCalls, 0)
   assert.equal(controller.isRunning(), false)
@@ -49,10 +54,10 @@ test('publish failure returns saved data instead of reporting the whole save as 
   const page = draft()
   const saved = invitation(page)
   const events: string[] = []
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => { events.push('save'); return saved },
     publishInvitation: async () => { events.push('publish'); throw new Error('공개 서버 오류 (500)') },
-  })
+  }))
   const result = await controller.run(invitation(), page, true)
   assert.deepEqual(events, ['save', 'publish'])
   assert.deepEqual(result, { kind: 'publish-failed', saved, detail: '공개 서버 오류 (500)' })
@@ -62,10 +67,10 @@ test('publish failure returns saved data instead of reporting the whole save as 
 test('a delayed save blocks same-tick repeated and mixed save/publish requests', async () => {
   const pending = deferred<Invitation>()
   let saves = 0, publishes = 0
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => { saves++; return pending.promise },
     publishInvitation: async () => { publishes++; return { ...invitation(), status: 'PUBLISHED' } },
-  })
+  }))
   const first = controller.run(invitation(), draft(), true)
   assert.equal(controller.isRunning(), true)
   assert.deepEqual(await controller.run(invitation(), draft(), true), { kind: 'busy' })
@@ -81,10 +86,10 @@ test('a delayed save blocks same-tick repeated and mixed save/publish requests',
 test('the lock remains held until delayed publish finishes, not merely until save finishes', async () => {
   const pending = deferred<Invitation>()
   let saves = 0, publishes = 0
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => { saves++; return invitation() },
     publishInvitation: async () => { publishes++; return pending.promise },
-  })
+  }))
   const first = controller.run(invitation(), draft(), true)
   await Promise.resolve()
   assert.equal(publishes, 1)
@@ -100,14 +105,14 @@ test('the lock remains held until delayed publish finishes, not merely until sav
 test('save failure unlocks retry and retry submits the latest edited draft', async () => {
   const pages: PageData[] = []
   let publishCalls = 0
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async (_id, page) => {
       pages.push(page)
       if (pages.length === 1) throw new Error('temporary error')
       return invitation(page)
     },
     publishInvitation: async () => { publishCalls++; return { ...invitation(pages[1]), status: 'PUBLISHED' } },
-  })
+  }))
   const initial = draft('첫 입력')
   const edited = draft('실패 후 수정')
   assert.equal((await controller.run(invitation(), initial, true)).kind, 'save-failed')
@@ -130,6 +135,8 @@ test('retry after publish failure saves new edits before attempting publish agai
       if (++publishCalls === 1) throw new Error('temporary publish failure')
       return { ...latest, status: 'PUBLISHED' }
     },
+    updateWeddingDate: async () => latest,
+    getInvitation: async () => latest,
   }
   const controller = createInvitationPersistence(client)
   const first = await controller.run(invitation(), draft('원본'), true)
@@ -143,10 +150,10 @@ test('retry after publish failure saves new edits before attempting publish agai
 test('already-published saved responses skip a duplicate publish call', async () => {
   let publishCalls = 0
   const saved = { ...invitation(), status: 'PUBLISHED' as const }
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => saved,
     publishInvitation: async () => { publishCalls++; return saved },
-  })
+  }))
   assert.deepEqual(await controller.run(invitation(), draft(), true), { kind: 'completed', invitation: saved, shared: true })
   assert.equal(publishCalls, 0)
 })
@@ -155,40 +162,40 @@ test('save-only success preserves response data and does not open the sharing fl
   const page = draft()
   const saved = invitation(page)
   let publishCalls = 0
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async (id, received) => { assert.equal(id, saved.id); assert.equal(received, page); return saved },
     publishInvitation: async () => { publishCalls++; return saved },
-  })
+  }))
   assert.deepEqual(await controller.run(saved, page, false), { kind: 'completed', invitation: saved, shared: false })
   assert.deepEqual(page.futureSetting, { keep: true })
   assert.equal(publishCalls, 0)
 })
 
 test('non-Error rejections receive a useful fallback and release the lock', async () => {
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => { throw null },
     publishInvitation: async () => invitation(),
-  })
+  }))
   assert.deepEqual(await controller.run(invitation(), draft(), true), { kind: 'save-failed', detail: '서버와 연결하지 못했습니다.' })
   assert.equal(controller.isRunning(), false)
 })
 
 test('an HTTP-success response without PUBLISHED status must not trigger sharing', async () => {
   const saved = invitation()
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => saved,
     publishInvitation: async () => saved,
-  })
+  }))
   assert.deepEqual(await controller.run(saved, draft(), true), { kind: 'publish-failed', saved, detail: '서버에서 공개 완료 상태를 확인하지 못했습니다.' })
   assert.equal(controller.isRunning(), false)
 })
 
 test('saves send the version the editor last received', async () => {
   const versions: number[] = []
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async (_id, page, version) => { versions.push(version); return { ...invitation(page), version: version + 1 } },
     publishInvitation: async () => invitation(),
-  })
+  }))
   const result = await controller.run(invitation(), draft(), false)
   assert.deepEqual(versions, [3])
   assert.equal(result.kind === 'completed' && result.invitation.version, 4)
@@ -199,10 +206,10 @@ test('a newer copy saved elsewhere is reported as stale, keeps the draft and nev
   const original = JSON.stringify(page)
   let publishCalls = 0
   const conflict = Object.assign(new Error('다른 곳에서 먼저 저장된 내용이 있어 저장하지 않았습니다.'), { status: 409, code: STALE_VERSION })
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => { throw conflict },
     publishInvitation: async () => { publishCalls++; return invitation() },
-  })
+  }))
   const result = await controller.run(invitation(), page, true)
   assert.deepEqual(result, { kind: 'stale', detail: '다른 곳에서 먼저 저장된 내용이 있어 저장하지 않았습니다.' })
   assert.equal(JSON.stringify(page), original)
@@ -212,9 +219,65 @@ test('a newer copy saved elsewhere is reported as stale, keeps the draft and nev
 
 test('other 409s, such as photos being cleaned up, stay ordinary save failures', async () => {
   const fenced = Object.assign(new Error('정리 중이거나 삭제된 사진이 포함되어 있습니다.'), { status: 409 })
-  const controller = createInvitationPersistence({
+  const controller = createInvitationPersistence(stub({
     updatePageData: async () => { throw fenced },
     publishInvitation: async () => invitation(),
-  })
+  }))
   assert.equal((await controller.run(invitation(), draft(), false)).kind, 'save-failed')
+})
+
+test('a publish applied despite a lost response is confirmed instead of left for a stale retry', async () => {
+  const saved = { ...invitation(), version: 4 }
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async () => saved,
+    publishInvitation: async () => { throw new TypeError('Failed to fetch') },
+    getInvitation: async () => ({ ...saved, status: 'PUBLISHED', version: 5 }),
+  }))
+  const result = await controller.run(invitation(), draft(), true)
+  assert.equal(result.kind, 'completed')
+  if (result.kind === 'completed') { assert.equal(result.invitation.version, 5); assert.equal(result.shared, true) }
+})
+
+test('a publish that did not apply, or a page changed elsewhere, stays a publish failure', async () => {
+  const saved = { ...invitation(), version: 4 }
+  for (const current of [saved, { ...saved, status: 'PUBLISHED' as const, version: 6 }]) {
+    const controller = createInvitationPersistence(stub({
+      updatePageData: async () => saved,
+      publishInvitation: async () => { throw new Error('공개 서버 오류 (500)') },
+      getInvitation: async () => current,
+    }))
+    assert.deepEqual(await controller.run(invitation(), draft(), true), { kind: 'publish-failed', saved, detail: '공개 서버 오류 (500)' })
+  }
+})
+
+test('a wedding-date save and a page save never run at the same time', async () => {
+  const pending = deferred<Invitation>()
+  let saves = 0
+  const controller = createInvitationPersistence(stub({
+    updateWeddingDate: async () => pending.promise,
+    updatePageData: async () => { saves++; return invitation() },
+  }))
+  const date = controller.saveWeddingDate(invitation(), '2027-06-01')
+  assert.equal(controller.isRunning(), true)
+  assert.deepEqual(await controller.run(invitation(), draft(), false), { kind: 'busy' })
+  assert.deepEqual(await controller.saveWeddingDate(invitation(), '2027-06-02'), { kind: 'busy' })
+  assert.equal(saves, 0)
+  pending.resolve({ ...invitation(), weddingDate: '2027-06-01', version: 4 })
+  const result = await date
+  assert.equal(result.kind === 'saved' && result.invitation.version, 4)
+  assert.equal(controller.isRunning(), false)
+})
+
+test('a running page save turns a wedding-date save away, and a failed date save frees the guard', async () => {
+  const pending = deferred<Invitation>()
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async () => pending.promise,
+    updateWeddingDate: async () => { throw new Error('예식일 서버 오류 (500)') },
+  }))
+  const save = controller.run(invitation(), draft(), false)
+  assert.deepEqual(await controller.saveWeddingDate(invitation(), '2027-06-01'), { kind: 'busy' })
+  pending.resolve(invitation())
+  await save
+  assert.deepEqual(await controller.saveWeddingDate(invitation(), '2027-06-01'), { kind: 'failed', detail: '예식일 서버 오류 (500)' })
+  assert.equal(controller.isRunning(), false)
 })

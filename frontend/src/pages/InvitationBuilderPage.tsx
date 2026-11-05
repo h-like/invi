@@ -162,6 +162,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   /** Replaces this screen's copy with the stored one; asks first because unsaved edits are lost. */
   async function loadLatest() {
     if (!id || loadingLatest || persistence.isRunning()) return
+    // An upload finishing after the swap would patch the new copy with the old gallery.
+    if (hasPendingPhotos()) { setError('사진 업로드를 마치거나 취소한 뒤 최신 내용을 불러와 주세요.'); return }
     if (!window.confirm('최신 내용을 불러오면 이 화면에서 저장하지 않은 변경 사항은 사라집니다. 불러올까요?')) return
     setLoadingLatest(true)
     try {
@@ -187,13 +189,16 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setDateSaving(true)
     setDateStatus('')
     try {
-      const saved = await api.updateWeddingDate(invitation.id, dateInput)
-      // The date save bumps the version too. Adopt it only when nothing else was saved in
-      // between; otherwise keep the old one so the next page save is still caught as stale.
+      // Shares the page save's guard, so a page save cannot run while this one is in flight.
+      const result = await persistence.saveWeddingDate(invitation, dateInput)
+      if (result.kind === 'busy') return
+      if (result.kind === 'failed') { setDateStatus(result.detail); return }
+      const saved = result.invitation
+      // No other write from this tab overlaps, so a gap of exactly one is this save alone.
+      // Anything more means another tab or device saved: keep the old version so the next
+      // page save is still caught as stale.
       setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate, version: saved.version === prev.version + 1 ? saved.version : prev.version } : prev)
       setDateStatus('예식일을 변경했습니다.')
-    } catch (err) {
-      setDateStatus(err instanceof Error ? err.message : '예식일을 변경하지 못했습니다.')
     } finally {
       setDateSaving(false)
     }
@@ -272,11 +277,11 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
         <div className="builder-header-actions">
           <span className="save-state" role="status">{busy ? '저장 중...' : photoPending ? '새 사진 처리 · 확인 필요' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
           <button type="button" className="secondary-button" disabled={photoPending} onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>
-          <button type="button" className="secondary-button" disabled={busy || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
-          <button type="button" className="publish-button" disabled={busy || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
+          <button type="button" className="secondary-button" disabled={busy || dateSaving || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
+          <button type="button" className="publish-button" disabled={busy || dateSaving || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
-      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
+      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
       <div className="builder-layout">
         <aside className="builder-panel" aria-label="청첩장 편집">
           <div className="builder-intro"><p className="builder-eyebrow">YOUR WEDDING, YOUR MOOD</p><h1>우리다운 초대장</h1><p>하나씩 채우면, 오른쪽에서 바로 완성돼요.</p></div>
