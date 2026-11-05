@@ -4,10 +4,10 @@ import './envelope.css'
 
 // A still envelope for the editor: the real intro only runs on the guest page, so this
 // shows the chosen flap, material, liner, seal and decoration, closed or opened.
-export function EnvelopePreview({ paper, wine, parts, monogram }: { paper: string; wine: string; parts: EnvelopeParts; monogram?: string }) {
+export function EnvelopePreview({ paper, wine, parts, monogram, script }: { paper: string; wine: string; parts: EnvelopeParts; monogram?: string; script: string }) {
   const [open, setOpen] = useState(false)
   const svg = useRef<SVGSVGElement>(null)
-  const seal = useSealText(monogram, svg, true)
+  const seal = useSealText(monogram, svg, parts.sealEmblem === 'monogram', script)
   const style = { '--env-paper': paper, '--env-wine': wine, ...waxVars(parts) } as CSSProperties
   return (
     <EnvelopeIds>

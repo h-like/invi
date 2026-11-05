@@ -1,6 +1,7 @@
 import type { HeroLayout, LookOverrides, PageDesign } from '../api/types'
 import { EnvelopePreview } from '../blocks/EnvelopePreview'
-import { envelopeColor, HERO_LAYOUTS, NAME_TRACKING_OPTIONS, PART_GROUPS, PART_LABELS, PART_OPTIONS, pageLook, slotsIn, themeLook, TOKEN_KINDS, TOKEN_LABELS, tokenColorHint, withPart, withToken, type PartSlot, type TokenName } from './model'
+import { scriptFamily } from '../blocks/fonts'
+import { envelopeColor, HERO_LAYOUTS, partIsActive, NAME_TRACKING_OPTIONS, PART_GROUPS, PART_LABELS, PART_OPTIONS, pageLook, slotsIn, themeLook, TOKEN_KINDS, TOKEN_LABELS, tokenColorHint, withPart, withToken, type PartSlot, type TokenName } from './model'
 
 // The envelope group has its own section with a preview, below.
 const SLOT_GROUPS = PART_GROUPS.filter(group => group.id !== 'envelope').map(group => ({ title: group.title, slots: slotsIn(group.id) }))
@@ -14,8 +15,11 @@ type SlotMeta = { label: string; options: Record<string, string>; layouts?: Reco
 export function LookEditor({ design, monogram, onChange }: { design: PageDesign; monogram?: string; onChange: (look: LookOverrides | undefined) => void }) {
   const base = themeLook(design.theme)
   const look = design.look ?? {}
-  const changed = Object.keys(look.parts ?? {}).length + Object.keys(look.tokens ?? {}).length
   const resolved = pageLook(design)
+  // Count only what shows: envelope details saved before the envelope was turned off stay
+  // hidden (withPart drops them on the next part change).
+  const changed = (Object.keys(look.parts ?? {}) as PartSlot[]).filter(slot => partIsActive(resolved.parts, slot)).length
+    + Object.keys(look.tokens ?? {}).length
 
   function partSelect(slot: PartSlot) {
     const meta = PART_LABELS[slot] as SlotMeta
@@ -51,7 +55,7 @@ export function LookEditor({ design, monogram, onChange }: { design: PageDesign;
       </div>)}
       {resolved.parts.envelope !== 'none' && <div>
         <p className="editor-section-sub">{ENVELOPE_GROUP.title}</p>
-        <EnvelopePreview paper={design.backgroundColor} wine={envelopeColor(design, resolved)} parts={resolved.parts} monogram={monogram} />
+        <EnvelopePreview paper={design.backgroundColor} wine={envelopeColor(design, resolved)} parts={resolved.parts} monogram={monogram} script={scriptFamily(resolved.fonts)} />
         <div className="form-columns">{slotsIn(ENVELOPE_GROUP.id).map(partSelect)}{colorInput('envelopeColor')}</div>
       </div>}
       <p className="editor-section-sub">색과 간격</p>

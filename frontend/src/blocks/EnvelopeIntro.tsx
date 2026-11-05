@@ -26,12 +26,14 @@ interface Props {
   parts: EnvelopeParts
   /** Couple's initials pressed into the wax; an ampersand when empty. */
   monogram?: string
+  /** The page's script face (fonts.scriptFamily) the initials are drawn in. */
+  script: string
   /** Remembers per tab that the guest already opened this invitation, so a refresh skips the intro. */
   storageKey: string
   children: ReactNode
 }
 
-export function EnvelopeIntro({ paper, wine, parts, monogram, storageKey, children }: Props) {
+export function EnvelopeIntro({ paper, wine, parts, monogram, script, storageKey, children }: Props) {
   const [read, setRead] = useState(() => readOnce(storageKey))
   const [muted, setMuted] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -48,7 +50,7 @@ export function EnvelopeIntro({ paper, wine, parts, monogram, storageKey, childr
   const skip = useRef<() => void>(() => {})
   const justOpened = useRef(false)
   const sealSvg = useRef<SVGSVGElement>(null)
-  const sealText = useSealText(monogram, sealSvg, !read)
+  const sealText = useSealText(monogram, sealSvg, !read && parts.sealEmblem === 'monogram', script)
 
   useEffect(() => { sound.current.setMuted(muted) }, [muted])
 
