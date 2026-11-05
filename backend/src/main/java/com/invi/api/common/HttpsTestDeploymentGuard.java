@@ -49,7 +49,7 @@ public class HttpsTestDeploymentGuard {
         exact(environment, "server.forward-headers-strategy", "framework");
         exact(environment, "management.endpoints.web.exposure.include", "health");
         exact(environment, "management.endpoint.health.show-details", "never");
-        exact(environment, "spring.jpa.hibernate.ddl-auto", "update");
+        exact(environment, "spring.jpa.hibernate.ddl-auto", "validate");
         exact(environment, "invi.auth.registration-enabled", "false");
         exact(environment, "invi.auth.social-login-enabled", "false");
     }

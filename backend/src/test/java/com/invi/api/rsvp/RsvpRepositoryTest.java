@@ -20,12 +20,11 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 
 /**
- * Runs against the real PostgreSQL (like the context test; CI provides it) with the app's
- * own ddl-auto=update. It checks that side/meal are stored as enum names and that rows
- * without them load as null; it does not prove the upgrade of an older table, since CI
- * starts from an empty database. Each test rolls back.
+ * Runs against the real PostgreSQL (like the context test; CI provides it) with the schema
+ * the Flyway migrations build. It checks that side/meal are stored as enum names and that
+ * rows without them load as null. Each test rolls back.
  */
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=update")
+@DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(JpaAuditingConfig.class)
 class RsvpRepositoryTest {
