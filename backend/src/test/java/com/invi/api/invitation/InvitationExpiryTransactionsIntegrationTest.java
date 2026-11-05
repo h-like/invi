@@ -76,11 +76,11 @@ class InvitationExpiryTransactionsIntegrationTest {
         entityManager.clear();
 
         assertThat(invitations.findById(expired.getId())).isEmpty();
-        assertThat(rsvps.findByInvitationId(expired.getId())).isEmpty();
+        assertThat(rsvps.findByInvitationIdOrderByCreatedAtDescIdDesc(expired.getId())).isEmpty();
         assertThat(mediaAssets.findR2KeysByInvitationId(expired.getId())).isEmpty();
         assertThat(guestbook.findAll()).noneMatch(entry -> entry.getInvitation().getId().equals(expired.getId()));
         assertThat(invitations.findById(other.getId())).isPresent();
-        assertThat(rsvps.findByInvitationId(other.getId())).hasSize(1);
+        assertThat(rsvps.findByInvitationIdOrderByCreatedAtDescIdDesc(other.getId())).hasSize(1);
     }
 
     @Test

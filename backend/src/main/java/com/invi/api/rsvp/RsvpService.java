@@ -3,6 +3,7 @@ package com.invi.api.rsvp;
 import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.GuestWriteRateLimiter;
 import com.invi.api.common.NotFoundException;
+import com.invi.api.invitation.GuestPageView;
 import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
 import com.invi.api.invitation.InvitationStatus;
@@ -26,6 +27,10 @@ public class RsvpService {
                         // Guests can only reach published pages; drafts must not collect writes.
                         .filter(i -> i.getStatus() == InvitationStatus.PUBLISHED)
                         .orElseThrow(() -> new NotFoundException("청첩장을 찾을 수 없습니다: " + invitationId));
+        // A hidden RSVP section stops new answers; answers already given stay for the couple.
+        if (!GuestPageView.hasVisibleBlock(invitation.getPageData(), "rsvp")) {
+            throw new ForbiddenException("지금은 참석 여부 응답을 받지 않고 있습니다.");
+        }
         // After the lookup, so unknown ids never create limiter entries.
         rateLimiter.acquire(GuestWriteRateLimiter.Kind.RSVP, invitationId, clientAddress);
 
@@ -59,12 +64,12 @@ public class RsvpService {
         if (!invitation.getMember().getId().equals(memberId)) {
             throw new ForbiddenException("본인 소유의 청첩장만 접근할 수 있습니다.");
         }
-        return rsvpRepository.findByInvitationId(invitationId).stream().map(this::toDto).toList();
+        return rsvpRepository.findByInvitationIdOrderByCreatedAtDescIdDesc(invitationId).stream().map(this::toDto).toList();
     }
 
     private RsvpDto toDto(Rsvp rsvp) {
         return new RsvpDto(
                 rsvp.getId(), rsvp.getGuestName(), rsvp.getAttending(), rsvp.getGuestCount(), rsvp.getMessage(),
-                rsvp.getSide(), rsvp.getMeal());
+                rsvp.getSide(), rsvp.getMeal(), rsvp.getCreatedAt());
     }
 }

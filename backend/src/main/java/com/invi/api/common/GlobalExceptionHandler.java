@@ -1,6 +1,8 @@
 package com.invi.api.common;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(ex.getMessage()));
+    }
+
+    /** Our own version check, or Hibernate's @Version catching a write that slipped past it. */
+    @ExceptionHandler({StaleVersionException.class, OptimisticLockingFailureException.class})
+    public ResponseEntity<ErrorResponse> handleStaleVersion(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(StaleVersionException.MESSAGE, StaleVersionException.CODE, Instant.now()));
     }
 
     @ExceptionHandler(ConflictException.class)
@@ -59,9 +68,11 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("요청 본문을 읽을 수 없습니다. 형식을 확인해주세요."));
     }
 
-    public record ErrorResponse(String message, Instant timestamp) {
+    /** {@code code} is only set when a client must branch on the error, e.g. STALE_VERSION. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ErrorResponse(String message, String code, Instant timestamp) {
         static ErrorResponse of(String message) {
-            return new ErrorResponse(message, Instant.now());
+            return new ErrorResponse(message, null, Instant.now());
         }
     }
 }

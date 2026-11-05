@@ -9,7 +9,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface RsvpRepository extends JpaRepository<Rsvp, UUID> {
 
-    List<Rsvp> findByInvitationId(UUID invitationId);
+    /** Newest first; id breaks ties so the order never changes between reads. */
+    List<Rsvp> findByInvitationIdOrderByCreatedAtDescIdDesc(UUID invitationId);
 
     /** Bulk delete for the free-plan expiry batch; does not load entities. */
     @Modifying(flushAutomatically = true)

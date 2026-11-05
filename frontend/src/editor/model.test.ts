@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { FONT_FACES, scriptFamily } from '../blocks/fonts.ts'
-import { createEmptyPage, DESIGN_PRESETS, facesUsed, getPageDesign, isImageUrl, moveBlock, envelopeColor, pageLook, partClassNames, PART_FACES, PART_GROUPS, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, sealShowsInitials, slotsIn, themeFeatures, themeLook, tokenColorHint, TOKEN_VARS, tokenStyle, updateBlock, withPart, withToken, type FaceRole, type PartSlot, type ThemeParts } from './model.ts'
+import { createEmptyPage, DESIGN_PRESETS, facesUsed, getPageDesign, isImageUrl, moveBlock, envelopeColor, pageLook, partClassNames, PART_FACES, PART_GROUPS, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, sealShowsInitials, slotsIn, splitGalleryImages, themeFeatures, themeLook, tokenColorHint, TOKEN_VARS, tokenStyle, updateBlock, withDesign, withGalleryImages, withPart, withToken, type FaceRole, type PartSlot, type ThemeParts } from './model.ts'
 
 test('reordering normalizes order without losing design, hidden flags or future fields', () => {
   const original = { ...createEmptyPage(), design: DESIGN_PRESETS[2].design, futureSetting: { retained: true } }
@@ -226,6 +226,35 @@ test('envelope colour is not a page CSS variable, and initials show only with th
   assert.equal(sealShowsInitials(pageLook(seal)), true)
   assert.equal(sealShowsInitials(pageLook({ ...seal, look: { parts: { sealEmblem: 'heart' } } })), false)
   assert.equal(sealShowsInitials(themeLook('minimal')), false)
+})
+
+test('design edits keep fields a newer editor added, normalize known ones and drop an unsafe look', () => {
+  const page = JSON.parse(JSON.stringify({ ...createEmptyPage(), design: { ...DESIGN_PRESETS[1].design, futureMotion: 'slow', accentColor: 'red;x', look: { tokens: { accent: 'url(evil)' } } } }))
+  const original = JSON.stringify(page)
+  const edited = withDesign(page, { fontSize: 'large' })
+  assert.equal(edited.design?.fontSize, 'large')
+  assert.equal((edited.design as unknown as Record<string, unknown>).futureMotion, 'slow')
+  assert.equal(edited.design?.accentColor, getPageDesign(page).accentColor)
+  assert.notEqual(edited.design?.accentColor, 'red;x')
+  assert.equal(edited.design?.look, undefined)
+  assert.equal(JSON.stringify(page), original)
+  // Switching template clears the look but still keeps the unknown field.
+  const switched = withDesign(edited, { ...DESIGN_PRESETS[0].design, look: undefined })
+  assert.equal(switched.design?.theme, DESIGN_PRESETS[0].design.theme)
+  assert.equal((switched.design as unknown as Record<string, unknown>).futureMotion, 'slow')
+  assert.equal(JSON.parse(JSON.stringify(switched)).design.look, undefined)
+})
+
+test('gallery edits keep entries the editor cannot show instead of dropping them', () => {
+  const future = { id: 'p1', assetId: 'a1', crop: { x: 0, y: 0 } }
+  const stored = ['https://media.example.com/a.webp', future, 'invitations/raw-key.webp', 'https://media.example.com/b.webp']
+  assert.deepEqual(splitGalleryImages(stored), {
+    images: ['https://media.example.com/a.webp', 'https://media.example.com/b.webp'],
+    kept: [future, 'invitations/raw-key.webp'],
+  })
+  assert.deepEqual(withGalleryImages(stored, ['https://media.example.com/b.webp']), ['https://media.example.com/b.webp', future, 'invitations/raw-key.webp'])
+  assert.deepEqual(splitGalleryImages(undefined), { images: [], kept: [] })
+  assert.deepEqual(withGalleryImages(undefined, ['https://media.example.com/c.webp']), ['https://media.example.com/c.webp'])
 })
 
 test('decorative faces load only while an active part draws with them', () => {

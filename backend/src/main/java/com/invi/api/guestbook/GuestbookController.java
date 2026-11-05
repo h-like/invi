@@ -34,7 +34,13 @@ public class GuestbookController {
 
     @GetMapping
     public List<GuestbookEntryDto> list(@PathVariable UUID invitationId) {
-        return guestbookService.findByInvitation(invitationId);
+        return guestbookService.findForGuests(invitationId);
+    }
+
+    /** Requires login (not matched by the public GET rule): the couple's view, even while hidden. */
+    @GetMapping("/manage")
+    public List<GuestbookEntryDto> listForOwner(Authentication authentication, @PathVariable UUID invitationId) {
+        return guestbookService.findForOwner(currentMember.requireId(authentication), invitationId);
     }
 
     @DeleteMapping("/{entryId}")

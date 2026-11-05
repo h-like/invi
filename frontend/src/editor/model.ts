@@ -322,6 +322,33 @@ export function getPageDesign(page: PageData | null): PageDesign {
   }
 }
 
+// Fields this editor understands; anything else in design came from a newer editor and is kept.
+const DESIGN_KEYS = new Set(['theme', 'backgroundColor', 'accentColor', 'fontFamily', 'fontSize', 'heroLayout', 'look'])
+
+/**
+ * Applies a design change. Known fields are normalized like getPageDesign; unknown ones are
+ * carried over as they are, so an older open tab never wipes a newer editor's settings.
+ */
+export function withDesign(page: PageData, patch: Partial<PageDesign>): PageData {
+  const raw = page.design !== null && typeof page.design === 'object' ? page.design as unknown as Record<string, unknown> : {}
+  const unknown = Object.fromEntries(Object.entries(raw).filter(([key]) => !DESIGN_KEYS.has(key)))
+  return { ...page, design: { ...unknown, ...getPageDesign(page), ...patch } }
+}
+
+/**
+ * Gallery entries the editor can show (http(s) URLs) apart from anything else it cannot,
+ * e.g. a future structured item. Editing the gallery keeps the rest instead of dropping it.
+ */
+export function splitGalleryImages(value: unknown): { images: string[]; kept: unknown[] } {
+  const items = Array.isArray(value) ? value : []
+  return { images: items.filter(isImageUrl), kept: items.filter(item => !isImageUrl(item)) }
+}
+
+/** The gallery after an edit: the edited URLs in their new order, then the untouched rest. */
+export function withGalleryImages(value: unknown, images: string[]): unknown[] {
+  return [...images, ...splitGalleryImages(value).kept]
+}
+
 function withLook(look: LookOverrides | undefined): { look?: LookOverrides } {
   return look ? { look } : {}
 }

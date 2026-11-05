@@ -1,5 +1,6 @@
 package com.invi.api.rsvp;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public record RsvpDto(
@@ -9,5 +10,6 @@ public record RsvpDto(
         Integer guestCount,
         String message,
         RsvpSide side,
-        RsvpMeal meal) {
+        RsvpMeal meal,
+        Instant createdAt) {
 }

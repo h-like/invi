@@ -8,7 +8,7 @@ import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { LookEditor } from '../editor/LookEditor'
 import { canSaveBeforeLeave, createSaveBeforeLeave, leaveDialogMode, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation, type LeaveDialogMode } from '../editor/navigation'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
-import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, pageLook, patchContent, publishIssues, sealShowsInitials, updateBlock } from '../editor/model'
+import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, pageLook, patchContent, publishIssues, sealShowsInitials, splitGalleryImages, updateBlock, withDesign, withGalleryImages } from '../editor/model'
 import { BRIDE_RELATIONS, DEFAULT_RELATION, formatParentLine, GROOM_RELATIONS, MONOGRAM_MAX, normalizeMonogram, pageMonogram, PARENT_FIELDS, parentLine, PARENT_NAME_MAX, RELATION_MAX, type HeroSide } from '../blocks/heroDetails'
 
 // Chosen by leaveDialogMode(); pending photos cannot be saved, so that copy offers only staying or discarding.
@@ -52,6 +52,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   function hasPendingPhotos() { return photoPendingRef.current.cover || photoPendingRef.current.gallery }
   const [persistence] = useState(() => createInvitationPersistence(api))
   const [failedAction, setFailedAction] = useState<boolean | null>(null)
+  // Another tab or device saved first: saving again would be refused, so offer the latest copy.
+  const [stale, setStale] = useState(false)
+  const [loadingLatest, setLoadingLatest] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [shareOpen, setShareOpen] = useState(false)
@@ -123,7 +126,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const account = draft.blocks.find(b => b.type === 'account')
   const design = getPageDesign(draft)
   const sortedBlocks = [...draft.blocks].sort((a, b) => a.order - b.order)
-  const images = Array.isArray(gallery?.content.images) ? gallery.content.images.filter(isImageUrl) : []
+  const { images } = splitGalleryImages(gallery?.content.images)
   const accounts = emptyAccountContent()
   for (const role of [...GROOM_ROLES, ...BRIDE_ROLES]) {
     const entry = account?.content[role] as Partial<AccountEntry> | undefined
@@ -138,7 +141,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setError(null)
   }
   function changeDesign(patch: Partial<PageDesign>) {
-    setDraft(prev => prev ? { ...prev, design: { ...getPageDesign(prev), ...patch } } : prev)
+    setDraft(prev => prev ? withDesign(prev, patch) : prev)
     setNotice('')
     setError(null)
   }
@@ -156,27 +159,58 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setNotice('')
   }
 
+  /** Replaces this screen's copy with the stored one; asks first because unsaved edits are lost. */
+  async function loadLatest() {
+    if (!id || loadingLatest || persistence.isRunning()) return
+    // An upload finishing after the swap would patch the new copy with the old gallery.
+    if (hasPendingPhotos()) { setError('사진 업로드를 마치거나 취소한 뒤 최신 내용을 불러와 주세요.'); return }
+    if (!window.confirm('최신 내용을 불러오면 이 화면에서 저장하지 않은 변경 사항은 사라집니다. 불러올까요?')) return
+    setLoadingLatest(true)
+    try {
+      const latest = await api.getInvitation(id)
+      const page = latest.pageData ?? createEmptyPage()
+      setInvitation(latest)
+      setDateInput(latest.weddingDate)
+      setDraft(page)
+      setBaseline(JSON.stringify(page))
+      setStale(false)
+      setError(null)
+      setNotice('최신 내용을 불러왔습니다.')
+    } catch (err) {
+      setError('최신 내용을 불러오지 못했습니다. 지금 화면의 내용은 그대로 남아 있습니다. ' + (err instanceof Error ? err.message : ''))
+    } finally {
+      setLoadingLatest(false)
+    }
+  }
+
   // Saved immediately, apart from the draft: free invitations are deleted 10 days after this date.
   async function saveWeddingDate() {
-    if (!invitation || dateSaving || !dateInput || dateInput === invitation.weddingDate) return
+    if (!invitation || dateSaving || loadingLatest || !dateInput || dateInput === invitation.weddingDate) return
     setDateSaving(true)
     setDateStatus('')
     try {
-      const saved = await api.updateWeddingDate(invitation.id, dateInput)
-      setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate } : prev)
+      // Shares the page save's guard, so a page save cannot run while this one is in flight.
+      const result = await persistence.saveWeddingDate(invitation, dateInput)
+      if (result.kind === 'busy') return
+      if (result.kind === 'failed') { setDateStatus(result.detail); return }
+      const saved = result.invitation
+      // No other write from this tab overlaps, so a gap of exactly one is this save alone.
+      // Anything more means another tab or device saved: keep the old version so the next
+      // page save is still caught as stale.
+      setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate, version: saved.version === prev.version + 1 ? saved.version : prev.version } : prev)
       setDateStatus('예식일을 변경했습니다.')
-    } catch (err) {
-      setDateStatus(err instanceof Error ? err.message : '예식일을 변경하지 못했습니다.')
     } finally {
       setDateSaving(false)
     }
   }
 
   async function persist(publish: boolean): Promise<boolean> {
-    if (!invitation || !draft || persistence.isRunning()) return false
+    // While the latest copy loads, a save would go out from the old one and its edits be replaced.
+    if (!invitation || !draft || loadingLatest || persistence.isRunning()) return false
     if (hasPendingPhotos()) { setError('새 사진의 업로드를 완료하거나 실패한 사진을 재시도·삭제한 뒤 저장·공개해 주세요.'); return false }
     setError(null)
     setFailedAction(null)
+    setStale(false)
     setNotice('')
     if (publish) {
       const issues = publishIssues(draft)
@@ -187,6 +221,12 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     try {
       const result = await persistence.run(invitation, draft, publish)
       if (result.kind === 'busy') return false
+      if (result.kind === 'stale') {
+        // Nothing was written and the draft stays on screen; no overwrite option in the MVP.
+        setError(result.detail + ' 지금 화면의 내용은 그대로 남아 있습니다.')
+        setStale(true)
+        return false
+      }
       if (result.kind === 'save-failed') {
         // Do not replace draft or baseline: the user's unsaved input stays intact.
         setError('저장 완료를 확인하지 못했습니다. 입력 내용은 현재 화면에 남아 있습니다. ' + result.detail)
@@ -238,11 +278,11 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
         <div className="builder-header-actions">
           <span className="save-state" role="status">{busy ? '저장 중...' : photoPending ? '새 사진 처리 · 확인 필요' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
           <button type="button" className="secondary-button" disabled={photoPending} onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>
-          <button type="button" className="secondary-button" disabled={busy || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
-          <button type="button" className="publish-button" disabled={busy || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
+          <button type="button" className="secondary-button" disabled={busy || loadingLatest || dateSaving || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
+          <button type="button" className="publish-button" disabled={busy || loadingLatest || dateSaving || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
-      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}</div></div>}
+      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
       <div className="builder-layout">
         <aside className="builder-panel" aria-label="청첩장 편집">
           <div className="builder-intro"><p className="builder-eyebrow">YOUR WEDDING, YOUR MOOD</p><h1>우리다운 초대장</h1><p>하나씩 채우면, 오른쪽에서 바로 완성돼요.</p></div>
@@ -250,7 +290,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           <nav className="builder-tabs" aria-label="편집 설정">
             {([['content', '내용'], ['design', '디자인'], ['sections', '섹션 구성']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={panel === value} disabled={photoPending} onClick={() => setPanel(value)}>{label}</button>)}
           </nav>
-          <fieldset className="builder-fields" disabled={busy}>
+          <fieldset className="builder-fields" disabled={busy || loadingLatest}>
             <legend className="sr-only">청첩장 편집 항목</legend>
             {panel === 'content' && <>
               {hero && <section className="editor-section"><h2>두 사람의 이름</h2><div className="form-columns">
@@ -275,7 +315,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 <p className="editor-section-hint">샘플 문구를 선택하면 현재 인사말을 바꿉니다.</p><div className="sample-buttons">{GREETING_SAMPLES.map(sample => <button type="button" key={sample.name} onClick={() => { if (!text(hero, 'greeting') || window.confirm('현재 인사말을 샘플 문구로 바꿀까요?')) changeContent(hero, { greeting: sample.text }) }}>{sample.name}</button>)}</div>
               </section>}
               {map && <section className="editor-section"><h2>오시는 길</h2><label>식장 이름<input value={text(map, 'venueName')} maxLength={150} onChange={e => changeContent(map, { venueName: e.target.value })} placeholder="웨딩홀 · 층 · 홀 이름" /></label><label>주소<input value={text(map, 'address')} maxLength={300} onChange={e => changeContent(map, { address: e.target.value })} placeholder="예식장 주소를 직접 입력해 주세요" /></label><label>교통 · 주차 안내<textarea rows={3} maxLength={1500} value={text(map, 'directions')} onChange={e => changeContent(map, { directions: e.target.value })} placeholder="지하철 출구, 셔틀버스, 주차 정보를 안내해 주세요." /></label></section>}
-              {gallery && <section className="editor-section"><h2>웨딩 갤러리 <small>{images.length} / {MAX_GALLERY_IMAGES}</small></h2><label>사진 배치<select value={String(gallery.content.layout ?? 'grid-2')} onChange={e => changeContent(gallery, { layout: e.target.value })}><option value="grid-2">2열 그리드</option><option value="grid-3">3열 그리드</option><option value="slider">가로 슬라이드</option></select></label><GalleryPhotoEditor invitationId={invitation.id} images={images} disabled={busy} onChange={next => changeContent(gallery, { images: next })} onPendingChange={pending => photoPendingChange('gallery', pending)} /></section>}
+              {gallery && <section className="editor-section"><h2>웨딩 갤러리 <small>{images.length} / {MAX_GALLERY_IMAGES}</small></h2><label>사진 배치<select value={String(gallery.content.layout ?? 'grid-2')} onChange={e => changeContent(gallery, { layout: e.target.value })}><option value="grid-2">2열 그리드</option><option value="grid-3">3열 그리드</option><option value="slider">가로 슬라이드</option></select></label><GalleryPhotoEditor invitationId={invitation.id} images={images} disabled={busy} onChange={next => changeContent(gallery, { images: withGalleryImages(gallery.content.images, next) })} onPendingChange={pending => photoPendingChange('gallery', pending)} /></section>}
               {account && <section className="editor-section"><h2>마음 전하실 곳</h2><p className="editor-section-hint">비워 둔 분은 표시하지 않습니다. 계좌 대신 메시지도 전할 수 있어요.</p>{([['신랑측', GROOM_ROLES], ['신부측', BRIDE_ROLES]] as const).map(([title, roles]) => <div key={title}><p className="editor-section-sub">{title}</p>{roles.map(role => <AccountRoleEditor key={role} role={role} entry={accounts[role]} onChange={patch => updateAccount(role, patch)} />)}</div>)}</section>}
             </>}
             {panel === 'design' && <>
