@@ -8,6 +8,7 @@ import com.invi.api.account.MemberRepository;
 import com.invi.api.common.ConflictException;
 import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
+import com.invi.api.common.StaleVersionException;
 import com.invi.api.media.MediaLifecycle;
 import com.invi.api.media.MediaReferences;
 import com.invi.api.template.Template;
@@ -15,6 +16,7 @@ import com.invi.api.template.TemplateRepository;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -102,9 +104,14 @@ public class InvitationService {
     }
 
     @Transactional
-    public InvitationDto updatePageData(UUID memberId, UUID id, tools.jackson.databind.JsonNode pageData) {
+    public InvitationDto updatePageData(
+            UUID memberId, UUID id, tools.jackson.databind.JsonNode pageData, Long expectedVersion) {
         lifecycle.lock();
         Invitation invitation = getOwnedOrThrow(memberId, id);
+        // Every invitation write takes the lock above, so this check cannot race another save.
+        if (!Objects.equals(invitation.getVersion(), expectedVersion)) {
+            throw new StaleVersionException();
+        }
         JsonNode nextPageData = toEntityJson(pageData);
         Set<String> languageKeys = MediaReferences.extract(invitation.getLangVariants());
         Set<String> before = MediaReferences.ofInvitation(invitation);
@@ -112,7 +119,7 @@ public class InvitationService {
         after.addAll(languageKeys);
         lifecycle.referencesChanged(before, after);
         invitation.updatePageData(nextPageData);
-        return toDto(invitation);
+        return flushedDto(invitation);
     }
 
     /** Jackson 3 (HTTP request) -> Jackson 2 (entity/Hibernate) via the JSON text they both agree on. */
@@ -130,7 +137,7 @@ public class InvitationService {
         lifecycle.lock();
         Invitation invitation = getOwnedOrThrow(memberId, id);
         invitation.updateWeddingDate(weddingDate);
-        return toDto(invitation);
+        return flushedDto(invitation);
     }
 
     @Transactional
@@ -139,7 +146,7 @@ public class InvitationService {
         Invitation invitation = getOwnedOrThrow(memberId, id);
         lifecycle.assertUsable(MediaReferences.ofInvitation(invitation));
         invitation.publish();
-        return toDto(invitation);
+        return flushedDto(invitation);
     }
 
     private Invitation getOrThrow(UUID id) {
@@ -156,6 +163,15 @@ public class InvitationService {
         return invitation;
     }
 
+    /**
+     * Hibernate bumps the version at flush, normally after this method returns. Flush first so
+     * the response carries the new version; otherwise the editor's next save would look stale.
+     */
+    private InvitationDto flushedDto(Invitation invitation) {
+        invitationRepository.flush();
+        return toDto(invitation);
+    }
+
     private InvitationDto toDto(Invitation invitation) {
         return new InvitationDto(
                 invitation.getId(),
@@ -165,7 +181,8 @@ public class InvitationService {
                 invitation.getPlan(),
                 invitation.getStatus(),
                 toRawJson(invitation.getPageData()),
-                toRawJson(invitation.getLangVariants()));
+                toRawJson(invitation.getLangVariants()),
+                invitation.getVersion());
     }
 
     private static String toRawJson(JsonNode node) {

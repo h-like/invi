@@ -52,6 +52,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   function hasPendingPhotos() { return photoPendingRef.current.cover || photoPendingRef.current.gallery }
   const [persistence] = useState(() => createInvitationPersistence(api))
   const [failedAction, setFailedAction] = useState<boolean | null>(null)
+  // Another tab or device saved first: saving again would be refused, so offer the latest copy.
+  const [stale, setStale] = useState(false)
+  const [loadingLatest, setLoadingLatest] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [shareOpen, setShareOpen] = useState(false)
@@ -156,6 +159,28 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setNotice('')
   }
 
+  /** Replaces this screen's copy with the stored one; asks first because unsaved edits are lost. */
+  async function loadLatest() {
+    if (!id || loadingLatest || persistence.isRunning()) return
+    if (!window.confirm('최신 내용을 불러오면 이 화면에서 저장하지 않은 변경 사항은 사라집니다. 불러올까요?')) return
+    setLoadingLatest(true)
+    try {
+      const latest = await api.getInvitation(id)
+      const page = latest.pageData ?? createEmptyPage()
+      setInvitation(latest)
+      setDateInput(latest.weddingDate)
+      setDraft(page)
+      setBaseline(JSON.stringify(page))
+      setStale(false)
+      setError(null)
+      setNotice('최신 내용을 불러왔습니다.')
+    } catch (err) {
+      setError('최신 내용을 불러오지 못했습니다. 지금 화면의 내용은 그대로 남아 있습니다. ' + (err instanceof Error ? err.message : ''))
+    } finally {
+      setLoadingLatest(false)
+    }
+  }
+
   // Saved immediately, apart from the draft: free invitations are deleted 10 days after this date.
   async function saveWeddingDate() {
     if (!invitation || dateSaving || !dateInput || dateInput === invitation.weddingDate) return
@@ -163,7 +188,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setDateStatus('')
     try {
       const saved = await api.updateWeddingDate(invitation.id, dateInput)
-      setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate } : prev)
+      // The date save bumps the version too. Adopt it only when nothing else was saved in
+      // between; otherwise keep the old one so the next page save is still caught as stale.
+      setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate, version: saved.version === prev.version + 1 ? saved.version : prev.version } : prev)
       setDateStatus('예식일을 변경했습니다.')
     } catch (err) {
       setDateStatus(err instanceof Error ? err.message : '예식일을 변경하지 못했습니다.')
@@ -177,6 +204,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     if (hasPendingPhotos()) { setError('새 사진의 업로드를 완료하거나 실패한 사진을 재시도·삭제한 뒤 저장·공개해 주세요.'); return false }
     setError(null)
     setFailedAction(null)
+    setStale(false)
     setNotice('')
     if (publish) {
       const issues = publishIssues(draft)
@@ -187,6 +215,12 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     try {
       const result = await persistence.run(invitation, draft, publish)
       if (result.kind === 'busy') return false
+      if (result.kind === 'stale') {
+        // Nothing was written and the draft stays on screen; no overwrite option in the MVP.
+        setError(result.detail + ' 지금 화면의 내용은 그대로 남아 있습니다.')
+        setStale(true)
+        return false
+      }
       if (result.kind === 'save-failed') {
         // Do not replace draft or baseline: the user's unsaved input stays intact.
         setError('저장 완료를 확인하지 못했습니다. 입력 내용은 현재 화면에 남아 있습니다. ' + result.detail)
@@ -242,7 +276,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           <button type="button" className="publish-button" disabled={busy || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
-      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}</div></div>}
+      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
       <div className="builder-layout">
         <aside className="builder-panel" aria-label="청첩장 편집">
           <div className="builder-intro"><p className="builder-eyebrow">YOUR WEDDING, YOUR MOOD</p><h1>우리다운 초대장</h1><p>하나씩 채우면, 오른쪽에서 바로 완성돼요.</p></div>

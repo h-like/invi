@@ -20,6 +20,7 @@ import com.invi.api.account.MemberRepository;
 import com.invi.api.common.ConflictException;
 import com.invi.api.common.ForbiddenException;
 import com.invi.api.common.NotFoundException;
+import com.invi.api.common.StaleVersionException;
 import com.invi.api.common.TestEntityIds;
 import com.invi.api.media.MediaLifecycle;
 import com.invi.api.template.Template;
@@ -170,7 +171,7 @@ class InvitationServiceTest {
         tools.jackson.databind.JsonNode incoming =
                 tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"blocks\":[{\"id\":\"hero-1\"}]}");
 
-        InvitationDto result = invitationService.updatePageData(ownerId, id, incoming);
+        InvitationDto result = invitationService.updatePageData(ownerId, id, incoming, null);
 
         assertThat(result.pageData()).isEqualTo("{\"blocks\":[{\"id\":\"hero-1\"}]}");
         InOrder order = inOrder(lifecycle, invitationRepository, invitation);
@@ -178,6 +179,31 @@ class InvitationServiceTest {
         order.verify(invitationRepository).findById(id);
         order.verify(lifecycle).referencesChanged(Set.of(), Set.of());
         order.verify(invitation).updatePageData(any(JsonNode.class));
+    }
+
+    @Test
+    void updatePageData_refusesAStaleVersion_beforeTouchingPageOrMedia() throws Exception {
+        UUID id = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        JsonNode stored = objectMapper.readTree("{\"blocks\":[{\"id\":\"hero-1\"}]}");
+        Invitation invitation =
+                Invitation.builder()
+                        .slug("s")
+                        .weddingDate(LocalDate.now())
+                        .template(Template.builder().name("클래식").category("classic").build())
+                        .member(ownerWithId(ownerId))
+                        .pageData(stored)
+                        .version(4L)
+                        .build();
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+        tools.jackson.databind.JsonNode incoming =
+                tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"blocks\":[]}");
+
+        assertThatThrownBy(() -> invitationService.updatePageData(ownerId, id, incoming, 3L))
+                .isInstanceOf(StaleVersionException.class);
+        assertThat(invitation.getPageData()).isSameAs(stored);
+        verify(lifecycle, never()).referencesChanged(any(), any());
+        verify(invitationRepository, never()).flush();
     }
 
     @Test
@@ -195,7 +221,7 @@ class InvitationServiceTest {
         tools.jackson.databind.JsonNode incoming =
                 tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"blocks\":[]}");
 
-        assertThatThrownBy(() -> invitationService.updatePageData(UUID.randomUUID(), id, incoming))
+        assertThatThrownBy(() -> invitationService.updatePageData(UUID.randomUUID(), id, incoming, null))
                 .isInstanceOf(ForbiddenException.class);
     }
 
@@ -334,7 +360,7 @@ class InvitationServiceTest {
             return null;
         }).when(lifecycle).referencesChanged(Set.of(MEDIA_A, MEDIA_B, MEDIA_D), Set.of(MEDIA_A, MEDIA_B, MEDIA_C));
 
-        InvitationDto result = invitationService.updatePageData(ownerId, id, incoming);
+        InvitationDto result = invitationService.updatePageData(ownerId, id, incoming, null);
 
         verify(lifecycle).referencesChanged(Set.of(MEDIA_A, MEDIA_B, MEDIA_D), Set.of(MEDIA_A, MEDIA_B, MEDIA_C));
         assertThat(invitation.getPageData()).isEqualTo(objectMapper.readTree(incoming.toString()));
@@ -364,7 +390,7 @@ class InvitationServiceTest {
         doThrow(new ConflictException("deletion fence")).when(lifecycle)
                 .referencesChanged(Set.of(MEDIA_A, MEDIA_B), Set.of(MEDIA_B, MEDIA_C));
 
-        assertThatThrownBy(() -> invitationService.updatePageData(ownerId, id, incoming))
+        assertThatThrownBy(() -> invitationService.updatePageData(ownerId, id, incoming, null))
                 .isInstanceOf(ConflictException.class);
 
         assertThat(invitation.getPageData()).isSameAs(oldPage);

@@ -16,7 +16,16 @@ import type {
   TemplateDetail,
 } from './types'
 
-class ApiError extends Error {}
+/** status and the server's optional error code let callers branch, e.g. on STALE_VERSION. */
+class ApiError extends Error {
+  readonly status: number
+  readonly code?: string
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.status = status
+    this.code = code
+  }
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken()
@@ -29,7 +38,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new ApiError(body?.message ?? `요청에 실패했습니다 (${res.status})`)
+    throw new ApiError(body?.message ?? `요청에 실패했습니다 (${res.status})`, res.status, typeof body?.code === 'string' ? body.code : undefined)
   }
   if (res.status === 204) {
     return undefined as T
@@ -57,10 +66,10 @@ export const api = {
 
   getInvitation: (id: string) => request<Invitation>(`/api/invitations/${id}`),
 
-  updatePageData: (id: string, pageData: PageData) =>
+  updatePageData: (id: string, pageData: PageData, version: number) =>
     request<Invitation>(`/api/invitations/${id}/page-data`, {
       method: 'PUT',
-      body: JSON.stringify({ pageData }),
+      body: JSON.stringify({ pageData, version }),
     }),
 
   updateWeddingDate: (id: string, weddingDate: string) =>

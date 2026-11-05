@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Invitation, PageData } from '../api/types.ts'
-import { createInvitationPersistence, type PersistenceClient } from './persistence.ts'
+import { createInvitationPersistence, STALE_VERSION, type PersistenceClient } from './persistence.ts'
 
 function draft(name = '검증 신랑'): PageData {
   return {
@@ -10,7 +10,7 @@ function draft(name = '검증 신랑'): PageData {
   }
 }
 function invitation(pageData = draft()): Invitation {
-  return { id: 'test-id', slug: 'test-invitation', templateId: 'test-template', weddingDate: '2027-05-22', status: 'DRAFT', plan: 'FREE', pageData, langVariants: null }
+  return { id: 'test-id', slug: 'test-invitation', templateId: 'test-template', weddingDate: '2027-05-22', status: 'DRAFT', plan: 'FREE', pageData, langVariants: null, version: 3 }
 }
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -181,4 +181,40 @@ test('an HTTP-success response without PUBLISHED status must not trigger sharing
   })
   assert.deepEqual(await controller.run(saved, draft(), true), { kind: 'publish-failed', saved, detail: '서버에서 공개 완료 상태를 확인하지 못했습니다.' })
   assert.equal(controller.isRunning(), false)
+})
+
+test('saves send the version the editor last received', async () => {
+  const versions: number[] = []
+  const controller = createInvitationPersistence({
+    updatePageData: async (_id, page, version) => { versions.push(version); return { ...invitation(page), version: version + 1 } },
+    publishInvitation: async () => invitation(),
+  })
+  const result = await controller.run(invitation(), draft(), false)
+  assert.deepEqual(versions, [3])
+  assert.equal(result.kind === 'completed' && result.invitation.version, 4)
+})
+
+test('a newer copy saved elsewhere is reported as stale, keeps the draft and never publishes', async () => {
+  const page = draft()
+  const original = JSON.stringify(page)
+  let publishCalls = 0
+  const conflict = Object.assign(new Error('다른 곳에서 먼저 저장된 내용이 있어 저장하지 않았습니다.'), { status: 409, code: STALE_VERSION })
+  const controller = createInvitationPersistence({
+    updatePageData: async () => { throw conflict },
+    publishInvitation: async () => { publishCalls++; return invitation() },
+  })
+  const result = await controller.run(invitation(), page, true)
+  assert.deepEqual(result, { kind: 'stale', detail: '다른 곳에서 먼저 저장된 내용이 있어 저장하지 않았습니다.' })
+  assert.equal(JSON.stringify(page), original)
+  assert.equal(publishCalls, 0)
+  assert.equal(controller.isRunning(), false)
+})
+
+test('other 409s, such as photos being cleaned up, stay ordinary save failures', async () => {
+  const fenced = Object.assign(new Error('정리 중이거나 삭제된 사진이 포함되어 있습니다.'), { status: 409 })
+  const controller = createInvitationPersistence({
+    updatePageData: async () => { throw fenced },
+    publishInvitation: async () => invitation(),
+  })
+  assert.equal((await controller.run(invitation(), draft(), false)).kind, 'save-failed')
 })

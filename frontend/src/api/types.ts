@@ -69,6 +69,8 @@ export interface Invitation {
   status: InvitationStatus
   pageData: PageData | null
   langVariants: unknown
+  /** Stored revision; page saves send it back so an older copy cannot overwrite a newer one. */
+  version: number
 }
 
 export interface GuestInvitation {

@@ -1,15 +1,24 @@
 import type { Invitation, PageData } from '../api/types.ts'
 
 export interface PersistenceClient {
-  updatePageData: (id: string, pageData: PageData) => Promise<Invitation>
+  updatePageData: (id: string, pageData: PageData, version: number) => Promise<Invitation>
   publishInvitation: (id: string) => Promise<Invitation>
 }
 
 export type PersistenceOutcome =
   | { kind: 'busy' }
   | { kind: 'save-failed'; detail: string }
+  /** Someone saved a newer copy first. Nothing was written; retrying would be refused again. */
+  | { kind: 'stale'; detail: string }
   | { kind: 'publish-failed'; saved: Invitation; detail: string }
   | { kind: 'completed'; invitation: Invitation; shared: boolean }
+
+/** Error code the API sends with a 409 when the saved copy is newer than the editor's. */
+export const STALE_VERSION = 'STALE_VERSION'
+
+function isStaleVersion(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === STALE_VERSION
+}
 
 function errorDetail(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback
@@ -35,8 +44,9 @@ export function createInvitationPersistence(client: PersistenceClient) {
       try {
         let saved: Invitation
         try {
-          saved = await client.updatePageData(invitation.id, pageData)
+          saved = await client.updatePageData(invitation.id, pageData, invitation.version)
         } catch (error) {
+          if (isStaleVersion(error)) return { kind: 'stale', detail: errorDetail(error, '다른 곳에서 먼저 저장된 내용이 있습니다.') }
           return { kind: 'save-failed', detail: errorDetail(error, '서버와 연결하지 못했습니다.') }
         }
 
