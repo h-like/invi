@@ -90,6 +90,10 @@ export const api = {
   listGuestbook: (invitationId: string) =>
     request<GuestbookEntryItem[]>(`/api/invitations/${invitationId}/guestbook`),
 
+  // The couple's view: includes entries while the guestbook is hidden from guests.
+  listGuestbookForOwner: (invitationId: string) =>
+    request<GuestbookEntryItem[]>(`/api/invitations/${invitationId}/guestbook/manage`),
+
   submitGuestbook: (invitationId: string, body: { author: string; message: string }) =>
     request<GuestbookEntryItem>(`/api/invitations/${invitationId}/guestbook`, {
       method: 'POST',

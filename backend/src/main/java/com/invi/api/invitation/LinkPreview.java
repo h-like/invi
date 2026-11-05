@@ -20,8 +20,10 @@ public record LinkPreview(String title, String description, String imageUrl) {
      *     our own uploads, so a page can't make the preview point at an arbitrary host.
      */
     static LinkPreview of(Invitation invitation, String imageBaseUrl) {
-        JsonNode hero = block(invitation.getPageData(), "hero");
-        JsonNode map = block(invitation.getPageData(), "map");
+        // A hidden hero or map must not leak names, venue or cover through the messenger card.
+        JsonNode page = GuestPageView.visibleOnly(invitation.getPageData());
+        JsonNode hero = block(page, "hero");
+        JsonNode map = block(page, "map");
         String groom = text(hero, "groomName");
         String bride = text(hero, "brideName");
         String title = groom.isEmpty() || bride.isEmpty() ? DEFAULT_TITLE : groom + " ♥ " + bride + " 결혼합니다";

@@ -80,12 +80,13 @@ public class InvitationService {
                         .filter(i -> i.getStatus() == InvitationStatus.PUBLISHED)
                         .orElseThrow(() -> new NotFoundException("청첩장을 찾을 수 없습니다: " + slug));
 
+        // Hidden blocks are filtered here, not just by the renderer: the raw JSON is public.
         return new GuestInvitationDto(
                 invitation.getId(),
                 invitation.getSlug(),
                 invitation.getWeddingDate(),
-                toRawJson(invitation.getPageData()),
-                toRawJson(invitation.getLangVariants()));
+                toRawJson(GuestPageView.visibleOnly(invitation.getPageData())),
+                toRawJson(GuestPageView.langVariantsFor(invitation.getLangVariants(), invitation.getPageData())));
     }
 
     /** Empty for drafts and unknown slugs, so a preview never reveals an unpublished page. */

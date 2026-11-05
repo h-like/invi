@@ -249,6 +249,40 @@ class InvitationServiceTest {
     }
 
     @Test
+    void findPublishedBySlug_leavesOutHiddenBlocks_whileTheOwnerStillGetsEverything() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        JsonNode page = objectMapper.readTree("""
+                {"blocks":[
+                  {"id":"hero-1","type":"hero","visible":true,"content":{"groomName":"하늘"}},
+                  {"id":"account-1","type":"account","visible":false,"content":{"groom":{"accountNumber":"110-123"}}}],
+                 "future":{"keep":true}}
+                """);
+        JsonNode languages = objectMapper.readTree("{\"en\":{\"account-1\":\"hidden\",\"hero-1\":\"shown\"}}");
+        Invitation published =
+                Invitation.builder()
+                        .member(ownerWithId(ownerId))
+                        .template(Template.builder().name("클래식").category("classic").build())
+                        .slug("our-wedding")
+                        .weddingDate(LocalDate.now())
+                        .status(InvitationStatus.PUBLISHED)
+                        .pageData(page)
+                        .langVariants(languages)
+                        .build();
+        when(invitationRepository.findBySlug("our-wedding")).thenReturn(Optional.of(published));
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(published));
+
+        GuestInvitationDto guest = invitationService.findPublishedBySlug("our-wedding");
+        InvitationDto owner = invitationService.findById(ownerId, id);
+
+        assertThat(guest.pageData()).doesNotContain("110-123").doesNotContain("account-1").contains("\"future\"");
+        assertThat(guest.langVariants()).isEqualTo("{\"en\":{\"hero-1\":\"shown\"}}");
+        assertThat(owner.pageData()).isEqualTo(page.toString());
+        assertThat(owner.langVariants()).isEqualTo(languages.toString());
+        assertThat(published.getPageData()).isSameAs(page);
+    }
+
+    @Test
     void publish_flipsStatusToPublished() throws Exception {
         UUID id = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();

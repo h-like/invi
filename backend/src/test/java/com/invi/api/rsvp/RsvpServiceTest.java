@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.invi.api.account.AuthProvider;
 import com.invi.api.account.Member;
 import com.invi.api.common.ForbiddenException;
@@ -180,7 +181,50 @@ class RsvpServiceTest {
         verify(rateLimiter).release(GuestWriteRateLimiter.Kind.RSVP, invitationId, "203.0.113.7");
     }
 
+    @Test
+    void submit_rejectsNewAnswers_whileTheRsvpSectionIsHidden_withoutCounting() {
+        UUID invitationId = UUID.randomUUID();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(publishedWith(false)));
+
+        assertThatThrownBy(() -> rsvpService.submit(invitationId, new CreateRsvpRequest("A", true, 1, null, null, null), "203.0.113.7"))
+                .isInstanceOf(ForbiddenException.class);
+        verifyNoInteractions(rateLimiter);
+        verify(rsvpRepository, never()).save(any());
+    }
+
+    @Test
+    void findByInvitation_keepsEarlierAnswers_whileTheRsvpSectionIsHidden() {
+        UUID invitationId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        Invitation invitation = publishedWith(ownerWithId(ownerId), false);
+        Rsvp rsvp = Rsvp.builder().invitation(invitation).guestName("김철수").attending(true).guestCount(1).build();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
+        when(rsvpRepository.findByInvitationId(invitationId)).thenReturn(List.of(rsvp));
+
+        assertThat(rsvpService.findByInvitation(ownerId, invitationId)).hasSize(1);
+    }
+
     private static Invitation published() {
-        return Invitation.builder().slug("s").weddingDate(LocalDate.now()).status(InvitationStatus.PUBLISHED).build();
+        return publishedWith(true);
+    }
+
+    /** A published page whose rsvp section is shown ({@code true}) or hidden by the couple. */
+    private static Invitation publishedWith(boolean rsvpVisible) {
+        return publishedWith(null, rsvpVisible);
+    }
+
+    private static Invitation publishedWith(Member owner, boolean rsvpVisible) {
+        try {
+            return Invitation.builder()
+                    .member(owner)
+                    .slug("s")
+                    .weddingDate(LocalDate.now())
+                    .status(InvitationStatus.PUBLISHED)
+                    .pageData(new ObjectMapper().readTree(
+                            "{\"blocks\":[{\"id\":\"rsvp-1\",\"type\":\"rsvp\",\"visible\":" + rsvpVisible + "}]}"))
+                    .build();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 }
