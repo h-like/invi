@@ -1,13 +1,10 @@
 import type { HeroLayout, LookOverrides, PageDesign } from '../api/types'
 import { EnvelopePreview } from '../blocks/EnvelopePreview'
-import { ENVELOPE_SLOTS } from '../blocks/envelopeArt'
-import { envelopeColor, HERO_LAYOUTS, NAME_TRACKING_OPTIONS, PART_LABELS, PART_OPTIONS, pageLook, themeLook, TOKEN_KINDS, TOKEN_LABELS, tokenColorHint, withPart, withToken, type PartSlot, type TokenName } from './model'
+import { envelopeColor, HERO_LAYOUTS, NAME_TRACKING_OPTIONS, PART_GROUPS, PART_LABELS, PART_OPTIONS, pageLook, slotsIn, themeLook, TOKEN_KINDS, TOKEN_LABELS, tokenColorHint, withPart, withToken, type PartSlot, type TokenName } from './model'
 
-const SLOT_GROUPS: { title: string; slots: PartSlot[] }[] = [
-  { title: '종이와 첫 화면', slots: ['sheet', 'texture', 'heroFrame', 'heroMark', 'photoFrame'] },
-  { title: '글자와 장식', slots: ['typeset', 'headingOrnament', 'surfaces', 'closing'] },
-  { title: '연출', slots: ['envelope', 'motion'] },
-]
+// The envelope group has its own section with a preview, below.
+const SLOT_GROUPS = PART_GROUPS.filter(group => group.id !== 'envelope').map(group => ({ title: group.title, slots: slotsIn(group.id) }))
+const ENVELOPE_GROUP = PART_GROUPS.find(group => group.id === 'envelope')!
 // The envelope colour sits with the other envelope choices.
 const TOKEN_ORDER: TokenName[] = ['ground', 'paper2', 'line', 'numeralColor', 'nameTracking']
 
@@ -53,9 +50,9 @@ export function LookEditor({ design, monogram, onChange }: { design: PageDesign;
         <div className="form-columns">{group.slots.map(partSelect)}</div>
       </div>)}
       {resolved.parts.envelope !== 'none' && <div>
-        <p className="editor-section-sub">봉투</p>
+        <p className="editor-section-sub">{ENVELOPE_GROUP.title}</p>
         <EnvelopePreview paper={design.backgroundColor} wine={envelopeColor(design, resolved)} parts={resolved.parts} monogram={monogram} />
-        <div className="form-columns">{ENVELOPE_SLOTS.map(partSelect)}{colorInput('envelopeColor')}</div>
+        <div className="form-columns">{slotsIn(ENVELOPE_GROUP.id).map(partSelect)}{colorInput('envelopeColor')}</div>
       </div>}
       <p className="editor-section-sub">색과 간격</p>
       <div className="form-columns">{TOKEN_ORDER.map(name => {

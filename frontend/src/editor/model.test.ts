@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { FONT_FACES } from '../blocks/fonts.ts'
-import { createEmptyPage, DESIGN_PRESETS, getPageDesign, isImageUrl, moveBlock, envelopeColor, pageLook, partClassNames, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, sealShowsInitials, themeFeatures, themeLook, tokenColorHint, TOKEN_VARS, tokenStyle, updateBlock, withPart, withToken, type PartSlot } from './model.ts'
+import { createEmptyPage, DESIGN_PRESETS, facesUsed, getPageDesign, isImageUrl, moveBlock, envelopeColor, pageLook, partClassNames, PART_FACES, PART_GROUPS, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, sealShowsInitials, slotsIn, themeFeatures, themeLook, tokenColorHint, TOKEN_VARS, tokenStyle, updateBlock, withPart, withToken, type FaceRole, type PartSlot, type ThemeParts } from './model.ts'
 
 test('reordering normalizes order without losing design, hidden flags or future fields', () => {
   const original = { ...createEmptyPage(), design: DESIGN_PRESETS[2].design, futureSetting: { retained: true } }
@@ -67,7 +67,48 @@ test('theme look resolves parts to classes, tokens to custom properties and feat
   assert.deepEqual(tokenStyle({ numeralColor: 'red', line: '' }), { '--theme-numeral': 'red' })
 })
 
-const ENVELOPE_DETAIL_SLOTS: PartSlot[] = ['envelopeFlap', 'envelopeMaterial', 'envelopeLiner', 'sealColor', 'sealEmblem', 'envelopeDecor']
+const ENVELOPE_DETAIL_SLOTS = slotsIn('envelope')
+
+test('every part slot sits in exactly one editor group', () => {
+  const grouped = PART_GROUPS.flatMap(group => slotsIn(group.id))
+  assert.deepEqual([...grouped].sort(), Object.keys(PART_OPTIONS).sort())
+  assert.equal(new Set(grouped).size, grouped.length)
+  assert.deepEqual(ENVELOPE_DETAIL_SLOTS, ['envelopeFlap', 'envelopeMaterial', 'envelopeLiner', 'sealColor', 'sealEmblem', 'envelopeDecor'])
+})
+
+test('every part whose CSS uses a decorative face declares it, so the face gets loaded', () => {
+  const css = readFileSync(new URL('../blocks/invitation.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+  const classToPart = new Map<string, [PartSlot, string]>()
+  for (const slot of Object.keys(PART_OPTIONS) as PartSlot[]) {
+    for (const value of PART_OPTIONS[slot].slice(1)) classToPart.set(partClassNames({ ...themeLook('minimal').parts, [slot]: value })[0], [slot, value])
+  }
+  let checked = 0
+  for (const rule of css.split('}')) {
+    const [selector, body] = rule.split('{')
+    if (!body) continue
+    for (const role of ['script', 'display'] as FaceRole[]) {
+      if (!body.includes(`var(--theme-${role})`)) continue
+      for (const cls of selector.match(/part-[a-z0-9-]+/g) ?? []) {
+        const [slot, value] = classToPart.get(cls) ?? assert.fail(`unknown part class ${cls}`)
+        const faces = (PART_FACES[slot] as Record<string, readonly FaceRole[]> | undefined)?.[value]
+        assert.ok(faces?.includes(role), `${slot}=${value} uses --theme-${role} but PART_FACES doesn't list it`)
+        checked++
+      }
+    }
+  }
+  assert.ok(checked > 0)
+  // Every declared face is actually loaded when its part is on, on a theme with no faces.
+  const minimal = DESIGN_PRESETS.find(p => p.code === 'minimal')!.design
+  for (const [slot, byValue] of Object.entries(PART_FACES) as [PartSlot, Record<string, readonly FaceRole[]>][]) {
+    for (const [value, roles] of Object.entries(byValue)) {
+      const parts = { [slot]: value, ...(slotsIn('envelope').includes(slot) ? { envelope: 'wax-seal' } : {}) } as Partial<ThemeParts>
+      const fonts = pageLook({ ...minimal, look: { parts } }).fonts
+      for (const role of roles) assert.ok(fonts[role], `${slot}=${value} should load ${role}`)
+    }
+  }
+  // Envelope details don't load faces while the envelope is off (the default emblem is the monogram).
+  assert.deepEqual([...facesUsed(themeLook('minimal').parts)], [])
+})
 
 test('invitation CSS styles parts, never theme names', () => {
   const css = readFileSync(new URL('../blocks/invitation.css', import.meta.url), 'utf8')

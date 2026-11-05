@@ -1,5 +1,5 @@
 import type { Block, BlockType, HeroLayout, LookOverrides, PageData, PageDesign } from '../api/types.ts'
-import type { ThemeFonts } from '../blocks/fonts.ts'
+import type { FontFaceId, ThemeFonts } from '../blocks/fonts.ts'
 import themes from './themes.json' with { type: 'json' }
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
@@ -119,8 +119,57 @@ export function sanitizeLook(raw: unknown): LookOverrides | undefined {
   return look.parts || look.tokens ? look : undefined
 }
 
-// Parts that draw with the decorative faces; a theme that doesn't name one gets these.
-const FALLBACK_FACES = { script: 'pinyon-script', display: 'cormorant-garamond' } as const
+// Editor groups. A Record, so a new slot that names no group fails to compile instead of
+// silently missing from the editor.
+export const PART_GROUPS = [
+  { id: 'paper', title: '종이와 첫 화면' },
+  { id: 'type', title: '글자와 장식' },
+  { id: 'staging', title: '연출' },
+  // Shown, and drawn, only while `envelope` is on.
+  { id: 'envelope', title: '봉투' },
+] as const
+export type PartGroup = (typeof PART_GROUPS)[number]['id']
+export const PART_GROUP_OF: Record<PartSlot, PartGroup> = {
+  sheet: 'paper', texture: 'paper', heroFrame: 'paper', heroMark: 'paper', photoFrame: 'paper',
+  typeset: 'type', headingOrnament: 'type', surfaces: 'type', closing: 'type',
+  envelope: 'staging', motion: 'staging',
+  envelopeFlap: 'envelope', envelopeMaterial: 'envelope', envelopeLiner: 'envelope', sealColor: 'envelope', sealEmblem: 'envelope', envelopeDecor: 'envelope',
+}
+
+/** The group's slots in PART_OPTIONS order. */
+export function slotsIn(group: PartGroup): PartSlot[] {
+  return (Object.keys(PART_OPTIONS) as PartSlot[]).filter(slot => PART_GROUP_OF[slot] === group)
+}
+
+/** Whether the slot's choice shows at all: envelope details only count with the envelope on. */
+export function partIsActive(parts: ThemeParts, slot: PartSlot): boolean {
+  return PART_GROUP_OF[slot] !== 'envelope' || parts.envelope !== 'none'
+}
+
+// Decorative faces a part value draws with (invitation.css var(--theme-script|display),
+// or the seal SVG's script initials). pageLook loads them only for active parts, so a new
+// part that uses one must be listed here; model.test checks this against the CSS.
+export type FaceRole = 'script' | 'display'
+export const PART_FACES: { [S in PartSlot]?: Partial<Record<ThemeParts[S], readonly FaceRole[]>> } = {
+  heroFrame: { letter: ['script', 'display'] },
+  typeset: { formal: ['script', 'display'] },
+  closing: { 'thank-you': ['script'] },
+  sealEmblem: { monogram: ['script'] },
+}
+
+// A theme that doesn't name a face its parts use gets these.
+const FALLBACK_FACES: Record<FaceRole, FontFaceId> = { script: 'pinyon-script', display: 'cormorant-garamond' }
+
+/** The decorative faces the page's active parts draw with. */
+export function facesUsed(parts: ThemeParts): Set<FaceRole> {
+  const roles = new Set<FaceRole>()
+  for (const slot of Object.keys(parts) as PartSlot[]) {
+    if (!partIsActive(parts, slot)) continue
+    const faces = (PART_FACES[slot] as Record<string, readonly FaceRole[]> | undefined)?.[parts[slot]]
+    faces?.forEach(role => roles.add(role))
+  }
+  return roles
+}
 
 /** The theme's look with the couple's overrides applied; `design` comes from getPageDesign, which sanitized them. */
 export function pageLook(design: PageDesign): ThemeLook {
@@ -128,11 +177,7 @@ export function pageLook(design: PageDesign): ThemeLook {
   const look = design.look
   const parts = { ...base.parts, ...look?.parts } as ThemeParts
   const fonts = { ...base.fonts }
-  const formal = parts.heroFrame === 'letter' || parts.typeset === 'formal'
-  // The seal's initials are drawn in the script face too.
-  const initials = parts.envelope !== 'none' && parts.sealEmblem === 'monogram'
-  if ((formal || parts.closing === 'thank-you' || initials) && !fonts.script) fonts.script = FALLBACK_FACES.script
-  if (formal && !fonts.display) fonts.display = FALLBACK_FACES.display
+  for (const role of facesUsed(parts)) fonts[role] ??= FALLBACK_FACES[role]
   return { parts, tokens: { ...base.tokens, ...look?.tokens }, fonts }
 }
 

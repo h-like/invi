@@ -9,8 +9,6 @@ import { monogramFontSize, sealMonogram } from './heroDetails'
 
 export type EnvelopeParts = Pick<ThemeParts, 'envelopeFlap' | 'envelopeMaterial' | 'envelopeLiner' | 'sealColor' | 'sealEmblem' | 'envelopeDecor'>
 
-export const ENVELOPE_SLOTS = ['envelopeFlap', 'envelopeMaterial', 'envelopeLiner', 'sealColor', 'sealEmblem', 'envelopeDecor'] as const
-
 interface WaxPalette { hi: string; mid: string; lo: string; pool: [string, string]; under: [string, string]; rim: string; ring: string; textHi: string; text: string; chip: [string, string]; crack: string }
 
 // Gold is the original seal; the others keep its light-to-shadow structure.
