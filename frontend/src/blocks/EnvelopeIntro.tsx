@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { EnvelopeDefs, EnvelopeFlap, EnvelopeIds, EnvelopeFront, EnvelopeWaxBottom, envelopeClassNames, useSealText, waxVars, type EnvelopeParts } from './envelopeArt'
 import { createEnvelopeSound } from './envelopeSound'
+import { longestTransitionMs } from './transitions'
 import './envelope.css'
 
 // Guest-page opening for themes with an envelope: push the wax seal sideways until it
@@ -211,6 +212,11 @@ export function EnvelopeIntro({ paper, wine, parts, monogram, script, storageKey
     let pullDrag: { y: number; base: number } | null = null
     function finish() {
       timers.forEach(clearTimeout)
+      clearTimeout(slideTimer)
+      // Drop the slide transition first: removing the padding and the transform together is
+      // a no-op in place, but with the transition still on, the letter would jump up by the
+      // padding and then slide back down.
+      el!.classList.remove('is-animating')
       wrap!.style.transform = ''
       wrap!.style.paddingTop = ''
       html.classList.remove('envelope-locked')
@@ -220,19 +226,33 @@ export function EnvelopeIntro({ paper, wine, parts, monogram, script, storageKey
       justOpened.current = true
       setRead(true)
     }
+    // One pending end-of-slide step at a time: a snap-back's cleanup must not strip the
+    // transition from a pull that starts before it fires.
+    let slideTimer = 0
+    // Read the slide's length from the CSS (letter and envelope layers, delays included),
+    // so the timers follow the stylesheet and its reduced-motion durations.
+    const slideMs = () => Math.max(0, ...[wrap!, flapLayer!].map(node => longestTransitionMs(getComputedStyle(node)))) + 20
     function settle(target: 0 | 1) {
       if (stage !== 'open') return
+      clearTimeout(slideTimer)
+      // A tap lifts the letter before the envelope falls; after a drag the envelope is
+      // already moving under the finger, so it carries on without a pause, and eases out
+      // from that speed instead of stopping and starting again (envelope.css .is-from-drag).
+      const fromDrag = pull !== 0
+      setVar('--env-lag', target === 1 && !fromDrag ? '.15s' : '0s')
+      el!.classList.toggle('is-from-drag', fromDrag)
       el!.classList.add('is-animating')
       pull = target
       update()
       if (target === 1) {
         setStage('pulling')
         audio.rustle(0, 0.6, 0.12)
-        later(finish, reduce ? 220 : 720)
-      } else later(() => el!.classList.remove('is-animating'), 720)
+        slideTimer = window.setTimeout(finish, slideMs())
+      } else slideTimer = window.setTimeout(() => el!.classList.remove('is-animating'), slideMs())
     }
     const onDown = (e: PointerEvent) => {
       if (stage !== 'open' || (e.target as Element | null)?.closest?.('.envelope-tools')) return
+      clearTimeout(slideTimer)
       el.classList.remove('is-animating')
       pullDrag = { y: e.clientY, base: pull }
     }
@@ -265,6 +285,7 @@ export function EnvelopeIntro({ paper, wine, parts, monogram, script, storageKey
 
     return () => {
       timers.forEach(clearTimeout)
+      clearTimeout(slideTimer)
       html.classList.remove('envelope-locked')
       history.scrollRestoration = 'auto'
       window.removeEventListener('scroll', pinTop)

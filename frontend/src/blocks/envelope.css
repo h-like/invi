@@ -87,7 +87,13 @@ html.envelope-locked, html.envelope-locked body { overflow: hidden; }
 @keyframes env-sway { 0%, 100% { transform: translateX(-8px); } 50% { transform: translateX(8px); } }
 @keyframes env-rise { 0% { transform: translateY(8px); opacity: .3; } 60% { transform: translateY(-6px); opacity: 1; } 100% { transform: translateY(-10px); opacity: 0; } }
 
-.envelope.is-animating .env-lay, .envelope.is-animating .env-mask, .envelope.is-animating .envelope-letter { transition: transform .7s cubic-bezier(.22, .8, .25, 1); }
+/* Ease in and out so a tap lifts the letter rather than flinging it. --env-lag (set per
+   slide by EnvelopeIntro) lets the envelope fall a beat after a tap; EnvelopeIntro reads
+   these durations to time the end of the slide. */
+.envelope.is-animating .envelope-letter { transition: transform .85s cubic-bezier(.45, 0, .2, 1); }
+.envelope.is-animating .env-lay, .envelope.is-animating .env-mask { transition: transform .7s cubic-bezier(.5, 0, .3, 1) var(--env-lag, 0s); }
+/* After a drag (or a snap-back) everything is already moving, so start at speed and ease out. */
+.envelope.is-animating.is-from-drag .envelope-letter, .envelope.is-animating.is-from-drag .env-lay, .envelope.is-animating.is-from-drag .env-mask { transition-timing-function: cubic-bezier(.22, .8, .25, 1); }
 
 .envelope-tools {
   position: fixed; z-index: 20; display: flex; gap: 6px;
@@ -148,6 +154,6 @@ html.envelope-locked, html.envelope-locked body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .env-flap { transition-duration: .01s; }
   .env-hint span { animation: none; }
-  /* Matches the shorter reduced-motion timers in EnvelopeIntro, so finish() never cuts a slide short. */
-  .envelope.is-animating .env-lay, .envelope.is-animating .env-mask, .envelope.is-animating .envelope-letter { transition-duration: .2s; }
+  /* EnvelopeIntro reads these shorter durations, so its timers shrink with them. */
+  .envelope.is-animating .env-lay, .envelope.is-animating .env-mask, .envelope.is-animating .envelope-letter { transition-duration: .2s; transition-delay: 0s; }
 }
