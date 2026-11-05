@@ -39,6 +39,11 @@ export function fontStack(fonts: ThemeFonts, font: InvitationFont): string {
   return font === 'serif' ? face(fonts.serif)?.stack ?? FONT_STACKS.serif : FONT_STACKS[font]
 }
 
+/** The script face the page loaded (pageLook picks one whenever the seal shows initials), quoted for CSS/SVG. */
+export function scriptFamily(fonts: ThemeFonts): string {
+  return face(fonts.script)?.family ?? FONT_FACES['pinyon-script'].family
+}
+
 /** Custom properties for the decorative faces; the CSS supplies fallbacks when unset. */
 export function fontVars(fonts: ThemeFonts): Record<string, string> {
   const vars: Record<string, string> = {}

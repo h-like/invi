@@ -147,7 +147,7 @@ export function partIsActive(parts: ThemeParts, slot: PartSlot): boolean {
 }
 
 // Decorative faces a part value draws with (invitation.css var(--theme-script|display),
-// or the seal SVG's script initials). pageLook loads them only for active parts, so a new
+// or the seal SVG's script initials, see scriptFamily). pageLook loads them only for active parts, so a new
 // part that uses one must be listed here; model.test checks this against the CSS.
 export type FaceRole = 'script' | 'display'
 export const PART_FACES: { [S in PartSlot]?: Partial<Record<ThemeParts[S], readonly FaceRole[]>> } = {
@@ -176,8 +176,10 @@ export function pageLook(design: PageDesign): ThemeLook {
   const base = themeLook(design.theme)
   const look = design.look
   const parts = { ...base.parts, ...look?.parts } as ThemeParts
-  const fonts = { ...base.fonts }
-  for (const role of facesUsed(parts)) fonts[role] ??= FALLBACK_FACES[role]
+  // The body serif always applies; a decorative face loads only while an active part
+  // draws with it, so turning those parts off also stops the download.
+  const fonts: ThemeFonts = base.fonts.serif ? { serif: base.fonts.serif } : {}
+  for (const role of facesUsed(parts)) fonts[role] = base.fonts[role] ?? FALLBACK_FACES[role]
   return { parts, tokens: { ...base.tokens, ...look?.tokens }, fonts }
 }
 
@@ -185,8 +187,13 @@ export function pageLook(design: PageDesign): ThemeLook {
 // reach the page and "template default" is one choice away.
 export function withPart(design: PageDesign, slot: PartSlot, value: string): LookOverrides | undefined {
   const parts = { ...design.look?.parts }
-  if (value === themeLook(design.theme).parts[slot]) delete parts[slot]
+  const base = themeLook(design.theme).parts
+  if (value === base[slot]) delete parts[slot]
   else parts[slot] = value
+  // Envelope details are hidden with the envelope off; dropping them keeps what is stored
+  // to what the couple can see, instead of reviving old picks when it is turned back on.
+  const resolved = { ...base, ...parts } as ThemeParts
+  for (const detail of slotsIn('envelope')) if (!partIsActive(resolved, detail)) delete parts[detail]
   return sanitizeLook({ ...design.look, parts })
 }
 

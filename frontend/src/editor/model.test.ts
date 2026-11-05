@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { FONT_FACES } from '../blocks/fonts.ts'
+import { FONT_FACES, scriptFamily } from '../blocks/fonts.ts'
 import { createEmptyPage, DESIGN_PRESETS, facesUsed, getPageDesign, isImageUrl, moveBlock, envelopeColor, pageLook, partClassNames, PART_FACES, PART_GROUPS, PART_OPTIONS, patchContent, publishIssues, readableColor, contrastRatio, sanitizeLook, sealShowsInitials, slotsIn, themeFeatures, themeLook, tokenColorHint, TOKEN_VARS, tokenStyle, updateBlock, withPart, withToken, type FaceRole, type PartSlot, type ThemeParts } from './model.ts'
 
 test('reordering normalizes order without losing design, hidden flags or future fields', () => {
@@ -226,4 +226,22 @@ test('envelope colour is not a page CSS variable, and initials show only with th
   assert.equal(sealShowsInitials(pageLook(seal)), true)
   assert.equal(sealShowsInitials(pageLook({ ...seal, look: { parts: { sealEmblem: 'heart' } } })), false)
   assert.equal(sealShowsInitials(themeLook('minimal')), false)
+})
+
+test('decorative faces load only while an active part draws with them', () => {
+  const seal = DESIGN_PRESETS.find(p => p.code === 'seal')!.design
+  const plain = { ...seal, look: { parts: { heroFrame: 'none', typeset: 'plain', closing: 'none', envelope: 'none' } } }
+  assert.deepEqual(pageLook(plain).fonts, { serif: 'gowun-batang' })
+  // The seal's initials still need the theme's script face; an emblem does not.
+  assert.equal(pageLook({ ...plain, look: { parts: { ...plain.look.parts, envelope: 'wax-seal' } } }).fonts.script, 'pinyon-script')
+  assert.equal(scriptFamily(pageLook(seal).fonts), FONT_FACES['pinyon-script'].family)
+  assert.equal(scriptFamily({}), FONT_FACES['pinyon-script'].family)
+})
+
+test('turning the envelope off drops its hidden detail overrides', () => {
+  const seal = DESIGN_PRESETS.find(p => p.code === 'seal')!.design
+  const custom = { ...seal, look: { parts: { sealColor: 'navy', envelopeDecor: 'ribbon', sheet: 'plain' } } }
+  assert.deepEqual(withPart(custom, 'envelope', 'none'), { parts: { sheet: 'plain', envelope: 'none' } })
+  // With the envelope still on, details are kept.
+  assert.deepEqual(withPart(custom, 'motion', 'none')?.parts, { sealColor: 'navy', envelopeDecor: 'ribbon', sheet: 'plain', motion: 'none' })
 })

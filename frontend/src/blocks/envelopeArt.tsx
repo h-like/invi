@@ -73,13 +73,13 @@ function useIds() {
 // Usable width inside the seal's inner ring (radius 22.5) in seal units.
 const SEAL_TEXT_WIDTH = 36
 
-export interface SealText { text: string; size: number; x: number; y: number }
+export interface SealText { text: string; size: number; x: number; y: number; family: string }
 
 /**
  * Script capitals vary a lot in width, so initials are measured once the font is in and
  * shrunk to fit inside the inner ring. The lone ampersand keeps its original drawing.
  */
-export function useSealText(monogram: string | undefined, svg: RefObject<SVGSVGElement | null>, enabled: boolean): SealText {
+export function useSealText(monogram: string | undefined, svg: RefObject<SVGSVGElement | null>, enabled: boolean, family: string): SealText {
   const [sealFit, setSealFit] = useState<{ label: string; size: number; dx: number } | null>(null)
   useLayoutEffect(() => {
     const label = sealMonogram(monogram)
@@ -87,10 +87,11 @@ export function useSealText(monogram: string | undefined, svg: RefObject<SVGSVGE
     if (!enabled || label === '&' || !host) return
     let live = true
     const base = monogramFontSize(label)
+    const name = family.replace(/["']/g, '')
     const measure = () => {
       if (!live) return
       const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-      probe.setAttribute('font-family', 'Pinyon Script, cursive')
+      probe.setAttribute('font-family', family + ', cursive')
       probe.setAttribute('font-size', String(base))
       probe.setAttribute('text-anchor', 'middle')
       probe.setAttribute('visibility', 'hidden')
@@ -103,23 +104,23 @@ export function useSealText(monogram: string | undefined, svg: RefObject<SVGSVGE
       const next = { label, size: Math.round(base * k * 10) / 10, dx: Math.round(-(box.x + box.width / 2) * k * 10) / 10 }
       setSealFit(prev => prev && prev.label === next.label && prev.size === next.size && prev.dx === next.dx ? prev : next)
     }
-    // The script face is registered lazily with the theme CSS, so measure again when a
-    // Pinyon Script face finishes loading; the first pass may still see the fallback.
+    // The script face is registered lazily with the theme CSS, so measure again when that
+    // face finishes loading; the first pass may still see the fallback.
     // Other fonts (the body face's unicode-range chunks) cannot change the seal width.
     const onFontsLoaded = (event: Event) => {
       const faces = (event as FontFaceSetLoadEvent).fontfaces ?? []
-      if (faces.some(face => face.family.replace(/["']/g, '') === 'Pinyon Script')) measure()
+      if (faces.some(face => face.family.replace(/["']/g, '') === name)) measure()
     }
-    document.fonts.load(`${base}px "Pinyon Script"`, label).then(measure, measure)
+    document.fonts.load(`${base}px ${family}`, label).then(measure, measure)
     document.fonts.addEventListener('loadingdone', onFontsLoaded)
     return () => { live = false; document.fonts.removeEventListener('loadingdone', onFontsLoaded) }
-  }, [enabled, monogram, svg])
+  }, [enabled, monogram, svg, family])
 
   const label = sealMonogram(monogram)
   const fitted = sealFit?.label === label ? sealFit : null
   const size = fitted?.size ?? monogramFontSize(label)
   // Baseline sits about a third of the font size below centre, so the glyphs look centred.
-  return { text: label, size, x: fitted?.dx ?? 0, y: Math.round(size * 0.32 * 10) / 10 }
+  return { text: label, size, x: fitted?.dx ?? 0, y: Math.round(size * 0.32 * 10) / 10, family }
 }
 
 /** Gradients, the wax blob and the full seal artwork, referenced by the layers below. */
@@ -146,8 +147,8 @@ export function EnvelopeDefs({ parts, seal }: { parts: EnvelopeParts; seal: Seal
               <path d={emblem} fill={wax.text} stroke={wax.text} strokeWidth="1.2" strokeLinejoin="round" />
             </>
             : <>
-              <text y={seal.y + .7} x={seal.x + .6} textAnchor="middle" fontFamily="Pinyon Script, cursive" fontSize={seal.size} fill={wax.textHi} opacity=".75">{seal.text}</text>
-              <text y={seal.y} x={seal.x} textAnchor="middle" fontFamily="Pinyon Script, cursive" fontSize={seal.size} fill={wax.text}>{seal.text}</text>
+              <text y={seal.y + .7} x={seal.x + .6} textAnchor="middle" fontFamily={seal.family + ', cursive'} fontSize={seal.size} fill={wax.textHi} opacity=".75">{seal.text}</text>
+              <text y={seal.y} x={seal.x} textAnchor="middle" fontFamily={seal.family + ', cursive'} fontSize={seal.size} fill={wax.text}>{seal.text}</text>
             </>}
         </g>
         <clipPath id={id('cp-top')}><polygon points={geometry.top} /></clipPath>
