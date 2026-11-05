@@ -31,6 +31,13 @@ export interface PageDesign {
   fontFamily: InvitationFont
   fontSize: InvitationFontSize
   heroLayout: HeroLayout
+  /** The couple's changes on top of the theme's look; editor/model.ts validates them. */
+  look?: LookOverrides
+}
+
+export interface LookOverrides {
+  parts?: Record<string, string>
+  tokens?: Record<string, string>
 }
 
 export interface PageData {

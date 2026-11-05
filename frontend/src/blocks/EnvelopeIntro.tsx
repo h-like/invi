@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { EnvelopeDefs, EnvelopeFlap, EnvelopeIds, EnvelopeFront, EnvelopeWaxBottom, envelopeClassNames, useSealText, waxVars, type EnvelopeParts } from './envelopeArt'
 import { createEnvelopeSound } from './envelopeSound'
-import { monogramFontSize, sealMonogram } from './heroDetails'
 import './envelope.css'
 
 // Guest-page opening for themes with an envelope: push the wax seal sideways until it
@@ -15,37 +15,6 @@ const STAGE_HINTS: Partial<Record<Stage, string>> = {
   open: '봉투가 열렸습니다. 위로 쓸어올리거나 Enter 키를 눌러 청첩장을 꺼내 주세요.',
 }
 
-// Envelope art is drawn in a 340×236 box and scaled to the column.
-const geometry = (() => {
-  let blob = ''
-  for (let i = 0; i <= 120; i++) {
-    const t = i / 120 * Math.PI * 2
-    const r = 35 + 2.2 * Math.sin(9 * t) + 1.3 * Math.sin(23 * t + 1) + 1.1 * Math.sin(5 * t + 2)
-    blob += (i ? 'L' : 'M') + (r * Math.cos(t)).toFixed(2) + ' ' + (r * Math.sin(t)).toFixed(2)
-  }
-  // The seal splits along the flap's edge, with a jagged break.
-  const slope = 153.4 / 170
-  const edge: [number, number][] = []
-  for (let i = 0, x = -46; x <= 46.01; x += 2.3, i++) {
-    const jag = (i % 2 ? 1.5 : -1.1) * (0.6 + 0.4 * Math.abs(Math.sin(i * 12.9898)))
-    edge.push([x, -slope * Math.abs(x) + 5 + (Math.abs(x) < 1 ? 0 : jag)])
-  }
-  const points = (list: [number, number][]) => list.map(p => p[0].toFixed(2) + ',' + p[1].toFixed(2)).join(' ')
-  const path = (list: [number, number][]) => 'M' + list.map(p => p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join('L')
-  const inside = (p: [number, number]) => Math.hypot(p[0], p[1]) < 37
-  const mid = edge.findIndex(p => p[0] >= 0)
-  return {
-    blob: blob + 'Z',
-    top: points([...edge.map(p => [p[0], p[1] + 0.6] as [number, number]), [46, -60], [-46, -60]]),
-    bottom: points([...edge, [46, 60], [-46, 60]]),
-    crackLeft: path(edge.slice(0, mid + 1).reverse().filter(inside)),
-    crackRight: path(edge.slice(mid).filter(inside)),
-  }
-})()
-
-// Usable width inside the seal's inner ring (radius 22.5) in seal units.
-const SEAL_TEXT_WIDTH = 36
-
 function readOnce(key: string): boolean {
   try { return sessionStorage.getItem(key) === '1' } catch { return false }
 }
@@ -53,14 +22,18 @@ function readOnce(key: string): boolean {
 interface Props {
   paper: string
   wine: string
+  /** Flap, material, liner, wax colour, emblem and decoration. */
+  parts: EnvelopeParts
   /** Couple's initials pressed into the wax; an ampersand when empty. */
   monogram?: string
+  /** The page's script face (fonts.scriptFamily) the initials are drawn in. */
+  script: string
   /** Remembers per tab that the guest already opened this invitation, so a refresh skips the intro. */
   storageKey: string
   children: ReactNode
 }
 
-export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: Props) {
+export function EnvelopeIntro({ paper, wine, parts, monogram, script, storageKey, children }: Props) {
   const [read, setRead] = useState(() => readOnce(storageKey))
   const [muted, setMuted] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -76,7 +49,8 @@ export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: P
   const sound = useRef(createEnvelopeSound())
   const skip = useRef<() => void>(() => {})
   const justOpened = useRef(false)
-  const [sealFit, setSealFit] = useState<{ label: string; size: number; dx: number } | null>(null)
+  const sealSvg = useRef<SVGSVGElement>(null)
+  const sealText = useSealText(monogram, sealSvg, !read && parts.sealEmblem === 'monogram', script)
 
   useEffect(() => { sound.current.setMuted(muted) }, [muted])
 
@@ -309,42 +283,6 @@ export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: P
     }
   }, [read, storageKey])
 
-  // Script capitals vary a lot in width, so initials are measured once the font is in and
-  // shrunk to fit inside the inner ring. The lone ampersand keeps its original drawing.
-  useLayoutEffect(() => {
-    const label = sealMonogram(monogram)
-    const svg = waxBottom.current?.querySelector('svg')
-    if (read || label === '&' || !svg) return
-    let live = true
-    const base = monogramFontSize(label)
-    const measure = () => {
-      if (!live) return
-      const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-      probe.setAttribute('font-family', 'Pinyon Script, cursive')
-      probe.setAttribute('font-size', String(base))
-      probe.setAttribute('text-anchor', 'middle')
-      probe.setAttribute('visibility', 'hidden')
-      probe.textContent = label
-      svg.appendChild(probe)
-      const box = probe.getBBox()
-      probe.remove()
-      if (!box.width) return
-      const k = Math.min(1, SEAL_TEXT_WIDTH / box.width)
-      const next = { label, size: Math.round(base * k * 10) / 10, dx: Math.round(-(box.x + box.width / 2) * k * 10) / 10 }
-      setSealFit(prev => prev && prev.label === next.label && prev.size === next.size && prev.dx === next.dx ? prev : next)
-    }
-    // The script face is registered lazily with the theme CSS, so measure again when a
-    // Pinyon Script face finishes loading; the first pass may still see the fallback.
-    // Other fonts (the body face's unicode-range chunks) cannot change the seal width.
-    const onFontsLoaded = (event: Event) => {
-      const faces = (event as FontFaceSetLoadEvent).fontfaces ?? []
-      if (faces.some(face => face.family.replace(/["']/g, '') === 'Pinyon Script')) measure()
-    }
-    document.fonts.load(`${base}px "Pinyon Script"`, label).then(measure, measure)
-    document.fonts.addEventListener('loadingdone', onFontsLoaded)
-    return () => { live = false; document.fonts.removeEventListener('loadingdone', onFontsLoaded) }
-  }, [read, monogram])
-
   // After the letter is out, move focus into it so keyboard and screen reader users land on the invitation.
   useEffect(() => {
     if (!read || !justOpened.current) return
@@ -352,76 +290,31 @@ export function EnvelopeIntro({ paper, wine, monogram, storageKey, children }: P
     letter.current?.focus({ preventScroll: true })
   }, [read])
 
-  const colors = { '--env-paper': paper, '--env-wine': wine } as CSSProperties
-  const sealLabel = sealMonogram(monogram)
-  const fitted = sealFit?.label === sealLabel ? sealFit : null
-  const sealSize = fitted?.size ?? monogramFontSize(sealLabel)
-  const sealText = {
-    text: sealLabel,
-    size: sealSize,
-    x: fitted?.dx ?? 0,
-    // Baseline sits about a third of the font size below centre, so the glyphs look centred.
-    y: Math.round(sealSize * 0.32 * 10) / 10,
-  }
+  const colors = { '--env-paper': paper, '--env-wine': wine, ...waxVars(parts) } as CSSProperties
   return (
-    <div ref={root} className="envelope" data-stage={read ? 'read' : 'sealed'} style={colors}>
-      {!read && <>
-        <div className="envelope-tools">
-          <button type="button" className="envelope-pill" aria-pressed={muted} onClick={() => setMuted(m => !m)}>{muted ? '소리 꺼짐' : '소리 켜짐'}</button>
-          <button type="button" className="envelope-pill" onClick={() => skip.current()}>바로 보기</button>
-        </div>
-        <p ref={live} className="envelope-live" aria-live="polite" />
-        <svg className="env-defs" aria-hidden="true" focusable="false">
-          <defs>
-            <radialGradient id="env-wax" cx="38%" cy="32%" r="75%"><stop offset="0" stopColor="#f6e0a0" /><stop offset=".45" stopColor="#d1aa52" /><stop offset="1" stopColor="#8c6a22" /></radialGradient>
-            <radialGradient id="env-pool" cx="60%" cy="65%" r="70%"><stop offset="0" stopColor="#b98f3a" /><stop offset="1" stopColor="#e2c27a" /></radialGradient>
-            <linearGradient id="env-under" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#9c7a30" /><stop offset="1" stopColor="#6e5216" /></linearGradient>
-            <path id="env-blob" d={geometry.blob} />
-            <g id="env-seal-art">
-              <use href="#env-blob" fill="url(#env-wax)" />
-              <circle r="25" fill="url(#env-pool)" />
-              <circle r="25" fill="none" stroke="#8a6721" strokeWidth="1.4" />
-              <circle r="22.5" fill="none" stroke="#f3dc9c" strokeWidth=".6" opacity=".8" />
-              <text y={sealText.y + .7} x={sealText.x + .6} textAnchor="middle" fontFamily="Pinyon Script, cursive" fontSize={sealText.size} fill="#f7e6b4" opacity=".75">{sealText.text}</text>
-              <text y={sealText.y} x={sealText.x} textAnchor="middle" fontFamily="Pinyon Script, cursive" fontSize={sealText.size} fill="#7a5a1a">{sealText.text}</text>
-            </g>
-            <clipPath id="env-cp-top"><polygon points={geometry.top} /></clipPath>
-            <clipPath id="env-cp-bottom"><polygon points={geometry.bottom} /></clipPath>
-          </defs>
-        </svg>
-        <div className="env-lay env-lay-back" aria-hidden="true"><div className="env-back" /></div>
-        <div className="env-lay env-lay-flap" ref={flap} aria-hidden="true">
-          <div className="env-flap">
-            <div className="env-face env-flap-front" />
-            <div className="env-face env-flap-inner" />
-            <div className="env-wax env-wax-top" ref={waxTop}>
-              <svg className="env-wax-front" viewBox="-40 -40 80 80"><use href="#env-seal-art" clipPath="url(#env-cp-top)" /></svg>
-              <svg className="env-wax-under" viewBox="-40 -40 80 80"><g transform="scale(1,-1)"><use href="#env-blob" clipPath="url(#env-cp-top)" fill="url(#env-under)" /></g></svg>
-            </div>
+    <EnvelopeIds>
+      <div ref={root} className={['envelope', ...envelopeClassNames(parts)].join(' ')} data-stage={read ? 'read' : 'sealed'} style={colors}>
+        {!read && <>
+          <div className="envelope-tools">
+            <button type="button" className="envelope-pill" aria-pressed={muted} onClick={() => setMuted(m => !m)}>{muted ? '소리 꺼짐' : '소리 켜짐'}</button>
+            <button type="button" className="envelope-pill" onClick={() => skip.current()}>바로 보기</button>
           </div>
-        </div>
-        <div className="env-mask" aria-hidden="true">
-          <p className="env-hint env-hint-seal"><span>⟵ ⟶</span>실링을 옆으로 밀어 깨뜨려 주세요</p>
-          <p className="env-hint env-hint-pull"><span>︿</span>위로 쓸어올려 편지를 꺼내 보세요</p>
-        </div>
-        <div className="env-lay env-lay-front" aria-hidden="true">
-          <div className="env-shadow" />
-          <div className="env-pocket">
-            <div className="env-pocket-shade"><div className="env-pocket-side env-pocket-left" /></div>
-            <div className="env-pocket-shade"><div className="env-pocket-side env-pocket-right" /></div>
-            <div className="env-pocket-shade"><div className="env-pocket-bottom" /></div>
+          <p ref={live} className="envelope-live" aria-live="polite" />
+          <EnvelopeDefs parts={parts} seal={sealText} />
+          <div className="env-lay env-lay-back" aria-hidden="true"><div className="env-back" /></div>
+          <EnvelopeFlap flap={flap} waxTop={waxTop} />
+          <div className="env-mask" aria-hidden="true">
+            <p className="env-hint env-hint-seal"><span>⟵ ⟶</span>실링을 옆으로 밀어 깨뜨려 주세요</p>
+            <p className="env-hint env-hint-pull"><span>︿</span>위로 쓸어올려 편지를 꺼내 보세요</p>
           </div>
-          <div className="env-flap-shadow" />
-        </div>
-        <div className="env-lay env-lay-wax" ref={waxLayer}>
-          <div className="env-wax env-wax-bottom" ref={waxBottom} aria-hidden="true">
-            <svg viewBox="-40 -40 80 80"><use href="#env-seal-art" clipPath="url(#env-cp-bottom)" /></svg>
-            <svg className="env-crack" viewBox="-40 -40 80 80"><path ref={crackLeft} d={geometry.crackLeft} /><path ref={crackRight} d={geometry.crackRight} /></svg>
+          <EnvelopeFront decor={parts.envelopeDecor} />
+          <div className="env-lay env-lay-wax" ref={waxLayer}>
+            <EnvelopeWaxBottom flap={parts.envelopeFlap} svg={sealSvg} waxBottom={waxBottom} crackLeft={crackLeft} crackRight={crackRight} />
+            <button ref={hit} type="button" className="env-seal-hit" aria-label="실링을 깨고 청첩장 열기" />
           </div>
-          <button ref={hit} type="button" className="env-seal-hit" aria-label="실링을 깨고 청첩장 열기" />
-        </div>
-      </>}
-      <div ref={letter} className="envelope-letter" inert={!read} tabIndex={-1}>{children}</div>
-    </div>
+        </>}
+        <div ref={letter} className="envelope-letter" inert={!read} tabIndex={-1}>{children}</div>
+      </div>
+    </EnvelopeIds>
   )
 }

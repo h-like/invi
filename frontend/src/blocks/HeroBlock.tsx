@@ -26,10 +26,14 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
     </div>
   )
 
+  // A theme's hero mark (leaf, stamp) is drawn by CSS; it sits first in the hero.
+  const mark = <span className="hero-mark" aria-hidden="true" />
+
   if (layout === 'photo-full') {
     // Without a cover photo the overlay would float on nothing, so a tinted panel stands in.
     return (
       <section className="block hero-block hero-layout-photo-full">
+        {mark}
         <div className={'hero-photo' + (cover ? '' : ' hero-photo-empty')}>
           {cover && <img className="hero-photo-image" src={cover} alt="두 사람의 웨딩 사진" />}
           <div className="hero-photo-caption">
@@ -47,6 +51,7 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
     const numeric = validDate ? [validDate.getFullYear(), validDate.getMonth() + 1, validDate.getDate()].map(n => String(n).padStart(2, '0')).join('.') : ''
     return (
       <section className="block hero-block hero-layout-typographic">
+        {mark}
         <p className="invitation-eyebrow">WE ARE GETTING MARRIED</p>
         <h1 className="hero-names hero-names-stacked">{groomName}<span className="hero-ampersand">&amp;</span>{brideName}</h1>
         <p className="hero-date">{numeric && <strong className="hero-date-numeric">{numeric}</strong>}<span>{dateLabel}{time ? ' · ' + time : ''}</span></p>
@@ -60,6 +65,7 @@ export function HeroBlock({ block, weddingDate, layout }: { block: Block; weddin
   return (
     <section className="block hero-block hero-layout-frame">
       <div className="hero-frame">
+        {mark}
         <p className="invitation-eyebrow hero-tagline">We are getting married</p>
         <p className="hero-date">{dateLabel}{time ? ' · ' + time : ''}</p>
         <h1 className="hero-names">{groomName}<span className="hero-ampersand">&amp;</span>{brideName}</h1>

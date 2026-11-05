@@ -3,7 +3,8 @@
     "code": "classic",
     "name": "베이지 클래식",
     "description": "아이보리 종이와 클래식 프레임",
-    "design": { "theme": "classic", "backgroundColor": "#faf7f2", "accentColor": "#856539", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" }
+    "design": { "theme": "classic", "backgroundColor": "#faf7f2", "accentColor": "#856539", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" },
+    "parts": { "heroFrame": "double-rule" }
   },
   {
     "code": "minimal",
@@ -15,42 +16,53 @@
     "code": "romantic",
     "name": "로즈 레터",
     "description": "부드러운 핑크빛 편지",
-    "design": { "theme": "romantic", "backgroundColor": "#fdf1f4", "accentColor": "#a33e58", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" }
+    "design": { "theme": "romantic", "backgroundColor": "#fdf1f4", "accentColor": "#a33e58", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" },
+    "parts": { "heroFrame": "arch" }
   },
   {
     "code": "modern",
     "name": "모던 나이트",
     "description": "짙은 배경과 선명한 타이포",
-    "design": { "theme": "modern", "backgroundColor": "#141414", "accentColor": "#80d8cc", "fontFamily": "sans", "fontSize": "normal", "heroLayout": "photo-full" }
+    "design": { "theme": "modern", "backgroundColor": "#141414", "accentColor": "#80d8cc", "fontFamily": "sans", "fontSize": "normal", "heroLayout": "photo-full" },
+    "parts": { "heroFrame": "top-bar" }
   },
   {
     "code": "garden",
     "name": "세이지 가든",
     "description": "초록 잎사귀가 감싸는 정원의 초대",
-    "design": { "theme": "garden", "backgroundColor": "#f2f4ec", "accentColor": "#4a6a4c", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" }
+    "design": { "theme": "garden", "backgroundColor": "#f2f4ec", "accentColor": "#4a6a4c", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" },
+    "parts": { "heroFrame": "rounded-double", "heroMark": "leaf" }
   },
   {
     "code": "hanji",
     "name": "한지 담묵",
     "description": "미색 한지에 먹빛과 주홍 낙관",
-    "design": { "theme": "hanji", "backgroundColor": "#f6f0e1", "accentColor": "#a8352a", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "typographic" }
+    "design": { "theme": "hanji", "backgroundColor": "#f6f0e1", "accentColor": "#a8352a", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "typographic" },
+    "parts": { "texture": "fibre", "heroMark": "stamp" },
+    "tokens": { "nameTracking": ".14em" }
   },
   {
     "code": "film",
     "name": "필름 포토",
     "description": "한 장의 인화 사진으로 여는 초대",
-    "design": { "theme": "film", "backgroundColor": "#f3f0eb", "accentColor": "#5b4f45", "fontFamily": "sans", "fontSize": "normal", "heroLayout": "photo-full" }
+    "design": { "theme": "film", "backgroundColor": "#f3f0eb", "accentColor": "#5b4f45", "fontFamily": "sans", "fontSize": "normal", "heroLayout": "photo-full" },
+    "parts": { "photoFrame": "print" }
   },
   {
     "code": "letterpress",
     "name": "네이비 레터프레스",
     "description": "크림 종이에 눌러 찍은 남색 활자",
-    "design": { "theme": "letterpress", "backgroundColor": "#fbf6ea", "accentColor": "#22385c", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "typographic" }
+    "design": { "theme": "letterpress", "backgroundColor": "#fbf6ea", "accentColor": "#22385c", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "typographic" },
+    "parts": { "heroFrame": "pressed-rules" },
+    "tokens": { "nameTracking": ".02em", "numeralColor": "var(--invite-accent)" }
   },
   {
     "code": "seal",
     "name": "와인 실링 레터",
     "description": "실링을 깨고 꺼내 읽는 편지",
-    "design": { "theme": "seal", "backgroundColor": "#f4eee3", "accentColor": "#6e1c28", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" }
+    "design": { "theme": "seal", "backgroundColor": "#f4eee3", "accentColor": "#6e1c28", "fontFamily": "serif", "fontSize": "normal", "heroLayout": "frame" },
+    "parts": { "sheet": "letter", "heroFrame": "letter", "photoFrame": "arch", "typeset": "formal", "headingOrnament": "diamond-rule", "surfaces": "tinted", "closing": "thank-you", "envelope": "wax-seal", "motion": "reveal" },
+    "tokens": { "line": "color-mix(in srgb, var(--invite-accent) 16%, transparent)" },
+    "fonts": { "serif": "gowun-batang", "script": "pinyon-script", "display": "cormorant-garamond" }
   }
 ]
