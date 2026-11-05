@@ -59,7 +59,7 @@ class RsvpRepositoryTest {
                 .getSingleResult();
         assertThat(row).containsExactly("BRIDE", "UNDECIDED");
 
-        Rsvp loaded = rsvps.findByInvitationId(invitation.getId()).get(0);
+        Rsvp loaded = rsvps.findByInvitationIdOrderByCreatedAtDescIdDesc(invitation.getId()).get(0);
         assertThat(loaded.getSide()).isEqualTo(RsvpSide.BRIDE);
         assertThat(loaded.getMeal()).isEqualTo(RsvpMeal.UNDECIDED);
     }
@@ -70,10 +70,31 @@ class RsvpRepositoryTest {
         entityManager.flush();
         entityManager.clear();
 
-        List<Rsvp> loaded = rsvps.findByInvitationId(invitation.getId());
+        List<Rsvp> loaded = rsvps.findByInvitationIdOrderByCreatedAtDescIdDesc(invitation.getId());
         assertThat(loaded).singleElement().satisfies(r -> {
             assertThat(r.getSide()).isNull();
             assertThat(r.getMeal()).isNull();
         });
+    }
+
+    @Test
+    void listsNewestFirst_withTheIdBreakingTies() {
+        Rsvp oldest = save("oldest", "2026-01-01T00:00:00Z");
+        Rsvp newest = save("newest", "2026-03-01T00:00:00Z");
+        Rsvp tieA = save("tie-a", "2026-02-01T00:00:00Z");
+        Rsvp tieB = save("tie-b", "2026-02-01T00:00:00Z");
+        entityManager.clear();
+        List<UUID> ties = java.util.stream.Stream.of(tieA.getId(), tieB.getId()).sorted(java.util.Comparator.comparing(UUID::toString).reversed()).toList();
+
+        assertThat(rsvps.findByInvitationIdOrderByCreatedAtDescIdDesc(invitation.getId())).extracting(Rsvp::getId)
+                .containsExactly(newest.getId(), ties.get(0), ties.get(1), oldest.getId());
+    }
+
+    /** createdAt comes from auditing, so the test pins it afterwards to control the order. */
+    private Rsvp save(String name, String createdAt) {
+        Rsvp rsvp = rsvps.saveAndFlush(Rsvp.builder().invitation(invitation).guestName(name).attending(true).guestCount(1).build());
+        entityManager.createNativeQuery("update rsvp_response set created_at = cast(:at as timestamptz) where id = :id")
+                .setParameter("at", createdAt).setParameter("id", rsvp.getId()).executeUpdate();
+        return rsvp;
     }
 }

@@ -100,7 +100,7 @@ class RsvpServiceTest {
         Rsvp rsvp =
                 Rsvp.builder().invitation(invitation).guestName("김철수").attending(false).guestCount(0).build();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
-        when(rsvpRepository.findByInvitationId(invitationId)).thenReturn(List.of(rsvp));
+        when(rsvpRepository.findByInvitationIdOrderByCreatedAtDescIdDesc(invitationId)).thenReturn(List.of(rsvp));
 
         List<RsvpDto> result = rsvpService.findByInvitation(ownerId, invitationId);
 
@@ -199,7 +199,7 @@ class RsvpServiceTest {
         Invitation invitation = publishedWith(ownerWithId(ownerId), false);
         Rsvp rsvp = Rsvp.builder().invitation(invitation).guestName("김철수").attending(true).guestCount(1).build();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(invitation));
-        when(rsvpRepository.findByInvitationId(invitationId)).thenReturn(List.of(rsvp));
+        when(rsvpRepository.findByInvitationIdOrderByCreatedAtDescIdDesc(invitationId)).thenReturn(List.of(rsvp));
 
         assertThat(rsvpService.findByInvitation(ownerId, invitationId)).hasSize(1);
     }

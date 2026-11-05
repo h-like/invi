@@ -45,7 +45,7 @@ class GuestbookControllerTest {
     @Test
     void submit_acceptsMessageAtTheLimit_withoutAuthentication() throws Exception {
         when(guestbookService.submit(eq(invitationId), any(), any()))
-                .thenReturn(new GuestbookEntryDto(UUID.randomUUID(), "하객", "축"));
+                .thenReturn(new GuestbookEntryDto(UUID.randomUUID(), "하객", "축", java.time.Instant.now()));
 
         mvc.perform(post("/api/invitations/{id}/guestbook", invitationId)
                         .contentType(MediaType.APPLICATION_JSON)

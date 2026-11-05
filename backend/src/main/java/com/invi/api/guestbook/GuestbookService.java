@@ -71,7 +71,7 @@ public class GuestbookService {
     }
 
     private List<GuestbookEntryDto> entries(UUID invitationId) {
-        return guestbookEntryRepository.findByInvitationIdAndDeletedAtIsNull(invitationId).stream()
+        return guestbookEntryRepository.findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(invitationId).stream()
                 .map(this::toDto)
                 .toList();
     }
@@ -102,6 +102,6 @@ public class GuestbookService {
     }
 
     private GuestbookEntryDto toDto(GuestbookEntry entry) {
-        return new GuestbookEntryDto(entry.getId(), entry.getAuthor(), entry.getMessage());
+        return new GuestbookEntryDto(entry.getId(), entry.getAuthor(), entry.getMessage(), entry.getCreatedAt());
     }
 }

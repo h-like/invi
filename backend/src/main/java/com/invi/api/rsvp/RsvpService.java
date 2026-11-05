@@ -64,12 +64,12 @@ public class RsvpService {
         if (!invitation.getMember().getId().equals(memberId)) {
             throw new ForbiddenException("본인 소유의 청첩장만 접근할 수 있습니다.");
         }
-        return rsvpRepository.findByInvitationId(invitationId).stream().map(this::toDto).toList();
+        return rsvpRepository.findByInvitationIdOrderByCreatedAtDescIdDesc(invitationId).stream().map(this::toDto).toList();
     }
 
     private RsvpDto toDto(Rsvp rsvp) {
         return new RsvpDto(
                 rsvp.getId(), rsvp.getGuestName(), rsvp.getAttending(), rsvp.getGuestCount(), rsvp.getMessage(),
-                rsvp.getSide(), rsvp.getMeal());
+                rsvp.getSide(), rsvp.getMeal(), rsvp.getCreatedAt());
     }
 }

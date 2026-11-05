@@ -8,7 +8,7 @@ import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { LookEditor } from '../editor/LookEditor'
 import { canSaveBeforeLeave, createSaveBeforeLeave, leaveDialogMode, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation, type LeaveDialogMode } from '../editor/navigation'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
-import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, pageLook, patchContent, publishIssues, sealShowsInitials, updateBlock } from '../editor/model'
+import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, pageLook, patchContent, publishIssues, sealShowsInitials, splitGalleryImages, updateBlock, withDesign, withGalleryImages } from '../editor/model'
 import { BRIDE_RELATIONS, DEFAULT_RELATION, formatParentLine, GROOM_RELATIONS, MONOGRAM_MAX, normalizeMonogram, pageMonogram, PARENT_FIELDS, parentLine, PARENT_NAME_MAX, RELATION_MAX, type HeroSide } from '../blocks/heroDetails'
 
 // Chosen by leaveDialogMode(); pending photos cannot be saved, so that copy offers only staying or discarding.
@@ -126,7 +126,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const account = draft.blocks.find(b => b.type === 'account')
   const design = getPageDesign(draft)
   const sortedBlocks = [...draft.blocks].sort((a, b) => a.order - b.order)
-  const images = Array.isArray(gallery?.content.images) ? gallery.content.images.filter(isImageUrl) : []
+  const { images } = splitGalleryImages(gallery?.content.images)
   const accounts = emptyAccountContent()
   for (const role of [...GROOM_ROLES, ...BRIDE_ROLES]) {
     const entry = account?.content[role] as Partial<AccountEntry> | undefined
@@ -141,7 +141,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setError(null)
   }
   function changeDesign(patch: Partial<PageDesign>) {
-    setDraft(prev => prev ? { ...prev, design: { ...getPageDesign(prev), ...patch } } : prev)
+    setDraft(prev => prev ? withDesign(prev, patch) : prev)
     setNotice('')
     setError(null)
   }
@@ -309,7 +309,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 <p className="editor-section-hint">샘플 문구를 선택하면 현재 인사말을 바꿉니다.</p><div className="sample-buttons">{GREETING_SAMPLES.map(sample => <button type="button" key={sample.name} onClick={() => { if (!text(hero, 'greeting') || window.confirm('현재 인사말을 샘플 문구로 바꿀까요?')) changeContent(hero, { greeting: sample.text }) }}>{sample.name}</button>)}</div>
               </section>}
               {map && <section className="editor-section"><h2>오시는 길</h2><label>식장 이름<input value={text(map, 'venueName')} maxLength={150} onChange={e => changeContent(map, { venueName: e.target.value })} placeholder="웨딩홀 · 층 · 홀 이름" /></label><label>주소<input value={text(map, 'address')} maxLength={300} onChange={e => changeContent(map, { address: e.target.value })} placeholder="예식장 주소를 직접 입력해 주세요" /></label><label>교통 · 주차 안내<textarea rows={3} maxLength={1500} value={text(map, 'directions')} onChange={e => changeContent(map, { directions: e.target.value })} placeholder="지하철 출구, 셔틀버스, 주차 정보를 안내해 주세요." /></label></section>}
-              {gallery && <section className="editor-section"><h2>웨딩 갤러리 <small>{images.length} / {MAX_GALLERY_IMAGES}</small></h2><label>사진 배치<select value={String(gallery.content.layout ?? 'grid-2')} onChange={e => changeContent(gallery, { layout: e.target.value })}><option value="grid-2">2열 그리드</option><option value="grid-3">3열 그리드</option><option value="slider">가로 슬라이드</option></select></label><GalleryPhotoEditor invitationId={invitation.id} images={images} disabled={busy} onChange={next => changeContent(gallery, { images: next })} onPendingChange={pending => photoPendingChange('gallery', pending)} /></section>}
+              {gallery && <section className="editor-section"><h2>웨딩 갤러리 <small>{images.length} / {MAX_GALLERY_IMAGES}</small></h2><label>사진 배치<select value={String(gallery.content.layout ?? 'grid-2')} onChange={e => changeContent(gallery, { layout: e.target.value })}><option value="grid-2">2열 그리드</option><option value="grid-3">3열 그리드</option><option value="slider">가로 슬라이드</option></select></label><GalleryPhotoEditor invitationId={invitation.id} images={images} disabled={busy} onChange={next => changeContent(gallery, { images: withGalleryImages(gallery.content.images, next) })} onPendingChange={pending => photoPendingChange('gallery', pending)} /></section>}
               {account && <section className="editor-section"><h2>마음 전하실 곳</h2><p className="editor-section-hint">비워 둔 분은 표시하지 않습니다. 계좌 대신 메시지도 전할 수 있어요.</p>{([['신랑측', GROOM_ROLES], ['신부측', BRIDE_ROLES]] as const).map(([title, roles]) => <div key={title}><p className="editor-section-sub">{title}</p>{roles.map(role => <AccountRoleEditor key={role} role={role} entry={accounts[role]} onChange={patch => updateAccount(role, patch)} />)}</div>)}</section>}
             </>}
             {panel === 'design' && <>

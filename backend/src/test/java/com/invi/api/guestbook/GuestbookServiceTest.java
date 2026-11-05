@@ -196,11 +196,11 @@ class GuestbookServiceTest {
         GuestbookEntry entry = GuestbookEntry.builder().invitation(shown).author("친구").message("축하해").build();
         when(invitationRepository.findById(shownId)).thenReturn(Optional.of(shown));
         when(invitationRepository.findById(hiddenId)).thenReturn(Optional.of(publishedWith(false)));
-        when(guestbookEntryRepository.findByInvitationIdAndDeletedAtIsNull(shownId)).thenReturn(List.of(entry));
+        when(guestbookEntryRepository.findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(shownId)).thenReturn(List.of(entry));
 
         assertThat(guestbookService.findForGuests(shownId)).extracting(GuestbookEntryDto::author).containsExactly("친구");
         assertThat(guestbookService.findForGuests(hiddenId)).isEmpty();
-        verify(guestbookEntryRepository, never()).findByInvitationIdAndDeletedAtIsNull(hiddenId);
+        verify(guestbookEntryRepository, never()).findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(hiddenId);
     }
 
     @Test
@@ -219,7 +219,7 @@ class GuestbookServiceTest {
         Invitation hidden = publishedWith(ownerWithId(ownerId), false);
         GuestbookEntry entry = GuestbookEntry.builder().invitation(hidden).author("친구").message("축하해").build();
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(hidden));
-        when(guestbookEntryRepository.findByInvitationIdAndDeletedAtIsNull(invitationId)).thenReturn(List.of(entry));
+        when(guestbookEntryRepository.findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(invitationId)).thenReturn(List.of(entry));
 
         assertThat(guestbookService.findForOwner(ownerId, invitationId)).hasSize(1);
         assertThatThrownBy(() -> guestbookService.findForOwner(UUID.randomUUID(), invitationId))

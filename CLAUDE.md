@@ -74,6 +74,7 @@ private JsonNode pageData;
 - 모든 블록은 `id`, `type`, `order`, `visible`, `content`, `style`을 공통으로 갖는다. `content`의 내부 구조만 타입별로 다르다.
 - 백엔드는 이 구조를 검증하지 않고 그대로 저장/반환한다(자유도 우선). 검증이 필요해지면 프론트 Zod 스키마를 우선 기준으로 삼고 백엔드는 최소한의 sanity check만 추가한다.
 - 예외: 하객에게 나가는 응답은 숨긴 블록(`visible`이 `true`가 아닌 블록)을 서버에서 뺀다 — 공개 JSON은 누구나 읽을 수 있어서 렌더러에서 거르는 것만으로는 숨긴 계좌·혼주 정보가 노출되기 때문이다. `GuestPageView` 한 곳에서 처리하며 공개 청첩장(`/slug/**`), 링크 미리보기, `langVariants`에 같은 규칙을 쓴다. 저장본과 편집용 응답은 그대로다. 숨긴 RSVP·방명록은 신규 제출을 403으로 막고 기존 응답은 보존하며, 하객용 방명록 조회는 빈 목록을 돌려준다.
+- 편집기는 모르는 필드를 지우지 않는다(이전 버전 탭이 새 편집기의 설정을 날리지 않게). 최상위·블록·`content`는 펼쳐 복사하고, `design`은 `withDesign()`이 아는 필드만 정규화하고 나머지는 그대로 둔다(`look`은 보안상 `sanitizeLook` 결과만 남긴다). 갤러리 `images`는 `splitGalleryImages()`/`withGalleryImages()`로 편집기가 보여줄 수 있는 http(s) 주소만 고치고, 그 밖의 항목(향후 객체형 항목 등)은 뒤에 그대로 붙인다.
 - `Invitation.langVariants`도 같은 JSONB 방식. 블록별로 언어 코드(`ko`/`en`)를 키로 갖는 텍스트 오버라이드만 저장한다.
 - `hero.content` 선택 필드: 혼주 `groomFather`·`groomMother`·`groomRelation`·`brideFather`·`brideMother`·`brideRelation`(부모 이름이 하나도 없으면 표시 안 함, 관계가 비면 아들/딸), 실링 이니셜 `monogram`(영문·`&`·공백 최대 5자, 비면 "&", 봉투 인트로가 있는 테마만 사용, 숨긴 hero(`visible: false`)의 값은 쓰지 않고 "&"). 읽기·정규화는 `frontend/src/blocks/heroDetails.ts` 한 곳에서 한다.
 
@@ -86,6 +87,8 @@ private JsonNode pageData;
 | `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋 원본은 `frontend/src/editor/themes.json` 하나 — 에디터 `DESIGN_PRESETS`가 import하고, `backend/build.gradle`이 `presets/themes.json`으로 복사해 `TemplateSeeder`가 읽는다(Dockerfile도 이 파일을 복사). `code` = `category` = `design.theme`. 시더는 `pageData.design`을 직접 저장한다. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
 | `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal은 nullable(이전 응답·이전 클라이언트 호환), 불참이면 meal은 저장하지 않음. 값 종류를 늘리면 새 Flyway 마이그레이션에서 CHECK 제약을 다시 만든다 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
+
+RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽고 DTO에 `createdAt`을 담는다 — `ORDER BY`가 없으면 PostgreSQL이 순서를 보장하지 않아 목록이 읽을 때마다 섞일 수 있다.
 
 ## 인증 (Kakao / Google 로그인)
 

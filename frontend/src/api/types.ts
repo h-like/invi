@@ -89,12 +89,14 @@ export interface RsvpEntry {
   message: string | null
   side: RsvpSide | null
   meal: RsvpMeal | null
+  createdAt: string
 }
 
 export interface GuestbookEntryItem {
   id: string
   author: string
   message: string
+  createdAt: string
 }
 
 export type MediaType = 'GALLERY' | 'OG' | 'COVER'
