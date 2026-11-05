@@ -70,6 +70,7 @@
 .builder-error { border: 1px solid var(--color-danger-line); background: var(--color-danger-tint); color: var(--color-danger); font-size: var(--text-sm); padding: 12px; border-radius: var(--radius-sm); margin: 0; }
 .builder-error p { margin: 0; }
 .builder-error button { margin-top: 10px; font-size: var(--text-sm); }
+.builder-error button + button { margin-left: 8px; }
 .builder-preview-area { position: sticky; top: 72px; padding: 30px 40px 20px; display: flex; flex-direction: column; align-items: center; min-width: 0; }
 .preview-caption { width: min(100%, 390px); display: flex; justify-content: space-between; gap: 10px; color: var(--color-ink-muted); font-size: var(--text-xs); margin: 0 0 18px; }
 .preview-caption span:first-child { letter-spacing: var(--tracking-label); font-weight: 600; }
@@ -152,3 +153,10 @@
 .leave-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .leave-actions button { font-size: var(--text-sm); padding: 10px 14px; }
 .leave-dialog .leave-error { padding: 12px; border: 1px solid var(--color-danger-line); background: var(--color-danger-tint); color: var(--color-danger); border-radius: var(--radius-sm); font-size: var(--text-sm); }
+
+/* Fine-tuning panel: a dot marks fields changed from the template. */
+.look-editor .look-changed::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--color-accent); vertical-align: middle; }
+.look-token { display: flex; align-items: flex-end; gap: 6px; min-width: 0; }
+.look-token label { flex: 1; min-width: 0; }
+.builder-page .look-editor .look-reset { flex: none; height: 42px; padding: 0 10px; font-size: var(--text-xs); }
+.builder-page .look-editor .look-reset-all { margin-top: 18px; width: 100%; }

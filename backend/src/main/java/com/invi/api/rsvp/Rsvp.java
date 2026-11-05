@@ -39,7 +39,7 @@ public class Rsvp extends BaseEntity {
 
     private String message;
 
-    // Nullable: responses from before side/meal existed keep loading (ddl-auto adds the columns).
+    // Nullable: responses from before side/meal existed keep loading.
     @Enumerated(EnumType.STRING)
     private RsvpSide side;
 

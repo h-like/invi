@@ -12,7 +12,7 @@ export function GuestManagementPage() {
 
   useEffect(() => {
     if (!id) return
-    Promise.all([api.listRsvps(id), api.listGuestbook(id)])
+    Promise.all([api.listRsvps(id), api.listGuestbookForOwner(id)])
       .then(([rsvpList, guestbookList]) => {
         setRsvps(rsvpList)
         setGuestbook(guestbookList)

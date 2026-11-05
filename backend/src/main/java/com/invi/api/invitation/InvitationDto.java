@@ -12,5 +12,6 @@ public record InvitationDto(
         Plan plan,
         InvitationStatus status,
         @JsonRawValue String pageData,
-        @JsonRawValue String langVariants) {
+        @JsonRawValue String langVariants,
+        Long version) {
 }

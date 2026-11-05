@@ -9,7 +9,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface GuestbookEntryRepository extends JpaRepository<GuestbookEntry, UUID> {
 
-    List<GuestbookEntry> findByInvitationIdAndDeletedAtIsNull(UUID invitationId);
+    /** Newest first, like the guest page shows a new entry; id breaks ties so the order is stable. */
+    List<GuestbookEntry> findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(UUID invitationId);
 
     /** Bulk delete for the free-plan expiry batch; does not load entities. */
     @Modifying(flushAutomatically = true)

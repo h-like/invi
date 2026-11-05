@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,6 +18,7 @@ import com.invi.api.account.JwtService;
 import com.invi.api.account.OAuth2LoginSuccessHandler;
 import com.invi.api.common.SecurityConfig;
 import com.invi.api.common.TooManyRequestsException;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +45,7 @@ class GuestbookControllerTest {
     @Test
     void submit_acceptsMessageAtTheLimit_withoutAuthentication() throws Exception {
         when(guestbookService.submit(eq(invitationId), any(), any()))
-                .thenReturn(new GuestbookEntryDto(UUID.randomUUID(), "하객", "축"));
+                .thenReturn(new GuestbookEntryDto(UUID.randomUUID(), "하객", "축", java.time.Instant.now()));
 
         mvc.perform(post("/api/invitations/{id}/guestbook", invitationId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -80,6 +82,19 @@ class GuestbookControllerTest {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", "120"))
                 .andExpect(jsonPath("$.message").value("요청이 많아 잠시 막혔어요. 잠시 후 다시 시도해 주세요."));
+    }
+
+    @Test
+    void guestList_isPublic() throws Exception {
+        when(guestbookService.findForGuests(invitationId)).thenReturn(List.of());
+
+        mvc.perform(get("/api/invitations/{id}/guestbook", invitationId)).andExpect(status().isOk());
+    }
+
+    @Test
+    void ownerList_requiresLogin_soHiddenEntriesStayPrivate() throws Exception {
+        mvc.perform(get("/api/invitations/{id}/guestbook/manage", invitationId)).andExpect(status().isUnauthorized());
+        verify(guestbookService, never()).findForOwner(any(), any());
     }
 
     private static String body(String author, String message) {

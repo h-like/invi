@@ -14,9 +14,9 @@ class LinkPreviewTest {
     void usesNamesDateTimeVenueAndOwnCover() throws Exception {
         LinkPreview preview = LinkPreview.of(invitation("""
                 {"blocks":[
-                  {"type":"hero","content":{"groomName":" 하늘 ","brideName":"다온","weddingTime":"13:30",
+                  {"type":"hero","visible":true,"content":{"groomName":" 하늘 ","brideName":"다온","weddingTime":"13:30",
                     "coverImage":"https://media.example.com/invitations/1/a.webp"}},
-                  {"type":"map","content":{"venueName":"초대의 정원"}}]}
+                  {"type":"map","visible":true,"content":{"venueName":"초대의 정원"}}]}
                 """), R2);
 
         assertThat(preview.title()).isEqualTo("하늘 ♥ 다온 결혼합니다");
@@ -29,11 +29,11 @@ class LinkPreviewTest {
         for (String cover : new String[] {"https://evil.example.com/a.webp",
                 "https://media.example.com.evil.net/a.webp", "http://media.example.com/a.webp"}) {
             LinkPreview preview = LinkPreview.of(invitation(
-                    "{\"blocks\":[{\"type\":\"hero\",\"content\":{\"coverImage\":\"" + cover + "\"}}]}"), R2);
+                    "{\"blocks\":[{\"type\":\"hero\",\"visible\":true,\"content\":{\"coverImage\":\"" + cover + "\"}}]}"), R2);
             assertThat(preview.imageUrl()).as(cover).isNull();
         }
         assertThat(LinkPreview.of(invitation(
-                "{\"blocks\":[{\"type\":\"hero\",\"content\":{\"coverImage\":\"https://media.example.com/a.webp\"}}]}"),
+                "{\"blocks\":[{\"type\":\"hero\",\"visible\":true,\"content\":{\"coverImage\":\"https://media.example.com/a.webp\"}}]}"),
                 "").imageUrl()).isNull();
     }
 
@@ -44,9 +44,23 @@ class LinkPreviewTest {
         assertThat(preview.description()).isEqualTo("소중한 분들을 저희의 결혼식에 초대합니다.");
 
         LinkPreview oneName = LinkPreview.of(invitation(
-                "{\"blocks\":[{\"type\":\"hero\",\"content\":{\"groomName\":\"하늘\",\"weddingTime\":\"25:00\"}}]}"), R2);
+                "{\"blocks\":[{\"type\":\"hero\",\"visible\":true,\"content\":{\"groomName\":\"하늘\",\"weddingTime\":\"25:00\"}}]}"), R2);
         assertThat(oneName.title()).isEqualTo(LinkPreview.DEFAULT_TITLE);
         assertThat(oneName.description()).isEqualTo("2026년 11월 1일 일요일");
+    }
+
+    @Test
+    void hiddenHeroAndMapNeverReachTheMessengerCard() throws Exception {
+        LinkPreview preview = LinkPreview.of(invitation("""
+                {"blocks":[
+                  {"type":"hero","visible":false,"content":{"groomName":"하늘","brideName":"다온",
+                    "coverImage":"https://media.example.com/invitations/1/a.webp"}},
+                  {"type":"map","visible":false,"content":{"venueName":"초대의 정원"}}]}
+                """), R2);
+
+        assertThat(preview.title()).isEqualTo(LinkPreview.DEFAULT_TITLE);
+        assertThat(preview.description()).isEqualTo("2026년 11월 1일 일요일");
+        assertThat(preview.imageUrl()).isNull();
     }
 
     private static Invitation invitation(String pageData) throws Exception {

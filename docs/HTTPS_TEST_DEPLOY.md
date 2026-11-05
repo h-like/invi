@@ -76,7 +76,15 @@
 - `TEST_OWNER_EMAIL`, `TEST_OWNER_PASSWORD`: 이 환경 전용 로그인 계정.
 - `PORT`: 호스팅이 주입하는 내부 수신 포트. 미지정 시 8080이다. 개발 PC의 5173/8080을 외부로 전달하지 않는다.
 
-프로필은 DB 연결 풀을 작게 유지하고 SQL/bind 로그와 상세 서버 오류를 숨긴다. actuator 노출은 health뿐이다. `ddl-auto=update`는 **새로운 격리 테스트 DB**를 위한 것으로 실제 운영 마이그레이션 정책을 확정한 것은 아니다.
+프로필은 DB 연결 풀을 작게 유지하고 SQL/bind 로그와 상세 서버 오류를 숨긴다. actuator 노출은 health뿐이다. 스키마는 기동 시 Flyway가 마이그레이션하고 Hibernate는 `ddl-auto=validate`로 확인만 한다(가드가 다른 값을 거절). `baseline-on-migrate`는 이 프로필에서도 꺼져 있어서, 이력(`flyway_schema_history`) 없이 테이블만 있는 DB에서는 기동을 거절한다.
+
+`ddl-auto=update`로 만들어진 기존 Neon 테스트 DB(`51e6e1b`)는 Flyway로 바꾼 뒤 **첫 배포 한 번만** 다음 순서로 넘긴다.
+
+1. 런타임 환경변수에 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`를 추가하고 배포한다. Flyway가 이 DB를 V1 기준점으로 표시하고, V2가 그 이후 추가된 컬럼·제약을 보충한다.
+2. `/actuator/health/readiness`가 정상인지 확인한다.
+3. 같은 환경변수를 **지우고** 다시 배포한다. 켜 둔 채로 두면 `TEST_DATABASE_JDBC_URL`이 다른 비어 있지 않은 DB를 가리킬 때 그 DB도 V1로 표시하고 V2를 실행해 버린다.
+
+새로 만든 빈 DB는 이 절차 없이 V1부터 실행된다. `51e6e1b`보다 오래된 DB는 V2가 다 맞추지 못하니 새 DB를 쓴다.
 
 ## 호스팅 선택과 비용 확인
 

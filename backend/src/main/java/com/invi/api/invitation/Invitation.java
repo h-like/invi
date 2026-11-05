@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.LocalDate;
 import lombok.AccessLevel;
@@ -63,6 +64,11 @@ public class Invitation extends BaseEntity {
     private JsonNode langVariants;
 
     private Instant expiresAt;
+
+    /** Bumped by Hibernate on every update; the editor sends it back to detect stale saves. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     public void updatePageData(JsonNode pageData) {
         this.pageData = pageData;

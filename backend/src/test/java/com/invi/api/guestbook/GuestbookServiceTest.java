@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.invi.api.account.AuthProvider;
 import com.invi.api.account.Member;
 import com.invi.api.common.ForbiddenException;
@@ -20,6 +21,7 @@ import com.invi.api.invitation.Invitation;
 import com.invi.api.invitation.InvitationRepository;
 import com.invi.api.invitation.InvitationStatus;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -175,7 +177,76 @@ class GuestbookServiceTest {
         verify(rateLimiter).release(GuestWriteRateLimiter.Kind.GUESTBOOK, invitationId, "203.0.113.7");
     }
 
+    @Test
+    void submit_rejectsNewEntries_whileTheGuestbookIsHidden_withoutCounting() {
+        UUID invitationId = UUID.randomUUID();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(publishedWith(false)));
+
+        assertThatThrownBy(() -> guestbookService.submit(invitationId, new CreateGuestbookRequest("A", "B"), "203.0.113.7"))
+                .isInstanceOf(ForbiddenException.class);
+        verifyNoInteractions(rateLimiter);
+        verify(guestbookEntryRepository, never()).save(any());
+    }
+
+    @Test
+    void findForGuests_listsEntries_onlyWhileTheGuestbookIsShown() {
+        UUID shownId = UUID.randomUUID();
+        UUID hiddenId = UUID.randomUUID();
+        Invitation shown = publishedWith(true);
+        GuestbookEntry entry = GuestbookEntry.builder().invitation(shown).author("친구").message("축하해").build();
+        when(invitationRepository.findById(shownId)).thenReturn(Optional.of(shown));
+        when(invitationRepository.findById(hiddenId)).thenReturn(Optional.of(publishedWith(false)));
+        when(guestbookEntryRepository.findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(shownId)).thenReturn(List.of(entry));
+
+        assertThat(guestbookService.findForGuests(shownId)).extracting(GuestbookEntryDto::author).containsExactly("친구");
+        assertThat(guestbookService.findForGuests(hiddenId)).isEmpty();
+        verify(guestbookEntryRepository, never()).findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(hiddenId);
+    }
+
+    @Test
+    void findForGuests_treatsADraftAsMissing() {
+        UUID invitationId = UUID.randomUUID();
+        Invitation draft = Invitation.builder().slug("s").weddingDate(LocalDate.now()).build();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(draft));
+
+        assertThatThrownBy(() -> guestbookService.findForGuests(invitationId)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void findForOwner_keepsEarlierEntries_whileTheGuestbookIsHidden() {
+        UUID invitationId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        Invitation hidden = publishedWith(ownerWithId(ownerId), false);
+        GuestbookEntry entry = GuestbookEntry.builder().invitation(hidden).author("친구").message("축하해").build();
+        when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(hidden));
+        when(guestbookEntryRepository.findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(invitationId)).thenReturn(List.of(entry));
+
+        assertThat(guestbookService.findForOwner(ownerId, invitationId)).hasSize(1);
+        assertThatThrownBy(() -> guestbookService.findForOwner(UUID.randomUUID(), invitationId))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
     private static Invitation published() {
-        return Invitation.builder().slug("s").weddingDate(LocalDate.now()).status(InvitationStatus.PUBLISHED).build();
+        return publishedWith(true);
+    }
+
+    /** A published page whose guestbook section is shown ({@code true}) or hidden by the couple. */
+    private static Invitation publishedWith(boolean guestbookVisible) {
+        return publishedWith(null, guestbookVisible);
+    }
+
+    private static Invitation publishedWith(Member owner, boolean guestbookVisible) {
+        try {
+            return Invitation.builder()
+                    .member(owner)
+                    .slug("s")
+                    .weddingDate(LocalDate.now())
+                    .status(InvitationStatus.PUBLISHED)
+                    .pageData(new ObjectMapper().readTree(
+                            "{\"blocks\":[{\"id\":\"guestbook-1\",\"type\":\"guestbook\",\"visible\":" + guestbookVisible + "}]}"))
+                    .build();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

@@ -45,6 +45,12 @@ private JsonNode pageData;
 
 **소프트 삭제**: 방명록처럼 "삭제 권한은 있지만 감사 추적이 필요한" 데이터는 물리 삭제 대신 `deletedAt(Instant, nullable)` 컬럼을 둔다. 무료 만료로 인한 청첩장 자체 삭제(예식일+10일 배치, `InvitationExpiryService`)는 예외로, 실제 레코드를 지우고 R2 이미지는 `MediaLifecycle`로 넘겨 정리 작업이 지운다(개인정보 보관 최소화가 우선이라 소프트 삭제하지 않음). 기본 dry-run이며 규칙·설정은 `docs/INVITATION_EXPIRY.md` 참고.
 
+**스키마 변경 (Flyway)**: 스키마는 `backend/src/main/resources/db/migration`의 Flyway 마이그레이션만 바꾼다. Hibernate는 `ddl-auto: validate`로 엔티티와 일치하는지만 확인한다(https-test 배포 가드도 `validate`만 허용). 엔티티에 컬럼·제약을 추가하거나 바꾸면 같은 커밋에 다음 번호 `V{n}__설명.sql`을 추가한다. 이미 적용된 마이그레이션 파일은 수정하지 않는다. enum 값을 늘리면 그 컬럼의 CHECK 제약을 마이그레이션에서 다시 만든다. `V1__baseline.sql`은 전환 시점 Hibernate 스키마 그대로(제약 이름 포함)다. `baseline-on-migrate`는 모든 프로필에서 꺼져 있어서, 이력 없이 테이블만 있는 DB는 기동을 거절한다. `ddl-auto`로 만든 기존 DB(https-test의 Neon DB는 `51e6e1b` 때)는 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`로 **한 번만** 기동해 V1로 표시하고 `V2`가 그 이후 바뀐 부분을 보충한다(`FlywayLegacyBaselineTest`). 끝나면 변수를 지운다 — 켜 둔 채면 잘못 가리킨 다른 DB도 받아들인다. V2는 `51e6e1b`보다 오래된 DB까지 맞춰 주지는 않는다. 절차는 `docs/HTTPS_TEST_DEPLOY.md`.
+
+**로컬 DB가 Flyway 오류로 기동을 거절할 때** (`bootRun`·`./gradlew test` 모두 docker의 같은 DB를 쓴다): "non-empty schema ... without a schema history table"이면 Flyway 이전 `ddl-auto`로 만든 DB다. 로컬 데이터가 필요 없으면 `docker compose down -v && docker compose up -d`로 새로 만든다(볼륨 데이터 삭제). 남기려면 백엔드를 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`로 한 번 기동한 뒤 변수 없이 다시 띄운다. Flyway 이전에 딴 브랜치는 같은 DB에 `ddl-auto: update`로 마이그레이션 밖의 변경을 남기므로 main을 받은 뒤 실행한다.
+
+**저장 충돌 (낙관적 잠금)**: `Invitation.version`(`@Version`, V3)은 청첩장이 바뀔 때마다 오른다(페이지 저장·예식일·공개). `PUT /page-data`는 편집기가 마지막으로 받은 `version`을 함께 보내야 하고, 다르면 저장하지 않고 409 + `code: STALE_VERSION`(`StaleVersionException`)을 돌려준다 — 다른 탭·기기에서 먼저 저장한 내용을 덮어쓰지 않기 위해서다. 검사는 미디어 잠금 안에서 하므로 다른 저장과 경합하지 않고, 놓친 경우는 Hibernate `@Version`이 같은 409로 막는다. 버전은 flush 때 오르므로 쓰기 서비스는 `flushedDto()`로 flush 후 응답한다(안 그러면 다음 저장이 늘 충돌한다). 편집기는 충돌 시 초안을 그대로 두고 "최신 내용 새 탭에서 보기"·"최신 내용으로 바꾸기"(확인 후 덮어씀)만 제공한다. 강제 덮어쓰기는 MVP에서 제외했다. 같은 탭의 쓰기(페이지 저장·공개·예식일)는 `createInvitationPersistence`의 한 가드로 하나씩만 보낸다 — 동시에 보내면 자기 저장끼리 충돌한다. 그래서 예식일 저장 응답은 버전이 정확히 1 올랐을 때만 반영해서, 그 사이 다른 곳의 저장을 놓치지 않는다. 공개 응답을 못 받으면 다시 읽어서 `PUBLISHED`이고 버전이 정확히 1 올랐을 때만 공개 완료로 본다(안 그러면 재시도가 자기 공개 때문에 충돌한다). 같은 이유로 저장·공개 응답이 끊긴 뒤 재시도가 409를 받으면 저장본을 한 번 읽어, 버전이 정확히 1 앞서 있고 이 탭이 보낸 내용(키 순서 무시)이나 공개 상태가 보일 때만 그 버전 위에 다시 저장한다(`persistence.ts`의 `ownWriteLanded`).
+
 **테이블명 예외**: `user`는 PostgreSQL 예약어라 엔티티명을 `Member`로 한다(기획서/아키텍처 문서의 "User"와 동일 개념).
 
 ## page_data 블록 스키마
@@ -69,6 +75,8 @@ private JsonNode pageData;
 - `type`: `hero | gallery | rsvp | map | account | guestbook | countdown` (아키텍처 문서 03번)
 - 모든 블록은 `id`, `type`, `order`, `visible`, `content`, `style`을 공통으로 갖는다. `content`의 내부 구조만 타입별로 다르다.
 - 백엔드는 이 구조를 검증하지 않고 그대로 저장/반환한다(자유도 우선). 검증이 필요해지면 프론트 Zod 스키마를 우선 기준으로 삼고 백엔드는 최소한의 sanity check만 추가한다.
+- 예외: 하객에게 나가는 응답은 숨긴 블록(`visible`이 `true`가 아닌 블록)을 서버에서 뺀다 — 공개 JSON은 누구나 읽을 수 있어서 렌더러에서 거르는 것만으로는 숨긴 계좌·혼주 정보가 노출되기 때문이다. `GuestPageView` 한 곳에서 처리하며 공개 청첩장(`/slug/**`), 링크 미리보기, `langVariants`에 같은 규칙을 쓴다. 저장본과 편집용 응답은 그대로다. 숨긴 RSVP·방명록은 신규 제출을 403으로 막고 기존 응답은 보존하며, 하객용 방명록 조회는 빈 목록을 돌려준다.
+- 편집기는 모르는 필드를 지우지 않는다(이전 버전 탭이 새 편집기의 설정을 날리지 않게). 최상위·블록·`content`는 펼쳐 복사하고, `design`은 `withDesign()`이 아는 필드만 정규화하고 나머지는 그대로 둔다(`look`은 보안상 `sanitizeLook` 결과만 남긴다). 갤러리 `images`는 `splitGalleryImages()`/`withGalleryImages()`로 편집기가 보여줄 수 있는 http(s) 주소만 고치고, 그 밖의 항목(향후 객체형 항목 등)은 뒤에 그대로 붙인다.
 - `Invitation.langVariants`도 같은 JSONB 방식. 블록별로 언어 코드(`ko`/`en`)를 키로 갖는 텍스트 오버라이드만 저장한다.
 - `hero.content` 선택 필드: 혼주 `groomFather`·`groomMother`·`groomRelation`·`brideFather`·`brideMother`·`brideRelation`(부모 이름이 하나도 없으면 표시 안 함, 관계가 비면 아들/딸), 실링 이니셜 `monogram`(영문·`&`·공백 최대 5자, 비면 "&", 봉투 인트로가 있는 테마만 사용, 숨긴 hero(`visible: false`)의 값은 쓰지 않고 "&"). 읽기·정규화는 `frontend/src/blocks/heroDetails.ts` 한 곳에서 한다.
 
@@ -77,10 +85,12 @@ private JsonNode pageData;
 | 엔티티 | 테이블 | 핵심 필드 | 비고 |
 |---|---|---|---|
 | `Member` | `member` | provider(KAKAO/GOOGLE), providerId, email, name | providerId+provider로 유니크 |
-| `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt | slug는 서브도메인과 1:1 |
+| `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt, version | slug는 서브도메인과 1:1. `version`은 아래 "저장 충돌" 참고 |
 | `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋 원본은 `frontend/src/editor/themes.json` 하나 — 에디터 `DESIGN_PRESETS`가 import하고, `backend/build.gradle`이 `presets/themes.json`으로 복사해 `TemplateSeeder`가 읽는다(Dockerfile도 이 파일을 복사). `code` = `category` = `design.theme`. 시더는 `pageData.design`을 직접 저장한다. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
-| `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal은 nullable(이전 응답·이전 클라이언트 호환), 불참이면 meal은 저장하지 않음. 값 종류를 늘리면 Hibernate가 기존 enum CHECK 제약을 갱신하지 않으므로 `schema.sql`에서 제약을 다시 만든다 |
+| `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal은 nullable(이전 응답·이전 클라이언트 호환), 불참이면 meal은 저장하지 않음. 값 종류를 늘리면 새 Flyway 마이그레이션에서 CHECK 제약을 다시 만든다 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
+
+RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽고 DTO에 `createdAt`을 담는다 — `ORDER BY`가 없으면 PostgreSQL이 순서를 보장하지 않아 목록이 읽을 때마다 섞일 수 있다.
 
 ## 인증 (Kakao / Google 로그인)
 
@@ -88,7 +98,7 @@ private JsonNode pageData;
 
 - **로그인 흐름**: 프론트가 `GET /oauth2/authorization/{kakao|google}`로 이동 → Spring Security의 `oauth2Login()`이 제공자 로그인 페이지로 리다이렉트 → 콜백에서 `CustomOAuth2UserService`가 Kakao/Google의 서로 다른 유저 정보 응답을 공통 `(provider, providerId, email, name)`으로 매핑하고 `Member`를 find-or-create → `OAuth2LoginSuccessHandler`가 JWT를 발급해 `{FRONTEND_BASE_URL}/oauth/callback?token=...`로 리다이렉트 → 프론트의 `OAuthCallbackPage`가 토큰을 저장하고 `/api/auth/me`를 호출해 로그인 완료.
 - **이후 모든 API 호출**: `JwtAuthenticationFilter`가 `Authorization` 헤더를 검증해서 `Authentication#getName()`에 `Member.id`(문자열 UUID)를 심는다. 컨트롤러는 `CurrentMember.requireId(authentication)`으로 꺼내 쓴다 — `Invitation` 생성 시 `memberId`를 요청 바디로 받지 않는 이유가 이거다(과거엔 받았지만 로그인이 생기면서 제거함).
-- **공개 엔드포인트**(로그인 불필요, `SecurityConfig` 참고): `GET /api/templates/**`, `GET /api/invitations/slug/**`, `GET /api/invitations/slug-available`, RSVP 제출(`POST /api/invitations/*/rsvps`), 방명록 조회·작성(`GET`/`POST` `/api/invitations/*/guestbook`, 하객이 서로의 글을 읽어야 하는 기능이라 조회도 공개). RSVP 열람(`GET /api/invitations/*/rsvps`)은 기획서 5번대로 관리자 전용이라 로그인 필요. 그 외 `/api/**`는 전부 로그인 필요. 공개 쓰기(RSVP·방명록 작성)는 `GuestWriteRateLimiter`로 접속 주소별·청첩장별 한도를 둔다(429, `docs/GUEST_RATE_LIMIT.md`).
+- **공개 엔드포인트**(로그인 불필요, `SecurityConfig` 참고): `GET /api/templates/**`, `GET /api/invitations/slug/**`, `GET /api/invitations/slug-available`, RSVP 제출(`POST /api/invitations/*/rsvps`), 방명록 조회·작성(`GET`/`POST` `/api/invitations/*/guestbook`, 하객이 서로의 글을 읽어야 하는 기능이라 조회도 공개 — 단 게시된 청첩장에서 방명록이 보일 때만 글을 준다). 신랑신부의 응답 관리 화면은 숨김과 무관하게 전체를 보는 `GET /api/invitations/*/guestbook/manage`(로그인·소유권 필요)를 쓴다. RSVP 열람(`GET /api/invitations/*/rsvps`)은 기획서 5번대로 관리자 전용이라 로그인 필요. 그 외 `/api/**`는 전부 로그인 필요. 공개 쓰기(RSVP·방명록 작성)는 `GuestWriteRateLimiter`로 접속 주소별·청첩장별 한도를 둔다(429, `docs/GUEST_RATE_LIMIT.md`).
 - **소유권 검증**: 로그인만으로는 부족하다 — `InvitationService`/`RsvpService`/`GuestbookService`가 각각 `getOwnedOrThrow` 스타일 체크로 "이 토큰의 memberId가 이 청첩장의 실제 소유자인가"를 한 번 더 확인한다. 아니면 `ForbiddenException`(403). 새 엔드포인트가 특정 청첩장에 종속된 데이터를 다루면 이 패턴을 그대로 따른다 — 로그인 여부만 확인하고 소유권을 빼먹는 게 제일 흔한 실수다.
 - **인증 실패 응답**: `/api/**`로 시작하는 요청이 인증 없이 보호된 엔드포인트에 닿으면 Spring Security 기본값(로그인 페이지로 302 리다이렉트) 대신 401을 반환한다(`SecurityConfig`의 `exceptionHandling().defaultAuthenticationEntryPointFor`) — SPA가 JSON을 기대하는데 HTML 리다이렉트가 오면 fetch가 이상하게 깨지기 때문.
 - **비밀값**: Kakao/Google client-id·secret과 JWT 서명 키는 `backend/src/main/resources/application-local.yml`에 있다 — **git에 안 올라간다**(`.gitignore` 참고). 새로 clone한 환경에서는 이 파일을 직접 만들어야 하고, JWT 시크릿이 없으면 `application.yml`의 개발용 기본값(`dev-only-insecure-default-...`)으로 폴백한다 — 운영 배포 전에는 반드시 실제 값으로 교체.
@@ -122,6 +132,7 @@ private JsonNode pageData;
 
 - Vite + React + TypeScript + `react-router-dom`(`/`, `/oauth/callback`, `/e/:id`, `/i/:slug`)
 - 청첩장 웹폰트는 npm 패키지로 자체 호스팅한다(`@fontsource/noto-serif-kr` = serif, `pretendard` = sans, 둘 다 OFL). 폰트 CDN을 쓰지 않는다 — 하객 기기에서 제3자 요청이 나가지 않게. `src/blocks/fonts.ts`가 `design.fontFamily`에 맞는 CSS를 `PageRenderer`에서 지연 import하고, unicode-range 분할이라 화면에 쓰인 글자 구간의 woff2만 받는다. 폰트를 추가할 때도 같은 방식(테마별 지연 로딩, 시스템 폰트 폴백 스택 유지)을 따른다.
+- 템플릿의 생김새는 데이터다. `themes.json` 프리셋마다 `design` 옆에 `parts`(슬롯별 선택, 허용값은 `editor/model.ts`의 `PART_OPTIONS`)·`tokens`(`TOKEN_VARS`의 CSS 변수)·`fonts`(`blocks/fonts.ts`의 `FONT_FACES`)를 둔다. `PageRenderer`가 기본값이 아닌 파츠마다 `part-<slot>-<value>` 클래스를 붙이고, `invitation.css`는 이 클래스만 스타일링한다 — 테마 이름 셀렉터(`invitation-theme-*`)는 쓰지 않는다(테스트가 막는다). 새 테마는 JSON만으로, 새 디자인 요소는 슬롯 값 + CSS로 추가한다. `parts`/`tokens`/`fonts`는 `design`에 넣지 않는다 — 시더가 `design`을 페이지에 복사하므로, 프리셋에서 읽어야 기존 청첩장도 템플릿 개선을 받는다. 사용자의 세부 꾸미기는 `pageData.design.look`(`{ parts, tokens }`)에 템플릿과 다른 값만 저장하고 `pageLook(design)`이 프리셋 위에 겹친다. look 토큰은 인라인 CSS 변수가 되므로 `sanitizeLook`이 허용값(hex 색, 정해진 자간)만 남긴다 — `url()` 등 외부 요청이 생기는 값은 받지 않는다. 다른 템플릿을 고르면 look은 비운다. 봉투(`envelope` 파츠가 켜진 페이지만)는 `envelopeFlap`·`envelopeMaterial`·`envelopeLiner`·`sealColor`·`sealEmblem`·`envelopeDecor` 슬롯과 `envelopeColor` 토큰(없으면 강조색)으로 꾸민다. 그림은 `blocks/envelopeArt.tsx` 한 곳에서 그리고 하객 화면 `EnvelopeIntro`와 편집기 `EnvelopePreview`가 공유한다. SVG id는 `EnvelopeIds`로 봉투마다 접두어를 붙인다.
 - 로그인 상태는 `src/auth/AuthContext.tsx`(Context) + `src/auth/token.ts`(localStorage 저장)로 관리한다. `api/client.ts`의 모든 요청이 토큰이 있으면 자동으로 `Authorization` 헤더를 붙인다.
 - 백엔드 API 베이스는 `VITE_API_BASE_URL`로 설정하며 기본값은 `http://localhost:8080`이다. `api/baseUrl.ts`를 일반 API와 소셜 로그인에서 공유한다. Origin만 허용하고 경로·인증정보·query·fragment는 거절한다. 프록시는 사용하지 않는다. 백엔드 `SecurityConfig` CORS는 `invi.frontend.base-url`의 정확한 HTTP(S) Origin만 허용한다(기본 localhost:5173). 휴대폰 개인 Wi-Fi 테스트는 gitignored `.env.mobile.local` + Vite `--mode mobile`, Wi-Fi 사설 IP 한 개로의 명시적 바인딩을 사용한다. 이메일 로그인·실기기 체크·복구는 `docs/MOBILE_PHOTO_CHECK.md` 참고.
 

@@ -31,6 +31,13 @@ export interface PageDesign {
   fontFamily: InvitationFont
   fontSize: InvitationFontSize
   heroLayout: HeroLayout
+  /** The couple's changes on top of the theme's look; editor/model.ts validates them. */
+  look?: LookOverrides
+}
+
+export interface LookOverrides {
+  parts?: Record<string, string>
+  tokens?: Record<string, string>
 }
 
 export interface PageData {
@@ -62,6 +69,8 @@ export interface Invitation {
   status: InvitationStatus
   pageData: PageData | null
   langVariants: unknown
+  /** Stored revision; page saves send it back so an older copy cannot overwrite a newer one. */
+  version: number
 }
 
 export interface GuestInvitation {
@@ -80,12 +89,14 @@ export interface RsvpEntry {
   message: string | null
   side: RsvpSide | null
   meal: RsvpMeal | null
+  createdAt: string
 }
 
 export interface GuestbookEntryItem {
   id: string
   author: string
   message: string
+  createdAt: string
 }
 
 export type MediaType = 'GALLERY' | 'OG' | 'COVER'

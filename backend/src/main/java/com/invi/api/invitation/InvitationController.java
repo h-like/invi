@@ -44,7 +44,7 @@ public class InvitationController {
     @PutMapping("/{id}/page-data")
     public InvitationDto updatePageData(
             Authentication authentication, @PathVariable UUID id, @Valid @RequestBody UpdatePageDataRequest request) {
-        return invitationService.updatePageData(currentMember.requireId(authentication), id, request.pageData());
+        return invitationService.updatePageData(currentMember.requireId(authentication), id, request.pageData(), request.version());
     }
 
     @PutMapping("/{id}/wedding-date")
