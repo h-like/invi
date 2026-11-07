@@ -194,10 +194,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       if (result.kind === 'busy') return
       if (result.kind === 'failed') { setDateStatus(result.detail); return }
       const saved = result.invitation
-      // No other write from this tab overlaps, so a gap of exactly one is this save alone.
-      // Anything more means another tab or device saved: keep the old version so the next
-      // page save is still caught as stale.
-      setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate, version: saved.version === prev.version + 1 ? saved.version : prev.version } : prev)
+      // `own`: only this tab's writes are in the returned version. Otherwise another tab or
+      // device saved too: keep the old version so the next page save is still caught as stale.
+      setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate, version: result.own ? saved.version : prev.version } : prev)
       setDateStatus('예식일을 변경했습니다.')
     } finally {
       setDateSaving(false)
