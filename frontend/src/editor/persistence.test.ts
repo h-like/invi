@@ -320,6 +320,52 @@ test('after a lost save, a copy someone else changed is still stale', async () =
   assert.equal(calls, 2)
 })
 
+test('a wedding-date save that landed without a response does not make the next page save stale', async () => {
+  const sent: number[] = []
+  const controller = createInvitationPersistence(stub({
+    updateWeddingDate: async () => { throw new TypeError('Failed to fetch') },
+    updatePageData: async (_id, page, version) => {
+      sent.push(version)
+      if (version === 3) throw staleError()
+      return { ...invitation(page), weddingDate: '2027-06-01', version: version + 1 }
+    },
+    getInvitation: async () => ({ ...invitation(), weddingDate: '2027-06-01', version: 4 }),
+  }))
+  assert.equal((await controller.saveWeddingDate(invitation(), '2027-06-01')).kind, 'failed')
+  const save = await controller.run(invitation(), draft('고친 이름'), false)
+  assert.deepEqual(sent, [3, 4])
+  assert.equal(save.kind === 'completed' && save.invitation.version, 5)
+})
+
+test('after a lost wedding-date save, a date changed by someone else is still stale', async () => {
+  const controller = createInvitationPersistence(stub({
+    updateWeddingDate: async () => { throw new TypeError('Failed to fetch') },
+    updatePageData: async () => { throw staleError() },
+    getInvitation: async () => ({ ...invitation(), weddingDate: '2027-09-09', version: 4 }),
+  }))
+  await controller.saveWeddingDate(invitation(), '2027-06-01')
+  assert.equal((await controller.run(invitation(), draft(), false)).kind, 'stale')
+})
+
+test('a lost wedding-date save does not replace a lost page save from the same copy', async () => {
+  const first = draft('처음 이름')
+  let calls = 0
+  const controller = createInvitationPersistence(stub({
+    updateWeddingDate: async () => { throw new TypeError('Failed to fetch') },
+    updatePageData: async (_id, page, version) => {
+      calls++
+      if (calls === 1) throw new TypeError('Failed to fetch')
+      if (version === 3) throw staleError()
+      return { ...invitation(page), version: version + 1 }
+    },
+    // Only the page save landed; the date did not.
+    getInvitation: async () => ({ ...invitation(reordered(first)), version: 4 }),
+  }))
+  await controller.run(invitation(), first, false)
+  await controller.saveWeddingDate(invitation(), '2027-06-01')
+  assert.equal((await controller.run(invitation(), first, false)).kind, 'completed')
+})
+
 test('a publish that landed while offline is picked up by the retry instead of a stale error', async () => {
   const saved = { ...invitation(), version: 4 }
   let reads = 0

@@ -108,6 +108,13 @@ export function createInvitationPersistence(client: PersistenceClient) {
       try {
         return { kind: 'saved', invitation: await client.updateWeddingDate(invitation.id, weddingDate) }
       } catch (error) {
+        // The date may still have been saved, bumping the version under this copy; the next page
+        // save would then be refused as stale by this tab's own write. Remember it like a lost
+        // page save, but never in place of an unconfirmed write from the same copy: only one is
+        // tracked, and that one was sent first.
+        if (!unconfirmed || unconfirmed.id !== invitation.id || unconfirmed.from !== invitation.version) {
+          unconfirmed = { id: invitation.id, from: invitation.version, version: invitation.version, applied: current => current.weddingDate === weddingDate }
+        }
         return { kind: 'failed', detail: errorDetail(error, '예식일을 변경하지 못했습니다.') }
       } finally {
         running = false
