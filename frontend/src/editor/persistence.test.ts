@@ -366,6 +366,69 @@ test('a lost wedding-date save does not replace a lost page save from the same c
   assert.equal((await controller.run(invitation(), first, false)).kind, 'completed')
 })
 
+test('a new date saved over this tab\'s own lost date save is adopted, so the next page save is not stale', async () => {
+  let dateCalls = 0
+  const sent: number[] = []
+  const controller = createInvitationPersistence(stub({
+    updateWeddingDate: async (_id, date) => {
+      dateCalls++
+      if (dateCalls === 1) throw new TypeError('Failed to fetch')
+      return { ...invitation(), weddingDate: date, version: 5 }
+    },
+    updatePageData: async (_id, page, version) => {
+      sent.push(version)
+      if (version !== 5) throw staleError()
+      return { ...invitation(page), version: 6 }
+    },
+  }))
+  await controller.saveWeddingDate(invitation(), '2027-06-01')
+  const date = await controller.saveWeddingDate(invitation(), '2027-06-02')
+  assert.equal(date.kind === 'saved' && date.own, true)
+  const save = await controller.run({ ...invitation(), weddingDate: '2027-06-02', version: 5 }, draft('고친 이름'), false)
+  assert.deepEqual(sent, [5])
+  assert.equal(save.kind, 'completed')
+})
+
+test('a date saved over this tab\'s own lost page save is adopted', async () => {
+  const first = draft('처음 이름')
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async () => { throw new TypeError('Failed to fetch') },
+    updateWeddingDate: async (_id, date) => ({ ...invitation(reordered(first)), weddingDate: date, version: 5 }),
+  }))
+  await controller.run(invitation(), first, false)
+  const date = await controller.saveWeddingDate(invitation(), '2027-06-01')
+  assert.equal(date.kind === 'saved' && date.own, true)
+})
+
+test('two steps past the copy with someone else\'s page change is not adopted', async () => {
+  let dateCalls = 0
+  const controller = createInvitationPersistence(stub({
+    updateWeddingDate: async (_id, date) => {
+      dateCalls++
+      if (dateCalls === 1) throw new TypeError('Failed to fetch')
+      return { ...invitation(draft('다른 기기')), weddingDate: date, version: 5 }
+    },
+  }))
+  await controller.saveWeddingDate(invitation(), '2027-06-01')
+  const date = await controller.saveWeddingDate(invitation(), '2027-06-02')
+  assert.equal(date.kind === 'saved' && date.own, false)
+})
+
+test('a refused date save (4xx) is not remembered as a write that may have landed', async () => {
+  let dateCalls = 0
+  const controller = createInvitationPersistence(stub({
+    updateWeddingDate: async (_id, date) => {
+      dateCalls++
+      if (dateCalls === 1) throw Object.assign(new Error('예식일이 올바르지 않습니다.'), { status: 400 })
+      return { ...invitation(), weddingDate: date, version: 5 }
+    },
+  }))
+  await controller.saveWeddingDate(invitation(), '2020-01-01')
+  // Nothing of this tab's landed, so a two-step gap is someone else's save.
+  const date = await controller.saveWeddingDate(invitation(), '2027-06-02')
+  assert.equal(date.kind === 'saved' && date.own, false)
+})
+
 test('a publish that landed while offline is picked up by the retry instead of a stale error', async () => {
   const saved = { ...invitation(), version: 4 }
   let reads = 0

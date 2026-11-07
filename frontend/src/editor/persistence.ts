@@ -18,7 +18,12 @@ export type PersistenceOutcome =
 export type DateSaveOutcome =
   | { kind: 'busy' }
   | { kind: 'failed'; detail: string }
-  | { kind: 'saved'; invitation: Invitation }
+  /**
+   * `own`: the returned version holds only this tab's writes (this date save, plus at most
+   * this tab's own lost write), so the editor's copy may move to it. Otherwise another tab or
+   * device also saved, and the copy must keep its old version so the next page save is stale.
+   */
+  | { kind: 'saved'; invitation: Invitation; own: boolean }
 
 /** Error code the API sends with a 409 when the saved copy is newer than the editor's. */
 export const STALE_VERSION = 'STALE_VERSION'
@@ -47,6 +52,8 @@ function errorDetail(error: unknown, fallback: string): string {
  * A save or publish whose response is lost may still have landed. If the retry is then
  * refused as stale, the stored copy is read once: when this tab's own write is the only
  * newer one, the save is sent again on top of it instead of reporting someone else's save.
+ * A wedding-date save that succeeds after such a lost write lands two steps past the copy;
+ * it is reported as this tab's own when the returned copy still shows that write.
  */
 export function createInvitationPersistence(client: PersistenceClient) {
   let running = false
@@ -106,14 +113,26 @@ export function createInvitationPersistence(client: PersistenceClient) {
       if (running) return { kind: 'busy' }
       running = true
       try {
-        return { kind: 'saved', invitation: await client.updateWeddingDate(invitation.id, weddingDate) }
+        const saved = await client.updateWeddingDate(invitation.id, weddingDate)
+        const own = saved.version === invitation.version + 1 || ownWriteUnder(invitation, saved)
+        if (own) unconfirmed = null
+        return { kind: 'saved', invitation: saved, own }
       } catch (error) {
         // The date may still have been saved, bumping the version under this copy; the next page
         // save would then be refused as stale by this tab's own write. Remember it like a lost
         // page save, but never in place of an unconfirmed write from the same copy: only one is
-        // tracked, and that one was sent first.
-        if (!unconfirmed || unconfirmed.id !== invitation.id || unconfirmed.from !== invitation.version) {
-          unconfirmed = { id: invitation.id, from: invitation.version, version: invitation.version, applied: current => current.weddingDate === weddingDate }
+        // tracked, and that one was sent first. A 4xx was refused outright, so nothing landed.
+        const rejected = isClientError(error)
+        if (!rejected && (!unconfirmed || unconfirmed.id !== invitation.id || unconfirmed.from !== invitation.version)) {
+          const page = canonicalJson(invitation.pageData), status = invitation.status
+          unconfirmed = {
+            id: invitation.id,
+            from: invitation.version,
+            version: invitation.version,
+            applied: current => current.weddingDate === weddingDate,
+            // A later date save hides this date, so only "nothing else changed" can be checked.
+            appliedUnderDate: current => canonicalJson(current.pageData) === page && current.status === status,
+          }
         }
         return { kind: 'failed', detail: errorDetail(error, '예식일을 변경하지 못했습니다.') }
       } finally {
@@ -142,6 +161,12 @@ export function createInvitationPersistence(client: PersistenceClient) {
    * the retry starts from the copy that write was sent from, and the stored copy is exactly
    * one step past it and shows that write. Returns the version to save on top of, else null.
    */
+  function ownWriteUnder(invitation: Invitation, saved: Invitation): boolean {
+    const write = unconfirmed
+    if (!write || write.id !== invitation.id || write.from !== invitation.version) return false
+    return saved.version === write.version + 2 && (write.appliedUnderDate ?? write.applied)(saved)
+  }
+
   async function ownWriteLanded(invitation: Invitation): Promise<number | null> {
     const write = unconfirmed
     if (!write || write.id !== invitation.id || write.from !== invitation.version) return null
@@ -162,6 +187,17 @@ interface UnconfirmedWrite {
   version: number
   /** Whether the stored copy shows this write. */
   applied: (current: Invitation) => boolean
+  /**
+   * Whether a copy this tab then changed the wedding date of still shows this write. Defaults
+   * to `applied`, which page and publish writes keep since a date save leaves them alone.
+   */
+  appliedUnderDate?: (current: Invitation) => boolean
+}
+
+/** A 4xx response: the server refused the request, so it was not applied. */
+function isClientError(error: unknown): boolean {
+  const status = typeof error === 'object' && error !== null ? (error as { status?: unknown }).status : undefined
+  return typeof status === 'number' && status >= 400 && status < 500
 }
 
 /** JSON with sorted keys: the server stores page data as jsonb, which reorders keys. */
