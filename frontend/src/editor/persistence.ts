@@ -130,7 +130,8 @@ export function createInvitationPersistence(client: PersistenceClient) {
             from: invitation.version,
             version: invitation.version,
             applied: current => current.weddingDate === weddingDate,
-            // A later date save hides this date, so only "nothing else changed" can be checked.
+            // A later date save hides this date, so only "nothing else changed" can be checked;
+            // a date change made elsewhere in between is overwritten by that save either way.
             appliedUnderDate: current => canonicalJson(current.pageData) === page && current.status === status,
           }
         }
@@ -157,9 +158,8 @@ export function createInvitationPersistence(client: PersistenceClient) {
   }
 
   /**
-   * On a stale refusal: was the only newer write this tab's own unconfirmed one? True when
-   * the retry starts from the copy that write was sent from, and the stored copy is exactly
-   * one step past it and shows that write. Returns the version to save on top of, else null.
+   * A date save that succeeded two steps past the copy: was the step between this tab's own
+   * unconfirmed write from that copy? Then the returned version holds only this tab's writes.
    */
   function ownWriteUnder(invitation: Invitation, saved: Invitation): boolean {
     const write = unconfirmed
@@ -167,6 +167,11 @@ export function createInvitationPersistence(client: PersistenceClient) {
     return saved.version === write.version + 2 && (write.appliedUnderDate ?? write.applied)(saved)
   }
 
+  /**
+   * On a stale refusal: was the only newer write this tab's own unconfirmed one? True when
+   * the retry starts from the copy that write was sent from, and the stored copy is exactly
+   * one step past it and shows that write. Returns the version to save on top of, else null.
+   */
   async function ownWriteLanded(invitation: Invitation): Promise<number | null> {
     const write = unconfirmed
     if (!write || write.id !== invitation.id || write.from !== invitation.version) return null

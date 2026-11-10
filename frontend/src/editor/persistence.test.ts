@@ -400,6 +400,43 @@ test('a date saved over this tab\'s own lost page save is adopted', async () => 
   assert.equal(date.kind === 'saved' && date.own, true)
 })
 
+test('after a date save is adopted over a lost page save, the next page save goes out on its version', async () => {
+  const first = draft('처음 이름')
+  let pageCalls = 0
+  const sent: number[] = []
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async (_id, page, version) => {
+      pageCalls++
+      if (pageCalls === 1) throw new TypeError('Failed to fetch')
+      sent.push(version)
+      if (version !== 5) throw staleError()
+      return { ...invitation(page), version: 6 }
+    },
+    updateWeddingDate: async (_id, date) => ({ ...invitation(reordered(first)), weddingDate: date, version: 5 }),
+  }))
+  await controller.run(invitation(), first, false)
+  const date = await controller.saveWeddingDate(invitation(), '2027-06-01')
+  assert.ok(date.kind === 'saved' && date.own)
+  // The builder takes the adopted copy whole, as it does after a page save.
+  const save = await controller.run(date.invitation, draft('고친 이름'), false)
+  assert.deepEqual(sent, [5])
+  assert.equal(save.kind, 'completed')
+})
+
+test('a date saved over this tab\'s own lost publish is adopted with the published status', async () => {
+  const saved = { ...invitation(), version: 4 }
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async () => saved,
+    publishInvitation: async () => { throw new TypeError('Failed to fetch') },
+    getInvitation: async () => { throw new TypeError('Failed to fetch') },
+    updateWeddingDate: async (_id, date) => ({ ...saved, status: 'PUBLISHED', weddingDate: date, version: 6 }),
+  }))
+  assert.equal((await controller.run(invitation(), draft(), true)).kind, 'publish-failed')
+  const date = await controller.saveWeddingDate(saved, '2027-06-01')
+  assert.ok(date.kind === 'saved' && date.own)
+  assert.equal(date.invitation.status, 'PUBLISHED')
+})
+
 test('two steps past the copy with someone else\'s page change is not adopted', async () => {
   let dateCalls = 0
   const controller = createInvitationPersistence(stub({

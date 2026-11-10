@@ -194,9 +194,10 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       if (result.kind === 'busy') return
       if (result.kind === 'failed') { setDateStatus(result.detail); return }
       const saved = result.invitation
-      // `own`: only this tab's writes are in the returned version. Otherwise another tab or
-      // device saved too: keep the old version so the next page save is still caught as stale.
-      setInvitation(prev => prev ? { ...prev, weddingDate: saved.weddingDate, version: result.own ? saved.version : prev.version } : prev)
+      // `own`: only this tab's writes are in the returned version, possibly including a lost page
+      // save or publish, so take the copy whole (status, page) as a page save does. Otherwise
+      // another tab or device saved too: keep the old version so the next page save is stale.
+      setInvitation(prev => !prev ? prev : result.own ? saved : { ...prev, weddingDate: saved.weddingDate })
       setDateStatus('예식일을 변경했습니다.')
     } finally {
       setDateSaving(false)
