@@ -13,5 +13,7 @@ public record InvitationDto(
         InvitationStatus status,
         @JsonRawValue String pageData,
         @JsonRawValue String langVariants,
-        Long version) {
+        Long version,
+        /** Private review link key; null until the owner makes one. Owner-only DTO. */
+        String reviewToken) {
 }

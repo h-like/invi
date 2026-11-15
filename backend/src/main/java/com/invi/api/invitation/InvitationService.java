@@ -13,7 +13,9 @@ import com.invi.api.media.MediaLifecycle;
 import com.invi.api.media.MediaReferences;
 import com.invi.api.template.Template;
 import com.invi.api.template.TemplateRepository;
+import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -27,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class InvitationService {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final InvitationRepository invitationRepository;
     private final MemberRepository memberRepository;
@@ -81,7 +85,10 @@ public class InvitationService {
                         .findBySlug(slug)
                         .filter(i -> i.getStatus() == InvitationStatus.PUBLISHED)
                         .orElseThrow(() -> new NotFoundException("청첩장을 찾을 수 없습니다: " + slug));
+        return toGuestDto(invitation);
+    }
 
+    private GuestInvitationDto toGuestDto(Invitation invitation) {
         // Hidden blocks are filtered here, not just by the renderer: the raw JSON is public.
         return new GuestInvitationDto(
                 invitation.getId(),
@@ -149,6 +156,57 @@ public class InvitationService {
         return flushedDto(invitation);
     }
 
+    /** Idempotent: unpublishing a draft changes nothing, so its version stays put. */
+    @Transactional
+    public InvitationDto unpublish(UUID memberId, UUID id) {
+        lifecycle.lock();
+        Invitation invitation = getOwnedOrThrow(memberId, id);
+        invitation.unpublish();
+        return flushedDto(invitation);
+    }
+
+    /**
+     * The saved page as guests would see it (hidden blocks removed), whatever its status, for
+     * whoever holds the owner's review link. Guest writes stay closed: they require PUBLISHED.
+     */
+    public GuestInvitationDto findByReviewToken(String token) {
+        Invitation invitation =
+                invitationRepository
+                        .findByReviewToken(token)
+                        .orElseThrow(() -> new NotFoundException("확인 링크가 없거나 꺼져 있습니다."));
+        return toGuestDto(invitation);
+    }
+
+    /** Returns the existing link if there is one, so copying it twice never breaks the first copy. */
+    @Transactional
+    public ReviewLinkDto issueReviewLink(UUID memberId, UUID id) {
+        lifecycle.lock();
+        Invitation invitation = getOwnedOrThrow(memberId, id);
+        if (invitation.getReviewToken() != null) {
+            return new ReviewLinkDto(invitation.getReviewToken());
+        }
+        String token;
+        do {
+            token = newReviewToken();
+        } while (invitationRepository.existsByReviewToken(token));
+        invitationRepository.updateReviewToken(id, token);
+        return new ReviewLinkDto(token);
+    }
+
+    /** The old link stops working at once; a link made later gets a different address. */
+    @Transactional
+    public void revokeReviewLink(UUID memberId, UUID id) {
+        lifecycle.lock();
+        getOwnedOrThrow(memberId, id);
+        invitationRepository.updateReviewToken(id, null);
+    }
+
+    private static String newReviewToken() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
     private Invitation getOrThrow(UUID id) {
         return invitationRepository
                 .findById(id)
@@ -182,7 +240,8 @@ public class InvitationService {
                 invitation.getStatus(),
                 toRawJson(invitation.getPageData()),
                 toRawJson(invitation.getLangVariants()),
-                invitation.getVersion());
+                invitation.getVersion(),
+                invitation.getReviewToken());
     }
 
     private static String toRawJson(JsonNode node) {

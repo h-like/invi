@@ -71,6 +71,8 @@ export interface Invitation {
   langVariants: unknown
   /** Stored revision; page saves send it back so an older copy cannot overwrite a newer one. */
   version: number
+  /** Key to the private review page /r/{token}; null until the owner makes a link. */
+  reviewToken?: string | null
 }
 
 export interface GuestInvitation {

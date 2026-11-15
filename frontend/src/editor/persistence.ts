@@ -3,6 +3,7 @@ import type { Invitation, PageData } from '../api/types.ts'
 export interface PersistenceClient {
   updatePageData: (id: string, pageData: PageData, version: number) => Promise<Invitation>
   publishInvitation: (id: string) => Promise<Invitation>
+  unpublishInvitation: (id: string) => Promise<Invitation>
   updateWeddingDate: (id: string, weddingDate: string) => Promise<Invitation>
   getInvitation: (id: string) => Promise<Invitation>
 }
@@ -24,6 +25,12 @@ export type DateSaveOutcome =
    * device also saved, and the copy must keep its old version so the next page save is stale.
    */
   | { kind: 'saved'; invitation: Invitation; own: boolean }
+
+export type UnpublishOutcome =
+  | { kind: 'busy' }
+  | { kind: 'failed'; detail: string }
+  /** `own` as for a date save: only this tab's request moved the stored copy, so adopt it whole. */
+  | { kind: 'unpublished'; invitation: Invitation; own: boolean }
 
 /** Error code the API sends with a 409 when the saved copy is newer than the editor's. */
 export const STALE_VERSION = 'STALE_VERSION'
@@ -54,6 +61,9 @@ function errorDetail(error: unknown, fallback: string): string {
  * newer one, the save is sent again on top of it instead of reporting someone else's save.
  * A wedding-date save that succeeds after such a lost write lands two steps past the copy;
  * it is reported as this tab's own when the returned copy still shows that write.
+ *
+ * Unpublishing shares the guard too: it bumps the version like a publish (unless the copy was
+ * already a draft, when nothing changes), and a lost response is remembered the same way.
  */
 export function createInvitationPersistence(client: PersistenceClient) {
   let running = false
@@ -136,6 +146,28 @@ export function createInvitationPersistence(client: PersistenceClient) {
           }
         }
         return { kind: 'failed', detail: errorDetail(error, '예식일을 변경하지 못했습니다.') }
+      } finally {
+        running = false
+      }
+    },
+
+    async unpublish(invitation: Invitation): Promise<UnpublishOutcome> {
+      if (running) return { kind: 'busy' }
+      running = true
+      try {
+        const saved = await client.unpublishInvitation(invitation.id)
+        if (saved.status !== 'DRAFT') return { kind: 'failed', detail: '서버에서 비공개 상태를 확인하지 못했습니다.' }
+        // Same version: it was already a draft and nothing changed. One step: only this request.
+        const own = saved.version === invitation.version || saved.version === invitation.version + 1
+        if (own) unconfirmed = null
+        return { kind: 'unpublished', invitation: saved, own }
+      } catch (error) {
+        // It may still have landed, bumping the version under this copy: remember it like a lost
+        // date save, so the next page save is sent again on top of it instead of reported stale.
+        if (!isClientError(error) && (!unconfirmed || unconfirmed.id !== invitation.id || unconfirmed.from !== invitation.version)) {
+          unconfirmed = { id: invitation.id, from: invitation.version, version: invitation.version, applied: current => current.status === 'DRAFT' }
+        }
+        return { kind: 'failed', detail: errorDetail(error, '비공개로 바꾸지 못했습니다.') }
       } finally {
         running = false
       }

@@ -503,4 +503,122 @@ class InvitationServiceTest {
                 .isInstanceOf(ForbiddenException.class);
         assertThat(invitation.getWeddingDate()).isEqualTo(LocalDate.of(2027, 3, 1));
     }
+
+    private static Invitation ownedBy(UUID ownerId, InvitationStatus status, String reviewToken) {
+        Template template = Template.builder().name("클래식").category("classic").build();
+        return Invitation.builder().slug("s").weddingDate(LocalDate.of(2027, 3, 1))
+                .template(template).member(ownerWithId(ownerId)).status(status).reviewToken(reviewToken).build();
+    }
+
+    private Invitation owned(UUID ownerId, UUID id, InvitationStatus status, String reviewToken) {
+        Invitation invitation = ownedBy(ownerId, status, reviewToken);
+        when(invitationRepository.findById(id)).thenReturn(Optional.of(invitation));
+        return invitation;
+    }
+
+    @Test
+    void unpublish_locksThenTurnsAPublishedInvitationBackIntoADraft() {
+        UUID ownerId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        owned(ownerId, id, InvitationStatus.PUBLISHED, null);
+
+        InvitationDto dto = invitationService.unpublish(ownerId, id);
+
+        assertThat(dto.status()).isEqualTo(InvitationStatus.DRAFT);
+        InOrder order = inOrder(lifecycle, invitationRepository);
+        order.verify(lifecycle).lock();
+        order.verify(invitationRepository).findById(id);
+        order.verify(invitationRepository).flush();
+    }
+
+    @Test
+    void unpublish_throwsForbidden_whenCallerIsNotOwner() {
+        UUID id = UUID.randomUUID();
+        Invitation invitation = owned(UUID.randomUUID(), id, InvitationStatus.PUBLISHED, null);
+
+        assertThatThrownBy(() -> invitationService.unpublish(UUID.randomUUID(), id))
+                .isInstanceOf(ForbiddenException.class);
+        assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.PUBLISHED);
+    }
+
+    @Test
+    void issueReviewLink_locksThenStoresAnUnguessableTokenThroughTheBulkUpdate() {
+        UUID ownerId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        owned(ownerId, id, InvitationStatus.DRAFT, null);
+        when(invitationRepository.existsByReviewToken(any())).thenReturn(false);
+
+        ReviewLinkDto link = invitationService.issueReviewLink(ownerId, id);
+
+        assertThat(link.token()).matches("[A-Za-z0-9_-]{43}");
+        InOrder order = inOrder(lifecycle, invitationRepository);
+        order.verify(lifecycle).lock();
+        order.verify(invitationRepository).findById(id);
+        order.verify(invitationRepository).updateReviewToken(id, link.token());
+    }
+
+    @Test
+    void issueReviewLink_returnsTheExistingLink_withoutWriting() {
+        UUID ownerId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        owned(ownerId, id, InvitationStatus.PUBLISHED, "existing");
+
+        assertThat(invitationService.issueReviewLink(ownerId, id).token()).isEqualTo("existing");
+        verify(invitationRepository, never()).updateReviewToken(any(), any());
+    }
+
+    @Test
+    void issueReviewLink_throwsForbidden_whenCallerIsNotOwner() {
+        UUID id = UUID.randomUUID();
+        owned(UUID.randomUUID(), id, InvitationStatus.DRAFT, null);
+
+        assertThatThrownBy(() -> invitationService.issueReviewLink(UUID.randomUUID(), id))
+                .isInstanceOf(ForbiddenException.class);
+        verify(invitationRepository, never()).updateReviewToken(any(), any());
+    }
+
+    @Test
+    void revokeReviewLink_locksThenClearsTheTokenThroughTheBulkUpdate() {
+        UUID ownerId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        owned(ownerId, id, InvitationStatus.DRAFT, "old-token");
+
+        invitationService.revokeReviewLink(ownerId, id);
+
+        InOrder order = inOrder(lifecycle, invitationRepository);
+        order.verify(lifecycle).lock();
+        order.verify(invitationRepository).updateReviewToken(id, null);
+    }
+
+    @Test
+    void revokeReviewLink_throwsForbidden_whenCallerIsNotOwner() {
+        UUID id = UUID.randomUUID();
+        owned(UUID.randomUUID(), id, InvitationStatus.DRAFT, "kept");
+
+        assertThatThrownBy(() -> invitationService.revokeReviewLink(UUID.randomUUID(), id))
+                .isInstanceOf(ForbiddenException.class);
+        verify(invitationRepository, never()).updateReviewToken(any(), any());
+    }
+
+    @Test
+    void findByReviewToken_throwsNotFound_forAnUnknownOrRevokedToken() {
+        when(invitationRepository.findByReviewToken("gone")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> invitationService.findByReviewToken("gone")).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void findByReviewToken_showsADraft_withoutItsHiddenBlocks() throws Exception {
+        JsonNode page = objectMapper.readTree("""
+                {"blocks":[{"id":"hero-1","type":"hero","visible":true,"content":{}},
+                {"id":"account-1","type":"account","visible":false,"content":{"bride":{"accountNumber":"123"}}}]}""");
+        Invitation invitation = ownedBy(UUID.randomUUID(), InvitationStatus.DRAFT, "token");
+        invitation.updatePageData(page);
+        when(invitationRepository.findByReviewToken("token")).thenReturn(Optional.of(invitation));
+
+        GuestInvitationDto dto = invitationService.findByReviewToken("token");
+
+        assertThat(dto.pageData()).contains("hero-1").doesNotContain("account-1").doesNotContain("123");
+        assertThat(invitation.getPageData()).isSameAs(page);
+    }
 }

@@ -84,4 +84,33 @@ class InvitationVersionIntegrationTest {
 
         assertThat(service.updatePageData(ownerId, id, page("A"), first.version()).version()).isEqualTo(first.version());
     }
+
+    @Test
+    void unpublishBumpsTheVersionOnce_andIsANoOpOnADraft() {
+        InvitationDto draft = service.unpublish(ownerId, id);
+        assertThat(draft.version()).isZero();
+
+        InvitationDto published = service.publish(ownerId, id);
+        InvitationDto unpublished = service.unpublish(ownerId, id);
+        assertThat(unpublished.status()).isEqualTo(InvitationStatus.DRAFT);
+        assertThat(unpublished.version()).isEqualTo(published.version() + 1);
+        assertThat(service.unpublish(ownerId, id).version()).isEqualTo(unpublished.version());
+    }
+
+    /** A review link made in one tab must not make another tab's next page save look stale. */
+    @Test
+    void reviewLinksLeaveTheVersionAlone_andTheTokenIsStored() {
+        String token = service.issueReviewLink(ownerId, id).token();
+        invitations.flush();
+        assertThat(service.findById(ownerId, id).version()).isZero();
+        assertThat(service.findById(ownerId, id).reviewToken()).isEqualTo(token);
+        assertThat(service.findByReviewToken(token).id()).isEqualTo(id);
+
+        assertThat(service.updatePageData(ownerId, id, page("A"), 0L).version()).isEqualTo(1L);
+
+        service.revokeReviewLink(ownerId, id);
+        invitations.flush();
+        assertThat(service.findById(ownerId, id).version()).isEqualTo(1L);
+        assertThat(invitations.findByReviewToken(token)).isEmpty();
+    }
 }

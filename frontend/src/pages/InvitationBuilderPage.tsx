@@ -63,6 +63,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const [dateInput, setDateInput] = useState('')
   const [dateSaving, setDateSaving] = useState(false)
   const [dateStatus, setDateStatus] = useState('')
+  const [unpublishing, setUnpublishing] = useState(false)
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [reviewStatus, setReviewStatus] = useState('')
   const unsaved = draft !== null && JSON.stringify(draft) !== baseline
   const leaveState = { dirty: unsaved, busy, photoPending }
   const leaveMode = leaveDialogMode(leaveState)
@@ -133,6 +136,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     if (entry) accounts[role] = { ...accounts[role], ...entry }
   }
   const publicUrl = window.location.origin + '/i/' + invitation.slug
+  const reviewUrl = invitation.reviewToken ? window.location.origin + '/r/' + invitation.reviewToken : ''
+  const writing = busy || loadingLatest || dateSaving || unpublishing
 
   function changeContent(block: Block | undefined, patch: Record<string, unknown>) {
     if (!block) return
@@ -266,6 +271,63 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     )
   }
 
+  /** Shares the page-save guard: it bumps the version, so it must not race this tab's saves. */
+  async function unpublish() {
+    if (!invitation || writing || persistence.isRunning()) return
+    if (!window.confirm('비공개로 바꾸면 하객이 청첩장 링크를 열어도 볼 수 없어요. 받은 참석 응답과 방명록은 그대로 남고, 언제든 다시 공개할 수 있어요. 비공개로 바꿀까요?')) return
+    setUnpublishing(true)
+    setError(null)
+    setNotice('')
+    try {
+      const result = await persistence.unpublish(invitation)
+      if (result.kind === 'busy') return
+      if (result.kind === 'failed') { setError('비공개로 바꾸지 못했습니다. 하객 링크가 아직 열려 있을 수 있어요. ' + result.detail); return }
+      const saved = result.invitation
+      // Not `own`: another tab or device saved too, so keep the old version (the next save is stale).
+      setInvitation(prev => !prev ? prev : result.own ? saved : { ...prev, status: saved.status })
+      setNotice('비공개로 바꿨습니다.')
+    } finally {
+      setUnpublishing(false)
+    }
+  }
+
+  // Review links never bump the version, so they need no save guard.
+  async function makeReviewLink() {
+    if (!invitation || reviewBusy) return
+    setReviewBusy(true)
+    setReviewStatus('')
+    try {
+      const { token } = await api.issueReviewLink(invitation.id)
+      setInvitation(prev => prev ? { ...prev, reviewToken: token } : prev)
+      setReviewStatus('확인 링크를 만들었어요. 복사해서 보내 주세요.')
+    } catch (err) {
+      setReviewStatus('확인 링크를 만들지 못했습니다. ' + (err instanceof Error ? err.message : ''))
+    } finally {
+      setReviewBusy(false)
+    }
+  }
+
+  async function revokeReviewLink() {
+    if (!invitation || reviewBusy) return
+    if (!window.confirm('링크를 끄면 지금 주소로는 더 이상 볼 수 없어요. 다시 만들면 새 주소가 생겨요. 끌까요?')) return
+    setReviewBusy(true)
+    setReviewStatus('')
+    try {
+      await api.revokeReviewLink(invitation.id)
+      setInvitation(prev => prev ? { ...prev, reviewToken: null } : prev)
+      setReviewStatus('확인 링크를 껐어요.')
+    } catch (err) {
+      setReviewStatus('확인 링크를 끄지 못했습니다. ' + (err instanceof Error ? err.message : ''))
+    } finally {
+      setReviewBusy(false)
+    }
+  }
+
+  async function copyReviewLink() {
+    try { await navigator.clipboard.writeText(reviewUrl); setReviewStatus('확인 링크를 복사했습니다.') }
+    catch { setReviewStatus('자동 복사가 차단되었습니다. 위 주소를 선택해 직접 복사해 주세요.') }
+  }
+
   async function copyLink() {
     try { await navigator.clipboard.writeText(publicUrl); setCopyStatus('링크를 복사했습니다.') }
     catch { setCopyStatus('자동 복사가 차단되었습니다. 위 주소를 선택해 직접 복사해 주세요.') }
@@ -278,8 +340,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
         <div className="builder-header-actions">
           <span className="save-state" role="status">{busy ? '저장 중...' : photoPending ? '새 사진 처리 · 확인 필요' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
           <button type="button" className="secondary-button" disabled={photoPending} onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>
-          <button type="button" className="secondary-button" disabled={busy || loadingLatest || dateSaving || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
-          <button type="button" className="publish-button" disabled={busy || loadingLatest || dateSaving || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
+          <button type="button" className="secondary-button" disabled={writing || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
+          <button type="button" className="publish-button" disabled={writing || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
       {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
@@ -325,6 +387,21 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
             </>}
             {panel === 'sections' && <section className="editor-section"><h2>보여주고 싶은 순서대로</h2><p className="editor-section-hint">행을 드래그하거나 위·아래 버튼으로 순서를 바꾸세요. 숨긴 내용도 저장됩니다.</p><ol className="section-list">{sortedBlocks.map((block, index) => <li key={block.id} className={block.visible ? '' : 'section-hidden'} draggable={!busy} onDragStart={e => { e.dataTransfer.setData('text/plain', block.id); e.dataTransfer.effectAllowed = 'move' }} onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }} onDrop={e => { e.preventDefault(); move(e.dataTransfer.getData('text/plain'), block.id) }}><span className="drag-handle" aria-hidden="true">⠿</span><label><input type="checkbox" checked={block.visible} onChange={e => { const visible = e.target.checked; setDraft(prev => prev ? updateBlock(prev, block.id, { visible }) : prev); setNotice('') }} />{BLOCK_LABELS[block.type] ?? block.type}</label><div className="order-buttons"><button type="button" aria-label={(BLOCK_LABELS[block.type] ?? block.type) + ' 위로'} disabled={index === 0} onClick={() => move(block.id, sortedBlocks[index - 1].id)}>↑</button><button type="button" aria-label={(BLOCK_LABELS[block.type] ?? block.type) + ' 아래로'} disabled={index === sortedBlocks.length - 1} onClick={() => move(block.id, sortedBlocks[index + 1].id)}>↓</button></div></li>)}</ol></section>}
           </fieldset>
+          <section className="builder-share-status" aria-labelledby="share-status-title">
+            <div className="share-status-row">
+              <h2 id="share-status-title">공개 상태</h2>
+              <span className={'share-status-badge' + (invitation.status === 'PUBLISHED' ? ' is-published' : '')}>{invitation.status === 'PUBLISHED' ? '공개 중' : '비공개'}</span>
+            </div>
+            {invitation.status === 'PUBLISHED'
+              ? <div className="share-status-public"><p className="editor-section-hint">하객 링크로 누구나 볼 수 있어요. <a href={publicUrl} target="_blank" rel="noreferrer">하객 화면 열기</a></p><button type="button" className="secondary-button" disabled={writing || photoPending} onClick={() => void unpublish()}>{unpublishing ? '바꾸는 중...' : '비공개로 전환'}</button><p className="editor-section-hint">하객 링크만 닫혀요. 받은 참석 응답·방명록은 그대로 남고, 언제든 다시 공개할 수 있어요.</p></div>
+              : <p className="editor-section-hint">아직 하객은 볼 수 없어요. 준비가 끝나면 [공개 · 공유]를 눌러 주세요.</p>}
+            <h3>공개 전에 먼저 보여주기</h3>
+            <p className="editor-section-hint">예비 배우자나 가족에게 확인받을 때 쓰는 링크예요. 링크를 아는 사람만 <strong>마지막으로 저장된</strong> 청첩장을 하객 화면 그대로 볼 수 있고, 참석 응답·방명록은 받지 않아요.</p>
+            {reviewUrl
+              ? <><label>확인 링크<input value={reviewUrl} readOnly onFocus={e => e.target.select()} /></label><div className="share-actions"><button type="button" disabled={reviewBusy} onClick={() => void copyReviewLink()}>링크 복사</button><a className="button-link" href={reviewUrl} target="_blank" rel="noreferrer">열어 보기</a><button type="button" className="secondary-button" disabled={reviewBusy} onClick={() => void revokeReviewLink()}>링크 끄기</button></div>{unsaved && <p className="editor-section-hint share-status-warn">저장하지 않은 변경 사항은 [저장]을 눌러야 링크에 보여요.</p>}</>
+              : <button type="button" className="secondary-button" disabled={reviewBusy} onClick={() => void makeReviewLink()}>{reviewBusy ? '만드는 중...' : '확인 링크 만들기'}</button>}
+            {reviewStatus && <p role="status" className="editor-section-hint">{reviewStatus}</p>}
+          </section>
           <footer className="builder-panel-footer"><Link to={`/e/${invitation.id}/guests`}>참석 응답 · 방명록 관리</Link><p>저장 전 미리보기에서는 하객 응답을 전송하지 않습니다.</p></footer>
         </aside>
         <section className="builder-preview-area" aria-label="청첩장 실시간 미리보기"><div className="preview-caption"><span>LIVE PREVIEW</span><span>변경 사항이 바로 반영됩니다</span></div><div className="preview-phone"><div className="preview-phone-bar" aria-hidden="true"><span />invi invitation</div><div className="preview-phone-content"><PageRenderer pageData={draft} weddingDate={invitation.weddingDate} invitationId={invitation.id} interactive={false} /></div></div><p className="preview-footnote">하객에게도 같은 디자인으로 보여집니다.</p></section>
