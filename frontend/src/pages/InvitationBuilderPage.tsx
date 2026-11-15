@@ -66,11 +66,16 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const [unpublishing, setUnpublishing] = useState(false)
   const [reviewBusy, setReviewBusy] = useState(false)
   const [reviewStatus, setReviewStatus] = useState('')
+  // The review link lives apart from `invitation`: link changes skip the save guard, so a page
+  // save answered before them must not put the old token back on screen.
+  const [reviewToken, setReviewToken] = useState<string | null>(null)
   const unsaved = draft !== null && JSON.stringify(draft) !== baseline
-  const leaveState = { dirty: unsaved, busy, photoPending }
+  // An unpublish holds the save guard too: leaving or saving-and-leaving must wait for it.
+  const writeBusy = busy || unpublishing
+  const leaveState = { dirty: unsaved, busy: writeBusy, photoPending }
   const leaveMode = leaveDialogMode(leaveState)
   const shouldBlock = useCallback<BlockerFunction>(({ currentLocation, nextLocation }) =>
-    shouldBlockEditorNavigation({ dirty: unsaved, busy, photoPending }, currentLocation, nextLocation), [unsaved, busy, photoPending])
+    shouldBlockEditorNavigation({ dirty: unsaved, busy: writeBusy, photoPending }, currentLocation, nextLocation), [unsaved, writeBusy, photoPending])
   const blocker = useBlocker(shouldBlock)
   const blockerRef = useRef(blocker)
   const leaveDialogRef = useRef<HTMLDialogElement>(null)
@@ -82,6 +87,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       if (!active) return
       const page = inv.pageData ?? createEmptyPage()
       setInvitation(inv)
+      setReviewToken(inv.reviewToken ?? null)
       setDateInput(inv.weddingDate)
       setDraft(page)
       setBaseline(JSON.stringify(page))
@@ -90,12 +96,12 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }, [id])
 
   useEffect(() => {
-    const state = { dirty: unsaved, busy, photoPending }
+    const state = { dirty: unsaved, busy: writeBusy, photoPending }
     if (!needsLeaveWarning(state)) return
     function warn(event: BeforeUnloadEvent) { preventEditorUnload(event, state) }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [unsaved, busy, photoPending])
+  }, [unsaved, writeBusy, photoPending])
 
   useEffect(() => { blockerRef.current = blocker }, [blocker])
   useEffect(() => () => leaveGate.cancel(), [leaveGate])
@@ -116,7 +122,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }
 
   function discardAndLeave() {
-    if (busy || persistence.isRunning() || blocker.state !== 'blocked') return
+    if (writeBusy || persistence.isRunning() || blocker.state !== 'blocked') return
     leaveGate.cancel()
     blocker.proceed()
   }
@@ -136,7 +142,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     if (entry) accounts[role] = { ...accounts[role], ...entry }
   }
   const publicUrl = window.location.origin + '/i/' + invitation.slug
-  const reviewUrl = invitation.reviewToken ? window.location.origin + '/r/' + invitation.reviewToken : ''
+  const reviewUrl = reviewToken ? window.location.origin + '/r/' + reviewToken : ''
   const writing = busy || loadingLatest || dateSaving || unpublishing
 
   function changeContent(block: Block | undefined, patch: Record<string, unknown>) {
@@ -175,6 +181,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       const latest = await api.getInvitation(id)
       const page = latest.pageData ?? createEmptyPage()
       setInvitation(latest)
+      setReviewToken(latest.reviewToken ?? null)
       setDateInput(latest.weddingDate)
       setDraft(page)
       setBaseline(JSON.stringify(page))
@@ -262,7 +269,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }
 
   async function saveAndLeave() {
-    if (blocker.state !== 'blocked' || busy || persistence.isRunning()) return
+    if (blocker.state !== 'blocked' || writeBusy || persistence.isRunning()) return
     const destinationKey = blocker.location.key
     await leaveGate.run(
       () => persist(false),
@@ -277,6 +284,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     if (!window.confirm('비공개로 바꾸면 하객이 청첩장 링크를 열어도 볼 수 없어요. 받은 참석 응답과 방명록은 그대로 남고, 언제든 다시 공개할 수 있어요. 비공개로 바꿀까요?')) return
     setUnpublishing(true)
     setError(null)
+    setFailedAction(null)
+    setStale(false)
     setNotice('')
     try {
       const result = await persistence.unpublish(invitation)
@@ -298,7 +307,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setReviewStatus('')
     try {
       const { token } = await api.issueReviewLink(invitation.id)
-      setInvitation(prev => prev ? { ...prev, reviewToken: token } : prev)
+      setReviewToken(token)
       setReviewStatus('확인 링크를 만들었어요. 복사해서 보내 주세요.')
     } catch (err) {
       setReviewStatus('확인 링크를 만들지 못했습니다. ' + (err instanceof Error ? err.message : ''))
@@ -314,7 +323,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setReviewStatus('')
     try {
       await api.revokeReviewLink(invitation.id)
-      setInvitation(prev => prev ? { ...prev, reviewToken: null } : prev)
+      setReviewToken(null)
       setReviewStatus('확인 링크를 껐어요.')
     } catch (err) {
       setReviewStatus('확인 링크를 끄지 못했습니다. ' + (err instanceof Error ? err.message : ''))
@@ -414,8 +423,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
         {error && <p className="leave-error" role="alert">{error}</p>}
         <div className="leave-actions">
           <button type="button" className="secondary-button" onClick={cancelNavigation}>계속 편집</button>
-          {canSaveBeforeLeave(leaveState) && <button type="button" disabled={busy} onClick={() => void saveAndLeave()}>{busy ? '저장 중...' : '저장하고 이동'}</button>}
-          <button type="button" className="secondary-button" disabled={busy} onClick={discardAndLeave}>{leaveMode === 'clean' ? '이동' : '저장하지 않고 이동'}</button>
+          {canSaveBeforeLeave(leaveState) && <button type="button" disabled={writeBusy} onClick={() => void saveAndLeave()}>{busy ? '저장 중...' : '저장하고 이동'}</button>}
+          <button type="button" className="secondary-button" disabled={writeBusy} onClick={discardAndLeave}>{leaveMode === 'clean' ? '이동' : '저장하지 않고 이동'}</button>
         </div>
       </dialog>
     </main>
