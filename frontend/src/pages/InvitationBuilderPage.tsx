@@ -203,7 +203,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     try {
       // Shares the page save's guard, so a page save cannot run while this one is in flight.
       const result = await persistence.saveWeddingDate(invitation, dateInput)
-      if (result.kind === 'busy') return
+      // Never silent: free invitations are deleted by the stored date, not the one on screen.
+      if (result.kind === 'busy') { setDateStatus('다른 저장이 진행 중이라 예식일을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.'); return }
       if (result.kind === 'failed') { setDateStatus(result.detail); return }
       const saved = result.invitation
       // `own`: only this tab's writes are in the returned version, possibly including a lost page
@@ -281,7 +282,10 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   /** Shares the page-save guard: it bumps the version, so it must not race this tab's saves. */
   async function unpublish() {
     if (!invitation || writing || persistence.isRunning()) return
-    if (!window.confirm('비공개로 바꾸면 하객이 청첩장 링크를 열어도 볼 수 없어요. 받은 참석 응답과 방명록은 그대로 남고, 언제든 다시 공개할 수 있어요. 비공개로 바꿀까요?')) return
+    // The review link works whatever the status, so closing the guest link does not close it.
+    const reviewLinkOpen = reviewToken !== null
+    const reviewWarning = reviewLinkOpen ? '\n\n확인 링크는 계속 열려 있어서, 링크를 아는 사람은 계좌를 포함한 저장 내용을 볼 수 있어요. 막으려면 [링크 끄기]도 눌러 주세요.' : ''
+    if (!window.confirm('비공개로 바꾸면 하객이 청첩장 링크를 열어도 볼 수 없어요. 받은 참석 응답과 방명록은 그대로 남고, 언제든 다시 공개할 수 있어요.' + reviewWarning + '\n\n비공개로 바꿀까요?')) return
     setUnpublishing(true)
     setError(null)
     setFailedAction(null)
@@ -294,7 +298,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       const saved = result.invitation
       // Not `own`: another tab or device saved too, so keep the old version (the next save is stale).
       setInvitation(prev => !prev ? prev : result.own ? saved : { ...prev, status: saved.status })
-      setNotice('비공개로 바꿨습니다.')
+      setNotice(reviewLinkOpen ? '비공개로 바꿨습니다 · 확인 링크는 열려 있어요' : '비공개로 바꿨습니다.')
     } finally {
       setUnpublishing(false)
     }
@@ -367,7 +371,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
               {hero && <section className="editor-section"><h2>두 사람의 이름</h2><div className="form-columns">
                 <label>신랑 이름<input value={text(hero, 'groomName')} maxLength={50} onChange={e => changeContent(hero, { groomName: e.target.value })} placeholder="신랑 이름" /></label>
                 <label>신부 이름<input value={text(hero, 'brideName')} maxLength={50} onChange={e => changeContent(hero, { brideName: e.target.value })} placeholder="신부 이름" /></label>
-              </div><div className="form-columns"><label>예식일<span className="date-change"><input type="date" value={dateInput} min={todayIso()} onChange={e => { setDateInput(e.target.value); setDateStatus('') }} aria-describedby="date-hint" /><button type="button" className="secondary-button" disabled={dateSaving || !dateInput || dateInput === invitation.weddingDate} onClick={() => void saveWeddingDate()}>{dateSaving ? '변경 중...' : '변경'}</button></span></label><label>예식 시간<input type="time" value={text(hero, 'weddingTime')} onChange={e => changeContent(hero, { weddingTime: e.target.value })} /></label></div>
+              </div><div className="form-columns"><label>예식일<span className="date-change"><input type="date" value={dateInput} min={todayIso()} onChange={e => { setDateInput(e.target.value); setDateStatus('') }} aria-describedby="date-hint" /><button type="button" className="secondary-button" disabled={writing || !dateInput || dateInput === invitation.weddingDate} onClick={() => void saveWeddingDate()}>{dateSaving ? '변경 중...' : '변경'}</button></span></label><label>예식 시간<input type="time" value={text(hero, 'weddingTime')} onChange={e => changeContent(hero, { weddingTime: e.target.value })} /></label></div>
                 <p className="editor-section-hint" id="date-hint">예식일은 [변경]을 누르면 바로 저장됩니다. 무료 청첩장은 예식일 10일 뒤 삭제됩니다.</p>{dateStatus && <p className="editor-section-hint" role="status">{dateStatus}</p>}
                 <CoverPhotoEditor invitationId={invitation.id} currentUrl={isImageUrl(text(hero, 'coverImage')) ? text(hero, 'coverImage') : ''} disabled={busy} onChange={url => changeContent(hero, { coverImage: url })} onPendingChange={pending => photoPendingChange('cover', pending)} />
                 <details className="cover-photo-url"><summary>이미지 주소로 직접 입력</summary><label>대표 사진 URL<input type="url" disabled={photoPending} value={text(hero, 'coverImage')} onChange={e => changeContent(hero, { coverImage: e.target.value })} placeholder="https://.../photo.jpg" /></label>
@@ -402,8 +406,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
               <span className={'share-status-badge' + (invitation.status === 'PUBLISHED' ? ' is-published' : '')}>{invitation.status === 'PUBLISHED' ? '공개 중' : '비공개'}</span>
             </div>
             {invitation.status === 'PUBLISHED'
-              ? <div className="share-status-public"><p className="editor-section-hint">하객 링크로 누구나 볼 수 있어요. <a href={publicUrl} target="_blank" rel="noreferrer">하객 화면 열기</a></p><button type="button" className="secondary-button" disabled={writing || photoPending} onClick={() => void unpublish()}>{unpublishing ? '바꾸는 중...' : '비공개로 전환'}</button><p className="editor-section-hint">하객 링크만 닫혀요. 받은 참석 응답·방명록은 그대로 남고, 언제든 다시 공개할 수 있어요.</p></div>
-              : <p className="editor-section-hint">아직 하객은 볼 수 없어요. 준비가 끝나면 [공개 · 공유]를 눌러 주세요.</p>}
+              ? <div className="share-status-public"><p className="editor-section-hint">하객 링크로 누구나 볼 수 있어요. <a href={publicUrl} target="_blank" rel="noreferrer">하객 화면 열기</a></p><button type="button" className="secondary-button" disabled={writing || photoPending} onClick={() => void unpublish()}>{unpublishing ? '바꾸는 중...' : '비공개로 전환'}</button><p className="editor-section-hint">하객 링크만 닫혀요. 받은 참석 응답·방명록은 그대로 남고, 언제든 다시 공개할 수 있어요.{reviewToken && ' 아래 확인 링크는 따로 꺼야 닫혀요.'}</p></div>
+              : <p className="editor-section-hint">아직 하객은 볼 수 없어요. 준비가 끝나면 [공개 · 공유]를 눌러 주세요.{reviewToken && ' 아래 확인 링크를 아는 사람은 저장된 내용을 볼 수 있어요.'}</p>}
             <h3>공개 전에 먼저 보여주기</h3>
             <p className="editor-section-hint">예비 배우자나 가족에게 확인받을 때 쓰는 링크예요. 링크를 아는 사람만 <strong>마지막으로 저장된</strong> 청첩장을 하객 화면 그대로 볼 수 있고, 참석 응답·방명록은 받지 않아요.</p>
             {reviewUrl

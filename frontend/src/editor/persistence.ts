@@ -158,14 +158,15 @@ export function createInvitationPersistence(client: PersistenceClient) {
         const saved = await client.unpublishInvitation(invitation.id)
         if (saved.status !== 'DRAFT') return { kind: 'failed', detail: '서버에서 비공개 상태를 확인하지 못했습니다.' }
         // Same version: it was already a draft and nothing changed. One step: only this request.
-        const own = saved.version === invitation.version || saved.version === invitation.version + 1
+        // Two steps: this request on top of this tab's own lost write.
+        const own = saved.version === invitation.version || saved.version === invitation.version + 1 || ownWriteUnderUnpublish(invitation, saved)
         if (own) unconfirmed = null
         return { kind: 'unpublished', invitation: saved, own }
       } catch (error) {
         // It may still have landed, bumping the version under this copy: remember it like a lost
         // date save, so the next page save is sent again on top of it instead of reported stale.
         if (!isClientError(error) && (!unconfirmed || unconfirmed.id !== invitation.id || unconfirmed.from !== invitation.version)) {
-          unconfirmed = { id: invitation.id, from: invitation.version, version: invitation.version, applied: current => current.status === 'DRAFT' }
+          unconfirmed = { id: invitation.id, from: invitation.version, version: invitation.version, applied: current => current.status === 'DRAFT', isUnpublish: true }
         }
         return { kind: 'failed', detail: errorDetail(error, '비공개로 바꾸지 못했습니다.') }
       } finally {
@@ -200,6 +201,18 @@ export function createInvitationPersistence(client: PersistenceClient) {
   }
 
   /**
+   * An unpublish that succeeded two steps past the copy: was the step between this tab's own
+   * unconfirmed write? A lost unpublish cannot be that step, since a repeat changes nothing, so
+   * two steps after one means someone else saved. `applied` is used as is: unpublishing leaves
+   * the page and date alone, while `appliedUnderDate` expects the status to be unchanged.
+   */
+  function ownWriteUnderUnpublish(invitation: Invitation, saved: Invitation): boolean {
+    const write = unconfirmed
+    if (!write || write.isUnpublish || write.id !== invitation.id || write.from !== invitation.version) return false
+    return saved.version === write.version + 2 && write.applied(saved)
+  }
+
+  /**
    * On a stale refusal: was the only newer write this tab's own unconfirmed one? True when
    * the retry starts from the copy that write was sent from, and the stored copy is exactly
    * one step past it and shows that write. Returns the version to save on top of, else null.
@@ -229,6 +242,8 @@ interface UnconfirmedWrite {
    * to `applied`, which page and publish writes keep since a date save leaves them alone.
    */
   appliedUnderDate?: (current: Invitation) => boolean
+  /** A lost unpublish: repeating it changes nothing, so it never explains a second version step. */
+  isUnpublish?: boolean
 }
 
 /** A 4xx response: the server refused the request, so it was not applied. */
