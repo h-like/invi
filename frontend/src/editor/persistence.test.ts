@@ -15,7 +15,7 @@ function invitation(pageData = draft()): Invitation {
 /** Methods a test doesn't care about fail loudly, so an unexpected call shows up as a failure. */
 function stub(client: Partial<PersistenceClient>): PersistenceClient {
   const unexpected = async (): Promise<Invitation> => { throw new Error('unexpected call') }
-  return { updatePageData: unexpected, publishInvitation: unexpected, updateWeddingDate: unexpected, getInvitation: unexpected, ...client }
+  return { updatePageData: unexpected, publishInvitation: unexpected, unpublishInvitation: unexpected, updateWeddingDate: unexpected, getInvitation: unexpected, ...client }
 }
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -488,4 +488,119 @@ test('a publish that landed while offline is picked up by the retry instead of a
   const retry = await controller.run(saved, draft(), true)
   assert.equal(retry.kind, 'completed')
   if (retry.kind === 'completed') { assert.equal(retry.shared, true); assert.equal(retry.invitation.version, 6) }
+})
+
+test('unpublishing a published copy one step on is this tab’s own', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  const controller = createInvitationPersistence(stub({
+    unpublishInvitation: async () => ({ ...published, status: 'DRAFT', version: 4 }),
+  }))
+  assert.deepEqual(await controller.unpublish(published), { kind: 'unpublished', invitation: { ...published, status: 'DRAFT', version: 4 }, own: true })
+  assert.equal(controller.isRunning(), false)
+})
+
+test('unpublishing a copy that is already a draft keeps its version and is still own', async () => {
+  const controller = createInvitationPersistence(stub({ unpublishInvitation: async () => invitation() }))
+  const result = await controller.unpublish(invitation())
+  assert.equal(result.kind === 'unpublished' && result.own, true)
+})
+
+test('an unpublish that lands past another device’s save is not adopted', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  const controller = createInvitationPersistence(stub({
+    unpublishInvitation: async () => ({ ...invitation(draft('다른 기기')), version: 5 }),
+  }))
+  const result = await controller.unpublish(published)
+  assert.equal(result.kind === 'unpublished' && result.own, false)
+})
+
+test('a response that is not a draft is reported as a failure', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  const controller = createInvitationPersistence(stub({ unpublishInvitation: async () => ({ ...published, version: 4 }) }))
+  assert.equal((await controller.unpublish(published)).kind, 'failed')
+})
+
+test('unpublish shares the single-flight guard with page saves', async () => {
+  const pending = deferred<Invitation>()
+  const controller = createInvitationPersistence(stub({ updatePageData: () => pending.promise }))
+  const save = controller.run(invitation(), draft(), false)
+  assert.deepEqual(await controller.unpublish({ ...invitation(), status: 'PUBLISHED' }), { kind: 'busy' })
+  pending.resolve({ ...invitation(), version: 4 })
+  await save
+})
+
+test('a page save after a lost unpublish response is sent again on top of it', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  const versions: number[] = []
+  const controller = createInvitationPersistence(stub({
+    unpublishInvitation: async () => { throw new TypeError('Failed to fetch') },
+    getInvitation: async () => ({ ...invitation(), status: 'DRAFT', version: 4 }),
+    updatePageData: async (_id, page, version) => {
+      versions.push(version)
+      if (version === 3) throw Object.assign(new Error('stale'), { status: 409, code: STALE_VERSION })
+      return { ...invitation(page), version: version + 1 }
+    },
+  }))
+  assert.equal((await controller.unpublish(published)).kind, 'failed')
+  const save = await controller.run(published, draft('고친 이름'), false)
+  assert.equal(save.kind, 'completed')
+  assert.deepEqual(versions, [3, 4])
+})
+
+test('a refused unpublish (4xx) is not remembered as a possibly landed write', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  const controller = createInvitationPersistence(stub({
+    unpublishInvitation: async () => { throw Object.assign(new Error('forbidden'), { status: 403 }) },
+    updatePageData: async () => { throw Object.assign(new Error('stale'), { status: 409, code: STALE_VERSION }) },
+  }))
+  await controller.unpublish(published)
+  assert.equal((await controller.run(published, draft(), false)).kind, 'stale')
+})
+
+test('an unpublish on top of this tab’s lost page save is its own', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  const edited = draft('고친 이름')
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async () => { throw new TypeError('Failed to fetch') },
+    unpublishInvitation: async () => ({ ...invitation(edited), status: 'DRAFT', version: 5 }),
+  }))
+  assert.equal((await controller.run(published, edited, false)).kind, 'save-failed')
+  const result = await controller.unpublish(published)
+  assert.equal(result.kind === 'unpublished' && result.own, true)
+})
+
+test('an unpublish on top of this tab’s lost date save is its own', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  const controller = createInvitationPersistence(stub({
+    updateWeddingDate: async () => { throw new TypeError('Failed to fetch') },
+    unpublishInvitation: async () => ({ ...published, weddingDate: '2027-06-01', status: 'DRAFT', version: 5 }),
+  }))
+  assert.equal((await controller.saveWeddingDate(published, '2027-06-01')).kind, 'failed')
+  const result = await controller.unpublish(published)
+  assert.equal(result.kind === 'unpublished' && result.own, true)
+})
+
+test('two steps past a lost page save that is not visible is another device’s save', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async () => { throw new TypeError('Failed to fetch') },
+    unpublishInvitation: async () => ({ ...invitation(draft('다른 기기')), status: 'DRAFT', version: 5 }),
+  }))
+  await controller.run(published, draft('고친 이름'), false)
+  const result = await controller.unpublish(published)
+  assert.equal(result.kind === 'unpublished' && result.own, false)
+})
+
+test('two steps past a lost unpublish is another device’s save, though the copy is a draft', async () => {
+  const published = { ...invitation(), status: 'PUBLISHED' as const }
+  let calls = 0
+  const controller = createInvitationPersistence(stub({
+    unpublishInvitation: async () => {
+      if (++calls === 1) throw new TypeError('Failed to fetch')
+      return { ...invitation(draft('다른 기기')), status: 'DRAFT', version: 5 }
+    },
+  }))
+  assert.equal((await controller.unpublish(published)).kind, 'failed')
+  const result = await controller.unpublish(published)
+  assert.equal(result.kind === 'unpublished' && result.own, false)
 })

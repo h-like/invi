@@ -7,6 +7,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,6 +57,28 @@ public class InvitationController {
     @PostMapping("/{id}/publish")
     public InvitationDto publish(Authentication authentication, @PathVariable UUID id) {
         return invitationService.publish(currentMember.requireId(authentication), id);
+    }
+
+    @PostMapping("/{id}/unpublish")
+    public InvitationDto unpublish(Authentication authentication, @PathVariable UUID id) {
+        return invitationService.unpublish(currentMember.requireId(authentication), id);
+    }
+
+    @PostMapping("/{id}/review-link")
+    public ReviewLinkDto issueReviewLink(Authentication authentication, @PathVariable UUID id) {
+        return invitationService.issueReviewLink(currentMember.requireId(authentication), id);
+    }
+
+    @DeleteMapping("/{id}/review-link")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeReviewLink(Authentication authentication, @PathVariable UUID id) {
+        invitationService.revokeReviewLink(currentMember.requireId(authentication), id);
+    }
+
+    /** Public: whoever holds the owner's review link may read the saved page, never write to it. */
+    @GetMapping("/review/{token}")
+    public GuestInvitationDto getByReviewToken(@PathVariable String token) {
+        return invitationService.findByReviewToken(token);
     }
 
     @GetMapping("/slug/{slug}")

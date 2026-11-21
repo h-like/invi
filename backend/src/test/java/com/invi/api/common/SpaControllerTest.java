@@ -52,7 +52,7 @@ class SpaControllerTest {
     // so GuestLinkPreviewController falls back to the same forward for /i/{slug}.
     @ParameterizedTest
     @ValueSource(strings = {"/", "/templates", "/templates/classic", "/login", "/oauth/callback",
-            "/create", "/invitations", "/e/123", "/e/123/guests", "/i/our-wedding"})
+            "/create", "/invitations", "/e/123", "/e/123/guests", "/i/our-wedding", "/r/review-token"})
     void get_explicitShellRoutes_arePublicAndForwardToIndex(String path) throws Exception {
         mvc.perform(get(path).accept(MediaType.TEXT_HTML))
                 .andExpect(status().isOk())
@@ -63,7 +63,7 @@ class SpaControllerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/", "/templates", "/templates/classic", "/login", "/oauth/callback",
-            "/create", "/invitations", "/e/123", "/e/123/guests", "/i/our-wedding"})
+            "/create", "/invitations", "/e/123", "/e/123/guests", "/i/our-wedding", "/r/review-token"})
     void head_explicitShellRoutes_arePublicAndForwardToIndex(String path) throws Exception {
         mvc.perform(head(path).accept(MediaType.TEXT_HTML))
                 .andExpect(status().isOk())

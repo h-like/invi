@@ -16,10 +16,12 @@ interface Props {
   weddingDate: string
   invitationId: string
   interactive: boolean
+  /** RSVP and guestbook forms; defaults to `interactive`. Off on the review page (no guest writes). */
+  guestWrites?: boolean
 }
 
 // One renderer for both the editor preview and the published invitation.
-export function PageRenderer({ pageData, weddingDate, invitationId, interactive }: Props) {
+export function PageRenderer({ pageData, weddingDate, invitationId, interactive, guestWrites = interactive }: Props) {
   const design = getPageDesign(pageData)
   const look = pageLook(design)
   const { serif, script, display } = look.fonts
@@ -52,8 +54,8 @@ export function PageRenderer({ pageData, weddingDate, invitationId, interactive 
             case 'gallery': rendered = <GalleryBlock block={block} interactive={interactive} />; break
             case 'map': rendered = <MapBlock block={block} interactive={interactive} />; break
             case 'account': rendered = <AccountBlock block={block} />; break
-            case 'rsvp': rendered = <RsvpBlock invitationId={invitationId} interactive={interactive} />; break
-            case 'guestbook': rendered = <GuestbookBlock invitationId={invitationId} interactive={interactive} />; break
+            case 'rsvp': rendered = <RsvpBlock invitationId={invitationId} interactive={guestWrites} />; break
+            case 'guestbook': rendered = <GuestbookBlock invitationId={invitationId} interactive={guestWrites} />; break
             default: return null
           }
           return <div key={block.id} data-block-id={block.id} className={reveal && block.type !== 'hero' ? 'reveal-item' : undefined}>{rendered}</div>

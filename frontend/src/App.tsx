@@ -14,6 +14,7 @@ import { TemplatesPage } from './pages/TemplatesPage'
 import { InvitationBuilderPage } from './pages/InvitationBuilderPage'
 import { GuestManagementPage } from './pages/GuestManagementPage'
 import { GuestPage } from './pages/GuestPage'
+import { ReviewPage } from './pages/ReviewPage'
 import { HomePage } from './pages/HomePage'
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage'
 
@@ -43,6 +44,7 @@ const router = createBrowserRouter([
         ],
       },
       { path: '/i/:slug', element: <GuestPage /> },
+      { path: '/r/:token', element: <ReviewPage /> },
     ],
   },
 ])

@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 @Profile("https-test")
 public class SpaController {
     @GetMapping(path = {"/", "/templates", "/templates/{id}", "/login", "/oauth/callback", "/create",
-            "/invitations", "/e/{id}", "/e/{id}/guests"}, produces = MediaType.TEXT_HTML_VALUE)
+            "/invitations", "/e/{id}", "/e/{id}/guests", "/r/{token}"}, produces = MediaType.TEXT_HTML_VALUE)
     public String shell() { return "forward:/index.html"; }
 
     @GetMapping(path = "/robots.txt", produces = MediaType.TEXT_PLAIN_VALUE)

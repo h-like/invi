@@ -78,7 +78,7 @@ class FlywayLegacyBaselineTest {
 
         assertThat(jdbc.queryForList(
                 "SELECT version || ':' || type FROM " + schema + ".flyway_schema_history ORDER BY installed_rank",
-                String.class)).containsExactly("1:BASELINE", "2:SQL", "3:SQL");
+                String.class)).containsExactly("1:BASELINE", "2:SQL", "3:SQL", "4:SQL");
         // V3: existing invitations start at version 0.
         assertThat(jdbc.queryForObject("SELECT version FROM " + schema + ".invitation", Long.class)).isZero();
         assertThat(jdbc.queryForObject(

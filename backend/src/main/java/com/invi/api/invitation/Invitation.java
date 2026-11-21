@@ -82,7 +82,19 @@ public class Invitation extends BaseEntity {
         this.weddingDate = weddingDate;
     }
 
+    /**
+     * Key to the private review view ({@code /r/{token}}). Written only through
+     * {@link InvitationRepository#updateReviewToken}, never via this entity, so making or revoking
+     * a link never bumps {@link #version} and the editor's next page save is not refused as stale.
+     */
+    @Column(name = "review_token", unique = true, length = 64)
+    private String reviewToken;
+
     public void publish() {
         this.status = InvitationStatus.PUBLISHED;
     }
-}
+
+    /** Back to a draft: the public link stops working, RSVPs and guestbook entries are kept. */
+    public void unpublish() {
+        this.status = InvitationStatus.DRAFT;
+    }}

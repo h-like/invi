@@ -48,7 +48,7 @@ public class SecurityConfig {
     private static final String[] SPA_PUBLIC_PATHS = {
         "/", "/index.html", "/assets/**", "/favicon.svg", "/robots.txt",
         "/templates", "/templates/*", "/login", "/oauth/callback", "/create",
-        "/invitations", "/e/*", "/e/*/guests", "/i/*"
+        "/invitations", "/e/*", "/e/*/guests", "/i/*", "/r/*"
     };
 
     @Bean
@@ -80,6 +80,7 @@ public class SecurityConfig {
                                         .requestMatchers(
                                                 HttpMethod.GET,
                                                 "/api/invitations/slug/**",
+                                                "/api/invitations/review/*",
                                                 "/api/invitations/slug-available")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/api/invitations/*/guestbook")

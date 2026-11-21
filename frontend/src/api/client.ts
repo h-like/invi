@@ -80,6 +80,14 @@ export const api = {
 
   publishInvitation: (id: string) => request<Invitation>(`/api/invitations/${id}/publish`, { method: 'POST' }),
 
+  unpublishInvitation: (id: string) => request<Invitation>(`/api/invitations/${id}/unpublish`, { method: 'POST' }),
+
+  issueReviewLink: (id: string) => request<{ token: string }>(`/api/invitations/${id}/review-link`, { method: 'POST' }),
+
+  revokeReviewLink: (id: string) => request<void>(`/api/invitations/${id}/review-link`, { method: 'DELETE' }),
+
+  getByReviewToken: (token: string) => request<GuestInvitation>(`/api/invitations/review/${encodeURIComponent(token)}`),
+
   getBySlug: (slug: string) => request<GuestInvitation>(`/api/invitations/slug/${slug}`),
 
   checkSlugAvailable: (slug: string) =>
