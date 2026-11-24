@@ -46,7 +46,7 @@ public class InvitationService {
         // Under the shared lock, so two tabs creating at once cannot both slip past the count.
         lifecycle.lock();
         if (invitationRepository.countByMemberId(memberId) >= quota.maxPerMember()) {
-            throw new ConflictException("청첩장은 계정당 " + quota.maxPerMember() + "개까지 만들 수 있어요. 쓰지 않는 청첩장이 있다면 문의해 주세요.");
+            throw new ConflictException("청첩장은 계정당 " + quota.maxPerMember() + "개까지 만들 수 있어요. 쓰지 않는 청첩장 삭제는 개인정보처리방침의 문의처로 요청해 주세요.");
         }
         if (invitationRepository.existsBySlug(request.slug())) {
             throw new ConflictException("이미 사용 중인 슬러그입니다: " + request.slug());

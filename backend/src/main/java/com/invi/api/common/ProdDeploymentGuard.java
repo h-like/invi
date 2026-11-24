@@ -21,9 +21,11 @@ public class ProdDeploymentGuard {
         checks.require(!environment.acceptsProfiles(Profiles.of("local", "https-test")), "spring.profiles.active");
         checks.requireHardenedBaseline();
 
-        // The test database and bucket hold fake data and their own photo references.
+        // The test database and bucket hold fake data and their own photo references. A plain
+        // substring match on purpose: a false positive only means naming the new resource
+        // differently, while a missed test resource would mix test data into production.
         checks.require(!checks.databaseName().toLowerCase(Locale.ROOT).contains("test"), DeploymentChecks.DATASOURCE_URL);
-        checks.require(!checks.property("invi.r2.bucket").contains("test"), "invi.r2.bucket");
+        checks.require(!checks.property("invi.r2.bucket").toLowerCase(Locale.ROOT).contains("test"), "invi.r2.bucket");
 
         // Physical R2 deletion is unverified against conditional DELETE (docs/MEDIA_CLEANUP.md).
         checks.require(cleanup != null && !cleanup.enabled(), "invi.r2.cleanup.enabled");
