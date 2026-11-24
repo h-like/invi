@@ -86,15 +86,22 @@ public class Invitation extends BaseEntity {
      * Key to the private review view ({@code /r/{token}}). Written only through
      * {@link InvitationRepository#updateReviewToken}, never via this entity, so making or revoking
      * a link never bumps {@link #version} and the editor's next page save is not refused as stale.
+     * Not updatable, so flushing this entity can never write back a token read before a change.
      */
-    @Column(name = "review_token", unique = true, length = 64)
+    @Column(name = "review_token", unique = true, length = 64, updatable = false)
     private String reviewToken;
 
     public void publish() {
         this.status = InvitationStatus.PUBLISHED;
     }
 
-    /** Back to a draft: the public link stops working, RSVPs and guestbook entries are kept. */
+    /**
+     * Back to a draft: the public link stops working, RSVPs and guestbook entries are kept.
+     * Only a published invitation changes; a draft or archived one is left as it is.
+     */
     public void unpublish() {
-        this.status = InvitationStatus.DRAFT;
-    }}
+        if (this.status == InvitationStatus.PUBLISHED) {
+            this.status = InvitationStatus.DRAFT;
+        }
+    }
+}

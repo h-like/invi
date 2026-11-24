@@ -156,7 +156,7 @@ public class InvitationService {
         return flushedDto(invitation);
     }
 
-    /** Idempotent: unpublishing a draft changes nothing, so its version stays put. */
+    /** Idempotent: unpublishing anything but a published invitation changes nothing, version included. */
     @Transactional
     public InvitationDto unpublish(UUID memberId, UUID id) {
         lifecycle.lock();
