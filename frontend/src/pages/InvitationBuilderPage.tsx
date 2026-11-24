@@ -293,7 +293,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setNotice('')
     try {
       const result = await persistence.unpublish(invitation)
-      if (result.kind === 'busy') return
+      // Never silent: the couple would think the guest link is closed.
+      if (result.kind === 'busy') { setError('다른 저장이 진행 중이라 비공개로 바꾸지 못했어요. 하객 링크는 아직 열려 있어요. 잠시 후 다시 눌러 주세요.'); return }
       if (result.kind === 'failed') { setError('비공개로 바꾸지 못했습니다. 하객 링크가 아직 열려 있을 수 있어요. ' + result.detail); return }
       const saved = result.invitation
       // Not `own`: another tab or device saved too, so keep the old version (the next save is stale).

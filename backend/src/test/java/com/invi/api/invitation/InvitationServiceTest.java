@@ -532,6 +532,17 @@ class InvitationServiceTest {
     }
 
     @Test
+    void unpublish_leavesAnArchivedInvitationArchived() {
+        UUID ownerId = UUID.randomUUID();
+        UUID id = UUID.randomUUID();
+        owned(ownerId, id, InvitationStatus.ARCHIVED, null);
+
+        InvitationDto dto = invitationService.unpublish(ownerId, id);
+
+        assertThat(dto.status()).isEqualTo(InvitationStatus.ARCHIVED);
+    }
+
+    @Test
     void unpublish_throwsForbidden_whenCallerIsNotOwner() {
         UUID id = UUID.randomUUID();
         Invitation invitation = owned(UUID.randomUUID(), id, InvitationStatus.PUBLISHED, null);
