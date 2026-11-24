@@ -34,7 +34,7 @@ class LocalAuthServiceTest {
             assertThat(encoder.matches("password123", member.getPasswordHash())).isTrue();
             return member;
         });
-        service.register(new LocalAuthController.RegisterRequest(" USER@example.com ", "password123", " User "));
+        service.register(new LocalAuthController.RegisterRequest(" USER@example.com ", "password123", " User ", true));
         verify(repository).saveAndFlush(any());
     }
 
@@ -42,7 +42,7 @@ class LocalAuthServiceTest {
     void duplicateEmailIsRejected() {
         when(repository.findByProviderAndProviderId(AuthProvider.LOCAL, "user@example.com"))
                 .thenReturn(Optional.of(Member.builder().build()));
-        assertThatThrownBy(() -> service.register(new LocalAuthController.RegisterRequest("user@example.com", "password123", "User")))
+        assertThatThrownBy(() -> service.register(new LocalAuthController.RegisterRequest("user@example.com", "password123", "User", true)))
                 .isInstanceOf(ConflictException.class);
         verify(repository, never()).saveAndFlush(any());
     }
@@ -69,7 +69,7 @@ class LocalAuthServiceTest {
 
     @Test
     void oversizedUtf8PasswordIsRejectedBeforeHashing() {
-        assertThatThrownBy(() -> service.register(new LocalAuthController.RegisterRequest("user@example.com", "가".repeat(25), "User")))
+        assertThatThrownBy(() -> service.register(new LocalAuthController.RegisterRequest("user@example.com", "가".repeat(25), "User", true)))
                 .isInstanceOf(ResponseStatusException.class);
         verify(repository, never()).saveAndFlush(any());
     }

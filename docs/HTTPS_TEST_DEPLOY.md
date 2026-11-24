@@ -39,7 +39,7 @@
 1. Node 빌드 단계에서 `npm ci`와 `npm run build:https-test`를 실행한다.
 2. JDK 21 단계에서 frontend/dist를 backend 정적 리소스에 넣고 bootJar를 만든다. 컨테이너 빌드는 테스트 DB 없이 수행하며 테스트는 별도로 먼저 실행한다.
 3. JRE 21 최종 이미지에는 JAR만 복사한다. root가 아닌 uid 10001로 실행한다. 기본 메모리 옵션은 512MB 테스트 인스턴스를 고려한 시작값이지 실제 RSS 적합성을 검증한 결과는 아니다.
-4. 이미지 진입점은 `--spring.profiles.active=https-test`를 명시한다. `local` 프로필과 함께 쓰면 시작을 거절한다.
+4. 이미지는 빌드 인자 `APP_MODE`(기본 `https-test`)로 프론트 빌드 모드와 `SPRING_PROFILES_ACTIVE`를 함께 정한다. 운영 이미지는 `APP_MODE=prod`(`PROD_DEPLOY.md`). `local` 프로필과 함께 쓰면 시작을 거절한다.
 5. 호스팅 프록시가 외부 TLS를 처리하고 컨테이너 내부의 `0.0.0.0:$PORT`로 전달한다. 이것은 격리된 배포 컨테이너의 수신 설정이며 개인 PC의 개발 서버 바인딩을 바꾸는 지시가 아니다.
 
 `.dockerignore`는 Git/개인 도구 설정, node_modules·빌드 결과, local 백엔드 프로필, 개인 .env·키·인증 파일 등을 제외한다. 공개 `.env.https-test`와 `application-https-test.yml`만 허용한다. 배포 비밀값을 받는 Docker ARG는 없다. Render는 서비스 환경변수를 빌드 인자로도 전달할 수 있으므로 Dockerfile에서 해당 값을 참조하지 않는다.

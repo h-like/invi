@@ -28,6 +28,20 @@ export function resolveRegistrationEnabled(value?: string): boolean {
   return resolvePublicBoolean(value, 'VITE_REGISTRATION_ENABLED', true)
 }
 
+/**
+ * The operator's contact address for the privacy policy and deletion requests. Public by nature,
+ * but kept out of the repository and set at build time. Empty means not configured (local
+ * development); the production build refuses to start without it (vite.config.ts).
+ */
+export function resolveContactEmail(value?: string): string {
+  const configured = value?.trim() ?? ''
+  if (!configured) return ''
+  if (configured.length > 254 || !/^[^\s@<>"'`]+@[^\s@<>"'`]+\.[^\s@<>"'`]+$/.test(configured)) {
+    throw new Error('VITE_CONTACT_EMAIL에는 이메일 주소 하나만 입력해 주세요.')
+  }
+  return configured
+}
+
 function resolveCurrentOrigin(value?: string): string {
   try {
     const configured = value?.trim()

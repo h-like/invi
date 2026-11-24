@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from 'react'
 import { api } from '../api/client'
 import { clampGuestCount, GUEST_COUNT_MAX, guestCountDraft, GUEST_NAME_MAX, RSVP_MESSAGE_MAX } from './guestLimits'
 import { RSVP_MEAL_OPTIONS, RSVP_SIDE_OPTIONS, type RsvpMeal, type RsvpSide } from './rsvpOptions'
+import { GuestPrivacyNote } from './GuestPrivacyNote'
 
 interface Props {
   invitationId: string
@@ -94,6 +95,7 @@ export function RsvpBlock({ invitationId, interactive }: Props) {
         />
         {sideMissing && <p id={sideErrorId} className="block-error">신랑측·신부측 중 하나를 선택해 주세요.</p>}
         {error && <p className="block-error">{error}</p>}
+        {interactive && <GuestPrivacyNote />}
         <button type="submit" disabled={!interactive || busy}>
           {busy ? '전달하는 중...' : '전달하기'}
         </button>

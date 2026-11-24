@@ -21,6 +21,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [confirmation, setConfirmation] = useState('')
+  const [agreed, setAgreed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const pending = useRef(false)
@@ -30,11 +31,12 @@ export function LoginPage() {
     if (pending.current) return
     setError(null)
     if (registering && password !== confirmation) { setError('비밀번호가 일치하지 않습니다.'); return }
+    if (registering && !agreed) { setError('이용약관과 개인정보처리방침에 동의해 주세요.'); return }
     pending.current = true
     setSubmitting(true)
     try {
       const result = registering
-        ? await api.register({ email: email.trim(), password, name: name.trim() })
+        ? await api.register({ email: email.trim(), password, name: name.trim(), agreedToPolicies: agreed })
         : await api.login({ email: email.trim(), password })
       // The route's returnTo remains the source of truth for local login.
       takeReturnTo()
@@ -66,6 +68,7 @@ export function LoginPage() {
               <label>이메일<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required maxLength={254} /></label>
               <label>비밀번호<input type="password" autoComplete={registering ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={registering ? 8 : undefined} maxLength={64} placeholder={registering ? '8자 이상 입력해 주세요' : undefined} /></label>
               {registering && <label>비밀번호 확인<input type="password" autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required maxLength={64} /></label>}
+              {registering && <label className="policy-consent"><input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} required /><span>만 14세 이상이며 <Link to="/terms" target="_blank">이용약관</Link>과 <Link to="/privacy" target="_blank">개인정보처리방침</Link>(국외 이전 포함)에 동의합니다. (필수)</span></label>}
               {error && <p className="form-error" role="alert">{error}</p>}
               <button className="discovery-button flow-full" type="submit">{submitting ? '처리 중...' : registering ? '회원가입하고 계속하기' : '로그인하고 계속하기'}</button>
               {registrationEnabled && <button type="button" className="flow-text-button" onClick={() => { setRegistering(!registering); setError(null); setPassword(''); setConfirmation('') }}>{registering ? '이미 계정이 있나요? 로그인' : '처음 오셨나요? 회원가입'}</button>}
@@ -81,6 +84,7 @@ export function LoginPage() {
               <button type="button" className="login-kakao" disabled={submitting} onClick={() => socialLogin(loginWithKakao)}>카카오로 시작하기</button>
               <button type="button" className="login-google" disabled={submitting} onClick={() => socialLogin(loginWithGoogle)}>Google로 시작하기</button>
             </div>
+            <p className="auth-policy-note">소셜 계정으로 처음 시작하면 만 14세 이상이며 <Link to="/terms" target="_blank">이용약관</Link>과 <Link to="/privacy" target="_blank">개인정보처리방침</Link>(국외 이전 포함)에 동의한 것으로 봅니다.</p>
           </>}
         </>}
         <Link className="flow-back" to="/templates">로그인 없이 템플릿 둘러보기</Link>

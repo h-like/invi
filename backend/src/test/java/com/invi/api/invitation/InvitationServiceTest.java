@@ -61,7 +61,8 @@ class InvitationServiceTest {
     @BeforeEach
     void setUp() {
         invitationService =
-                new InvitationService(invitationRepository, memberRepository, templateRepository, objectMapper, lifecycle);
+                new InvitationService(invitationRepository, memberRepository, templateRepository, objectMapper, lifecycle,
+                        new InvitationQuota(3));
     }
 
     private static Member ownerWithId(UUID id) {
@@ -106,6 +107,41 @@ class InvitationServiceTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) saved.getValue().getPageData().get("unknownMetadata"))
                 .put("photo", "changed");
         assertThat(defaultPageData.at("/unknownMetadata/photo").asText()).contains(MEDIA_A);
+    }
+
+    @Test
+    void create_refusesOnceTheAccountHasReachedItsInvitationLimit_underTheLock() {
+        UUID memberId = UUID.randomUUID();
+        CreateInvitationRequest request = new CreateInvitationRequest(UUID.randomUUID(), "fourth", LocalDate.now());
+        when(invitationRepository.countByMemberId(memberId)).thenReturn(3L);
+
+        assertThatThrownBy(() -> invitationService.create(memberId, request))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("3개까지");
+
+        InOrder order = inOrder(lifecycle, invitationRepository);
+        order.verify(lifecycle).lock();
+        order.verify(invitationRepository).countByMemberId(memberId);
+        verify(invitationRepository, never()).save(any());
+    }
+
+    @Test
+    void create_allowsTheLastInvitationBelowTheLimit() {
+        UUID memberId = UUID.randomUUID();
+        UUID templateId = UUID.randomUUID();
+        when(invitationRepository.countByMemberId(memberId)).thenReturn(2L);
+        when(memberRepository.findById(memberId)).thenReturn(Optional.of(
+                Member.builder().provider(AuthProvider.KAKAO).providerId("1").email("a@b.com").name("A").build()));
+        when(templateRepository.findById(templateId)).thenReturn(Optional.of(
+                Template.builder().name("클래식").category("classic").build()));
+        when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(invitationService.create(memberId, new CreateInvitationRequest(templateId, "third", LocalDate.now())).slug())
+                .isEqualTo("third");
+    }
+
+    @Test
+    void quotaRejectsANonPositiveLimit() {
+        assertThatThrownBy(() -> new InvitationQuota(0)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

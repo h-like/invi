@@ -46,6 +46,8 @@
 :where(.page-renderer) .countdown-block { text-align: center; font-weight: 600; }
 :where(.page-renderer) .block-placeholder { color: var(--inv-ink-soft); font-size: 14px; }
 :where(.page-renderer) .block-error { color: var(--inv-error); font-size: 13px; }
+:where(.page-renderer) .guest-privacy-note { color: var(--inv-ink-soft); font-size: 12px; line-height: 1.6; margin: 4px 0 8px; }
+:where(.page-renderer) .guest-privacy-note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 :where(.page-renderer) .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 :where(.page-renderer) .gallery-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
 :where(.page-renderer) .block-sub { color: var(--inv-ink-soft); font-size: 13px; }

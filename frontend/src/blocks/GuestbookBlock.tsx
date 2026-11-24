@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api } from '../api/client'
 import type { GuestbookEntryItem } from '../api/types'
 import { GUEST_NAME_MAX, GUESTBOOK_MESSAGE_MAX } from './guestLimits'
+import { GuestPrivacyNote } from './GuestPrivacyNote'
 
 interface Props {
   invitationId: string
@@ -55,6 +56,7 @@ export function GuestbookBlock({ invitationId, interactive }: Props) {
           />
           <small className="guestbook-count" aria-live="polite">{message.length}/{GUESTBOOK_MESSAGE_MAX}</small>
           {error && <p className="block-error">{error}</p>}
+          <GuestPrivacyNote />
           <button type="submit" disabled={busy}>{busy ? '남기는 중...' : '남기기'}</button>
         </form>
       )}

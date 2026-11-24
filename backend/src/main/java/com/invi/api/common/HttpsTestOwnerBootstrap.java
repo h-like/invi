@@ -58,7 +58,7 @@ public class HttpsTestOwnerBootstrap implements ApplicationRunner {
             String email = ownerEmail.strip().toLowerCase(Locale.ROOT);
             if (memberRepository.findByProviderAndProviderId(AuthProvider.LOCAL, email).isEmpty()) {
                 try {
-                    localAuthService.register(new RegisterRequest(email, ownerPassword, "HTTPS 테스트"));
+                    localAuthService.register(new RegisterRequest(email, ownerPassword, "HTTPS 테스트", true));
                 } catch (ConflictException ignored) {
                     // Another startup may have created the same owner. Login below
                     // must still verify the configured credentials, including in this race.

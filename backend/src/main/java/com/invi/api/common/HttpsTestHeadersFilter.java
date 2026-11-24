@@ -11,9 +11,12 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Do not index a temporary deployment or leak invitation paths via external-link referrers. */
+/**
+ * Do not index a deployment or leak invitation paths via external-link referrers. Production
+ * keeps this too: invitations, review links and the OAuth callback token live in the URL.
+ */
 @Component
-@Profile("https-test")
+@Profile({"https-test", "prod"})
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class HttpsTestHeadersFilter extends OncePerRequestFilter {
     @Override

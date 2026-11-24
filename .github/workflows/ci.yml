@@ -57,6 +57,12 @@ jobs:
       - name: Build same-origin HTTPS test mode
         working-directory: frontend
         run: npm run build:https-test
+      - name: Build production mode
+        working-directory: frontend
+        # Placeholder contact: the real address is a deployment build arg, not part of the repo.
+        env:
+          VITE_CONTACT_EMAIL: contact@example.invalid
+        run: npm run build:prod
 
   https-test-image:
     needs: [backend, frontend]

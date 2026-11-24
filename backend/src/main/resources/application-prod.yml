@@ -1,0 +1,107 @@
+# Production. Public defaults only: inject every secret at runtime, never during build.
+# ProdDeploymentGuard refuses to start on test/local values or unsafe settings.
+spring:
+  datasource:
+    url: ${DATABASE_JDBC_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: 3
+      # 0 lets the serverless database suspend between requests (free compute hours).
+      minimum-idle: 0
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+      # Flyway migrates the schema; ProdDeploymentGuard refuses anything but validate.
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            # No fallbacks: Spring refuses an empty client id, so a missing variable fails startup.
+            client-id: ${KAKAO_CLIENT_ID}
+            client-secret: ${KAKAO_CLIENT_SECRET}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: profile_nickname,account_email
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: profile,email
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-cache: true
+
+server:
+  # A packaged app inside an isolated hosting container, not a public development server.
+  address: 0.0.0.0
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 20
+      min-spare: 2
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: text/html,text/css,text/javascript,application/javascript,image/svg+xml
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+
+invi:
+  auth:
+    registration-enabled: true
+    social-login-enabled: true
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-minutes: 10080
+  frontend:
+    # Render supplies its assigned HTTPS URL; a custom domain must set APP_PUBLIC_ORIGIN.
+    base-url: ${APP_PUBLIC_ORIGIN:${RENDER_EXTERNAL_URL:}}
+  r2:
+    account-id: ${INVI_R2_ACCOUNT_ID}
+    access-key-id: ${INVI_R2_ACCESS_KEY_ID}
+    secret-access-key: ${INVI_R2_SECRET_ACCESS_KEY}
+    bucket: ${R2_BUCKET}
+    public-base-url: ${R2_PUBLIC_BASE_URL}
+    cleanup:
+      # Physical deletion stays off until conditional DELETE is verified (docs/MEDIA_CLEANUP.md).
+      enabled: false
+      dry-run: true
+  invitation:
+    # Open signup: caps photo storage one account can create (R2 is the only billable part).
+    max-per-member: ${INVITATION_MAX_PER_MEMBER:3}
+    expiry:
+      # Starts report-only. Flip to false only after checking the logged targets in production.
+      dry-run: ${INVITATION_EXPIRY_DRY_RUN:true}
+
+logging:
+  level:
+    org.hibernate.SQL: "OFF"
+    org.hibernate.orm.jdbc.bind: "OFF"
