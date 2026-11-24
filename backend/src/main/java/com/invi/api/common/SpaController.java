@@ -11,10 +11,11 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * Guest links (/i/{slug}) are served by GuestLinkPreviewController so they carry OG tags.
  */
 @Controller
-@Profile("https-test")
+@Profile({"https-test", "prod"})
 public class SpaController {
     @GetMapping(path = {"/", "/templates", "/templates/{id}", "/login", "/oauth/callback", "/create",
-            "/invitations", "/e/{id}", "/e/{id}/guests", "/r/{token}"}, produces = MediaType.TEXT_HTML_VALUE)
+            "/invitations", "/e/{id}", "/e/{id}/guests", "/r/{token}", "/privacy", "/terms"},
+            produces = MediaType.TEXT_HTML_VALUE)
     public String shell() { return "forward:/index.html"; }
 
     @GetMapping(path = "/robots.txt", produces = MediaType.TEXT_PLAIN_VALUE)

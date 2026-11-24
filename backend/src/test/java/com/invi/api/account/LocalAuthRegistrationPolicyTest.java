@@ -40,10 +40,22 @@ class LocalAuthRegistrationPolicyTest {
     @Test
     void disabledRegistrationRejectsValidAnonymousRequestBeforeCallingService() throws Exception {
         mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"email":"owner@example.test","password":"test-password","name":"Owner"}
+                        {"email":"owner@example.test","password":"test-password","name":"Owner","agreedToPolicies":true}
                         """))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("Test signup is disabled."));
+                .andExpect(jsonPath("$.message").value("Signup is disabled."));
+
+        verifyNoInteractions(localAuthService);
+    }
+
+    @Test
+    void signupWithoutAcceptingThePoliciesIsRefusedBeforeCallingService() throws Exception {
+        for (String consent : new String[] {"", ",\"agreedToPolicies\":false"}) {
+            mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(
+                            "{\"email\":\"owner@example.test\",\"password\":\"test-password\",\"name\":\"Owner\"" + consent + "}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("agreedToPolicies: 이용약관과 개인정보처리방침에 동의해 주세요."));
+        }
 
         verifyNoInteractions(localAuthService);
     }
@@ -65,7 +77,7 @@ class LocalAuthRegistrationPolicyTest {
 
     @Test
     void explicitlyEnabledRegistrationPreservesNormalFlow() {
-        var request = new LocalAuthController.RegisterRequest("new@example.test", "test-password", "New owner");
+        var request = new LocalAuthController.RegisterRequest("new@example.test", "test-password", "New owner", true);
         var response = new LocalAuthController.TokenResponse("test-token");
         when(localAuthService.register(request)).thenReturn(response);
 

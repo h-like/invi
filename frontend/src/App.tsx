@@ -17,6 +17,7 @@ import { GuestPage } from './pages/GuestPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { HomePage } from './pages/HomePage'
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage'
+import { PrivacyPage, TermsPage } from './pages/PolicyPages'
 
 // Service pages use Pretendard; guest invitations load only their theme's font (blocks/fonts.ts).
 function ServiceLayout() {
@@ -37,6 +38,8 @@ const router = createBrowserRouter([
           { path: '/templates/:id', element: <TemplateDetailPage /> },
           { path: '/login', element: <LoginPage /> },
           { path: '/oauth/callback', element: <OAuthCallbackPage /> },
+          { path: '/privacy', element: <PrivacyPage /> },
+          { path: '/terms', element: <TermsPage /> },
           { path: '/create', element: <RequireAuth><CreateInvitationPage /></RequireAuth> },
           { path: '/invitations', element: <RequireAuth><MyInvitationsPage /></RequireAuth> },
           { path: '/e/:id', element: <RequireAuth><InvitationBuilderPage /></RequireAuth> },

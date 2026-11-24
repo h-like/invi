@@ -48,7 +48,7 @@ public class SecurityConfig {
     private static final String[] SPA_PUBLIC_PATHS = {
         "/", "/index.html", "/assets/**", "/favicon.svg", "/robots.txt",
         "/templates", "/templates/*", "/login", "/oauth/callback", "/create",
-        "/invitations", "/e/*", "/e/*/guests", "/i/*", "/r/*"
+        "/invitations", "/e/*", "/e/*/guests", "/i/*", "/r/*", "/privacy", "/terms"
     };
 
     @Bean

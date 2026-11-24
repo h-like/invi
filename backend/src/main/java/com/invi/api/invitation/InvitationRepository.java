@@ -16,6 +16,8 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
 
     boolean existsBySlug(String slug);
 
+    long countByMemberId(UUID memberId);
+
     Optional<Invitation> findByReviewToken(String reviewToken);
 
     boolean existsByReviewToken(String reviewToken);

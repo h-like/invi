@@ -98,7 +98,7 @@ class HttpsTestOwnerBootstrapTest {
         assertThatCode(() -> bootstrap(validEnvironment()).run(null)).doesNotThrowAnyException();
 
         var order = inOrder(localAuthService);
-        order.verify(localAuthService).register(new RegisterRequest(EMAIL, PASSWORD, "HTTPS 테스트"));
+        order.verify(localAuthService).register(new RegisterRequest(EMAIL, PASSWORD, "HTTPS 테스트", true));
         order.verify(localAuthService).login(new LoginRequest(EMAIL, PASSWORD));
         verifyNoMoreInteractions(localAuthService);
     }

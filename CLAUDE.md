@@ -129,6 +129,7 @@ RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽�
 - 프론트 `build:https-test`는 API를 현재 HTTPS Origin으로 사용하고 소셜/가입 UI를 숨긴다. 일반 localhost와 mobile 모드는 유지한다. VITE 변수나 Docker ARG에 비밀값을 넣지 않는다.
 - 공개 HTML shell 경로와 private API를 구분한다. 하객 링크 직접 접속/새로고침은 index.html로 보내지만 API/누락된 asset 오류는 HTML로 삼키지 않는다. 준비 확인은 `/actuator/health/readiness`다.
 - 계정 생성·플랜·배포 리소스/비용·실기기 검증은 별도 상태를 확인한다. 코드/이미지 빌드만으로 외부 HTTPS 배포 완료라고 하지 않는다. 절차와 미확인 사항은 `docs/HTTPS_TEST_DEPLOY.md`를 따른다.
+- **운영(`prod`)**: 같은 `Dockerfile`을 `APP_MODE=prod`로 빌드한다(기본은 https-test). 테스트와 같은 안전장치(`DeploymentChecks`)에 가입·소셜 로그인을 열고, `ProdDeploymentGuard`가 테스트 DB·버킷, R2 정리 켜짐을 거절한다. 계정당 청첩장은 3개(`InvitationQuota`, R2가 유일하게 과금될 수 있어서). 이메일 가입은 약관·처리방침 동의(`agreedToPolicies`)를 서버에서도 요구한다. 처리방침·약관(`/privacy`, `/terms`)은 실제 수집 항목·보관 기간·위탁 업체를 적은 것이라, 수집 필드나 삭제 규칙·호스팅을 바꾸면 그 문구와 `site.ts`의 시행일도 같이 고친다. 문의처는 빌드 인자 `VITE_CONTACT_EMAIL`(저장소에 넣지 않음). 운영은 무료 플랜만 쓰고 비용이 생길 수 있는 설정은 먼저 묻는다. 절차는 `docs/PROD_DEPLOY.md`.
 
 ## 프론트엔드 컨벤션 (frontend/)
 

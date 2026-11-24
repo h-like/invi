@@ -26,7 +26,7 @@ import org.springframework.web.util.HtmlUtils;
  * shell, exactly as before; the SPA then shows its own not-found state.
  */
 @Controller
-@Profile("https-test")
+@Profile({"https-test", "prod"})
 public class GuestLinkPreviewController {
 
     private static final String UTF_8 = StandardCharsets.UTF_8.name();

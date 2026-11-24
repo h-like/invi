@@ -1,8 +1,10 @@
 package com.invi.api.account;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -26,7 +28,7 @@ public class LocalAuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public TokenResponse register(@Valid @RequestBody RegisterRequest request) {
         if (!registrationEnabled) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Test signup is disabled.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Signup is disabled.");
         }
         return localAuthService.register(request);
     }
@@ -39,7 +41,11 @@ public class LocalAuthController {
     public record RegisterRequest(
             @NotBlank @Email @Size(max = 254) String email,
             @NotBlank @Size(min = 8, max = 64) String password,
-            @NotBlank @Size(max = 50) String name) {}
+            @NotBlank @Size(max = 50) String name,
+            /** The terms and privacy policy were shown and accepted; signup is refused without it. */
+            // Boxed so a missing field reaches validation with this message instead of a parse error.
+            @NotNull(message = "이용약관과 개인정보처리방침에 동의해 주세요.")
+            @AssertTrue(message = "이용약관과 개인정보처리방침에 동의해 주세요.") Boolean agreedToPolicies) {}
 
     public record LoginRequest(
             @NotBlank @Email @Size(max = 254) String email,

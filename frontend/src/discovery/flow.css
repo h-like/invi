@@ -50,3 +50,19 @@
   .create-template { max-width: 280px; width: 100%; margin: 0 auto; }
   .create-form-panel { padding: 0; }
 }
+
+/* Privacy policy and terms: plain reading text, left aligned. */
+.policy-page { max-width: 720px; word-break: keep-all; overflow-wrap: anywhere; }
+.policy-page h1 { margin-bottom: 4px; }
+.policy-page h2 { margin: 36px 0 10px; font-size: 18px; }
+.policy-page p, .policy-page li { font-size: 14px; line-height: 1.85; color: var(--color-ink-body); }
+.policy-page ul { padding-left: 20px; display: grid; gap: 6px; }
+.policy-page a { text-decoration: underline; text-underline-offset: 3px; }
+.policy-table-wrap { overflow-x: auto; }
+.policy-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.6; }
+.policy-table th, .policy-table td { border: 1px solid var(--color-line); padding: 8px 10px; text-align: left; vertical-align: top; }
+.policy-links { margin-top: 48px; }
+.policy-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.6; }
+.policy-consent input { margin-top: 3px; }
+.policy-consent a, .auth-policy-note a { text-decoration: underline; text-underline-offset: 3px; }
+.auth-policy-note { margin-top: 12px; font-size: 12px; line-height: 1.6; color: var(--color-ink-muted); }

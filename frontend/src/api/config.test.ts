@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { resolveApiBaseUrl, resolveApiSameOrigin, resolveRegistrationEnabled, resolveSocialLoginEnabled } from './config.ts'
+import { resolveApiBaseUrl, resolveApiSameOrigin, resolveContactEmail, resolveRegistrationEnabled, resolveSocialLoginEnabled } from './config.ts'
 
 test('API origin defaults to localhost when unset or blank', () => {
   for (const value of [undefined, '', '   ']) assert.equal(resolveApiBaseUrl(value), 'http://localhost:8080')
@@ -199,6 +199,21 @@ test('registration rejects invalid flags with a generic non-echoing error', () =
       assert.ok(error instanceof Error)
       assert.equal(error.message, 'VITE_REGISTRATION_ENABLED에는 true 또는 false만 입력해 주세요.')
       assert.doesNotMatch(error.message, /do-not-echo/)
+      return true
+    })
+  }
+})
+
+test('contact email is empty when unset and trimmed when set', () => {
+  for (const value of [undefined, '', '   ']) assert.equal(resolveContactEmail(value), '')
+  assert.equal(resolveContactEmail(' help@invi.example '), 'help@invi.example')
+})
+
+test('contact email rejects anything but one plain address without echoing it', () => {
+  for (const value of ['not-an-email', 'a@b', 'two@a.example,three@b.example', 'a b@c.example', '<x@y.example>', 'x@y.example"onload', 'a@' + 'b'.repeat(260) + '.example']) {
+    assert.throws(() => resolveContactEmail(value), (error: unknown) => {
+      assert.ok(error instanceof Error)
+      assert.equal(error.message, 'VITE_CONTACT_EMAIL에는 이메일 주소 하나만 입력해 주세요.')
       return true
     })
   }

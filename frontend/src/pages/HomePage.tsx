@@ -44,6 +44,8 @@ export function HomePage() {
       <footer className="discovery-footer discovery-container">
         <Link className="discovery-wordmark" to="/" aria-label="invi 홈">invi<span>.</span></Link>
         <p>소중한 날, 당신다운 초대.</p>
+        <Link to="/privacy">개인정보처리방침</Link>
+        <Link to="/terms">이용약관</Link>
         <Link to="/templates">모든 템플릿 둘러보기 <span aria-hidden="true">↗</span></Link>
       </footer>
     </div>
