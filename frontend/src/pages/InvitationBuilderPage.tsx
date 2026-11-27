@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type SyntheticEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FocusEvent, type SyntheticEvent } from 'react'
 import { Link, useBlocker, useParams, type BlockerFunction } from 'react-router-dom'
 import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
@@ -6,6 +6,7 @@ import { createInvitationPersistence } from '../editor/persistence'
 import { CoverPhotoEditor } from '../editor/CoverPhotoEditor'
 import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { LookEditor } from '../editor/LookEditor'
+import { followPreviewBlock } from '../editor/previewFollow'
 import { canSaveBeforeLeave, createSaveBeforeLeave, leaveDialogMode, needsLeaveWarning, preventEditorUnload, shouldBlockEditorNavigation, type LeaveDialogMode } from '../editor/navigation'
 import { ACCOUNT_ROLE_LABELS, emptyAccountContent, type AccountEntry, type AccountRole, type Block, type Invitation, type PageData, type PageDesign } from '../api/types'
 import { BLOCK_LABELS, createEmptyPage, DESIGN_PRESETS, getPageDesign, GREETING_SAMPLES, HERO_LAYOUTS, isImageUrl, MAX_GALLERY_IMAGES, moveBlock, pageLook, patchContent, publishIssues, sealShowsInitials, splitGalleryImages, updateBlock, withDesign, withGalleryImages } from '../editor/model'
@@ -60,6 +61,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const [shareOpen, setShareOpen] = useState(false)
   const [copyStatus, setCopyStatus] = useState('')
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const previewRef = useRef<HTMLDivElement>(null)
+  const followedRef = useRef<string | null>(null)
   const [dateInput, setDateInput] = useState('')
   const [dateSaving, setDateSaving] = useState(false)
   const [dateStatus, setDateStatus] = useState('')
@@ -144,6 +147,15 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   const publicUrl = window.location.origin + '/i/' + invitation.slug
   const reviewUrl = reviewToken ? window.location.origin + '/r/' + reviewToken : ''
   const writing = busy || loadingLatest || dateSaving || unpublishing
+
+  // 미리보기 따라가기: focus inside a section tagged with data-preview-block scrolls the preview to that block.
+  function followPreview(e: FocusEvent<HTMLFieldSetElement>) {
+    const section = (e.target as HTMLElement).closest<HTMLElement>('[data-preview-block]')
+    const blockId = section?.dataset.previewBlock
+    const container = previewRef.current
+    if (!blockId || !container || previewOnly) return
+    followedRef.current = followPreviewBlock(container, blockId, section.dataset.previewAnchor?.split(' ') ?? [], followedRef.current)
+  }
 
   function changeContent(block: Block | undefined, patch: Record<string, unknown>) {
     if (!block) return
@@ -366,10 +378,10 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           <nav className="builder-tabs" aria-label="편집 설정">
             {([['content', '내용'], ['design', '디자인'], ['sections', '섹션 구성']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={panel === value} disabled={photoPending} onClick={() => setPanel(value)}>{label}</button>)}
           </nav>
-          <fieldset className="builder-fields" disabled={busy || loadingLatest}>
+          <fieldset className="builder-fields" disabled={busy || loadingLatest} onFocus={followPreview}>
             <legend className="sr-only">청첩장 편집 항목</legend>
             {panel === 'content' && <>
-              {hero && <section className="editor-section"><h2>두 사람의 이름</h2><div className="form-columns">
+              {hero && <section className="editor-section" data-preview-block={hero.id}><h2>두 사람의 이름</h2><div className="form-columns">
                 <label>신랑 이름<input value={text(hero, 'groomName')} maxLength={50} onChange={e => changeContent(hero, { groomName: e.target.value })} placeholder="신랑 이름" /></label>
                 <label>신부 이름<input value={text(hero, 'brideName')} maxLength={50} onChange={e => changeContent(hero, { brideName: e.target.value })} placeholder="신부 이름" /></label>
               </div><div className="form-columns"><label>예식일<span className="date-change"><input type="date" value={dateInput} min={todayIso()} onChange={e => { setDateInput(e.target.value); setDateStatus('') }} aria-describedby="date-hint" /><button type="button" className="secondary-button" disabled={writing || !dateInput || dateInput === invitation.weddingDate} onClick={() => void saveWeddingDate()}>{dateSaving ? '변경 중...' : '변경'}</button></span></label><label>예식 시간<input type="time" value={text(hero, 'weddingTime')} onChange={e => changeContent(hero, { weddingTime: e.target.value })} /></label></div>
@@ -378,7 +390,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 <details className="cover-photo-url"><summary>이미지 주소로 직접 입력</summary><label>대표 사진 URL<input type="url" disabled={photoPending} value={text(hero, 'coverImage')} onChange={e => changeContent(hero, { coverImage: e.target.value })} placeholder="https://.../photo.jpg" /></label>
                 {text(hero, 'coverImage') && !isImageUrl(text(hero, 'coverImage')) && <p className="form-error">http 또는 https 이미지 주소를 입력해 주세요. 올바른 주소만 표시됩니다.</p>}</details>
               </section>}
-              {hero && <section className="editor-section"><h2>혼주 <small>선택</small></h2><p className="editor-section-hint">부모님 성함을 입력하면 초대의 글 아래에 표시합니다. 신랑·신부 이름은 위에서 입력한 이름을 그대로 씁니다. 비워 두면 표시하지 않아요.</p>
+              {hero && <section className="editor-section" data-preview-block={hero.id} data-preview-anchor="parents greeting"><h2>혼주 <small>선택</small></h2><p className="editor-section-hint">부모님 성함을 입력하면 초대의 글 아래에 표시합니다. 신랑·신부 이름은 위에서 입력한 이름을 그대로 씁니다. 비워 두면 표시하지 않아요.</p>
                 {PARENT_SIDES.map(({ side, title, relations, nameKey }) => { const f = PARENT_FIELDS[side]; const preview = parentLine(hero.content, side, text(hero, nameKey)); return <div key={side}><p className="editor-section-sub">{title}</p><div className="form-columns form-columns-3">
                   <label>아버지<input value={text(hero, f.father)} maxLength={PARENT_NAME_MAX} onChange={e => changeContent(hero, { [f.father]: e.target.value })} placeholder="아버지 성함" /></label>
                   <label>어머니<input value={text(hero, f.mother)} maxLength={PARENT_NAME_MAX} onChange={e => changeContent(hero, { [f.mother]: e.target.value })} placeholder="어머니 성함" /></label>
@@ -387,12 +399,12 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 </div><p className="editor-section-hint">{preview ? '표시: ' + formatParentLine(preview) : '표시 안 함'}</p></div> })}
               </section>}
               {hero && sealShowsInitials(pageLook(design)) && <section className="editor-section"><h2>실링 이니셜 <small>봉투 인트로</small></h2><label>봉투 실링에 새길 영문 이니셜<MonogramInput value={text(hero, 'monogram')} onChange={monogram => changeContent(hero, { monogram })} /></label><p className="editor-section-hint" id="monogram-hint">영문·&·공백으로 최대 {MONOGRAM_MAX}자. 비워 두면 &로 표시됩니다. 하객 화면의 봉투에서 볼 수 있어요.</p></section>}
-              {hero && <section className="editor-section"><h2>초대의 글</h2><label>인사말<textarea rows={6} maxLength={1500} value={text(hero, 'greeting')} onChange={e => changeContent(hero, { greeting: e.target.value })} placeholder="소중한 분들께 전할 초대의 글을 써 주세요." /></label>
+              {hero && <section className="editor-section" data-preview-block={hero.id} data-preview-anchor="greeting"><h2>초대의 글</h2><label>인사말<textarea rows={6} maxLength={1500} value={text(hero, 'greeting')} onChange={e => changeContent(hero, { greeting: e.target.value })} placeholder="소중한 분들께 전할 초대의 글을 써 주세요." /></label>
                 <p className="editor-section-hint">샘플 문구를 선택하면 현재 인사말을 바꿉니다.</p><div className="sample-buttons">{GREETING_SAMPLES.map(sample => <button type="button" key={sample.name} onClick={() => { if (!text(hero, 'greeting') || window.confirm('현재 인사말을 샘플 문구로 바꿀까요?')) changeContent(hero, { greeting: sample.text }) }}>{sample.name}</button>)}</div>
               </section>}
-              {map && <section className="editor-section"><h2>오시는 길</h2><label>식장 이름<input value={text(map, 'venueName')} maxLength={150} onChange={e => changeContent(map, { venueName: e.target.value })} placeholder="웨딩홀 · 층 · 홀 이름" /></label><label>주소<input value={text(map, 'address')} maxLength={300} onChange={e => changeContent(map, { address: e.target.value })} placeholder="예식장 주소를 직접 입력해 주세요" /></label><label>교통 · 주차 안내<textarea rows={3} maxLength={1500} value={text(map, 'directions')} onChange={e => changeContent(map, { directions: e.target.value })} placeholder="지하철 출구, 셔틀버스, 주차 정보를 안내해 주세요." /></label></section>}
-              {gallery && <section className="editor-section"><h2>웨딩 갤러리 <small>{images.length} / {MAX_GALLERY_IMAGES}</small></h2><label>사진 배치<select value={String(gallery.content.layout ?? 'grid-2')} onChange={e => changeContent(gallery, { layout: e.target.value })}><option value="grid-2">2열 그리드</option><option value="grid-3">3열 그리드</option><option value="slider">가로 슬라이드</option></select></label><GalleryPhotoEditor invitationId={invitation.id} images={images} disabled={busy} onChange={next => changeContent(gallery, { images: withGalleryImages(gallery.content.images, next) })} onPendingChange={pending => photoPendingChange('gallery', pending)} /></section>}
-              {account && <section className="editor-section"><h2>마음 전하실 곳</h2><p className="editor-section-hint">비워 둔 분은 표시하지 않습니다. 계좌 대신 메시지도 전할 수 있어요.</p>{([['신랑측', GROOM_ROLES], ['신부측', BRIDE_ROLES]] as const).map(([title, roles]) => <div key={title}><p className="editor-section-sub">{title}</p>{roles.map(role => <AccountRoleEditor key={role} role={role} entry={accounts[role]} onChange={patch => updateAccount(role, patch)} />)}</div>)}</section>}
+              {map && <section className="editor-section" data-preview-block={map.id}><h2>오시는 길</h2><label>식장 이름<input value={text(map, 'venueName')} maxLength={150} onChange={e => changeContent(map, { venueName: e.target.value })} placeholder="웨딩홀 · 층 · 홀 이름" /></label><label>주소<input value={text(map, 'address')} maxLength={300} onChange={e => changeContent(map, { address: e.target.value })} placeholder="예식장 주소를 직접 입력해 주세요" /></label><label>교통 · 주차 안내<textarea rows={3} maxLength={1500} value={text(map, 'directions')} onChange={e => changeContent(map, { directions: e.target.value })} placeholder="지하철 출구, 셔틀버스, 주차 정보를 안내해 주세요." /></label></section>}
+              {gallery && <section className="editor-section" data-preview-block={gallery.id}><h2>웨딩 갤러리 <small>{images.length} / {MAX_GALLERY_IMAGES}</small></h2><label>사진 배치<select value={String(gallery.content.layout ?? 'grid-2')} onChange={e => changeContent(gallery, { layout: e.target.value })}><option value="grid-2">2열 그리드</option><option value="grid-3">3열 그리드</option><option value="slider">가로 슬라이드</option></select></label><GalleryPhotoEditor invitationId={invitation.id} images={images} disabled={busy} onChange={next => changeContent(gallery, { images: withGalleryImages(gallery.content.images, next) })} onPendingChange={pending => photoPendingChange('gallery', pending)} /></section>}
+              {account && <section className="editor-section" data-preview-block={account.id}><h2>마음 전하실 곳</h2><p className="editor-section-hint">비워 둔 분은 표시하지 않습니다. 계좌 대신 메시지도 전할 수 있어요.</p>{([['신랑측', GROOM_ROLES], ['신부측', BRIDE_ROLES]] as const).map(([title, roles]) => <div key={title}><p className="editor-section-sub">{title}</p>{roles.map(role => <AccountRoleEditor key={role} role={role} entry={accounts[role]} onChange={patch => updateAccount(role, patch)} />)}</div>)}</section>}
             </>}
             {panel === 'design' && <>
               <section className="editor-section"><h2>두 사람의 분위기</h2><p className="editor-section-hint">디자인만 바뀌고 입력한 내용과 사진은 그대로 유지됩니다.</p><div className="design-grid">{DESIGN_PRESETS.map(preset => <button key={preset.design.theme} type="button" className={'design-card' + (design.theme === preset.design.theme ? ' selected' : '')} aria-pressed={design.theme === preset.design.theme} onClick={() => { if (design.theme !== preset.design.theme) changeDesign({ ...preset.design, fontSize: design.fontSize, look: undefined }) }}><span className={'design-swatch swatch-' + preset.design.theme} style={{ background: preset.design.backgroundColor, color: preset.design.accentColor }}>Our<br />Wedding</span><strong>{preset.name}</strong><small>{preset.description}</small></button>)}</div></section>
@@ -418,7 +430,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           </section>
           <footer className="builder-panel-footer"><Link to={`/e/${invitation.id}/guests`}>참석 응답 · 방명록 관리</Link><p>저장 전 미리보기에서는 하객 응답을 전송하지 않습니다.</p></footer>
         </aside>
-        <section className="builder-preview-area" aria-label="청첩장 실시간 미리보기"><div className="preview-caption"><span>LIVE PREVIEW</span><span>변경 사항이 바로 반영됩니다</span></div><div className="preview-phone"><div className="preview-phone-bar" aria-hidden="true"><span />invi invitation</div><div className="preview-phone-content"><PageRenderer pageData={draft} weddingDate={invitation.weddingDate} invitationId={invitation.id} interactive={false} /></div></div><p className="preview-footnote">하객에게도 같은 디자인으로 보여집니다.</p></section>
+        <section className="builder-preview-area" aria-label="청첩장 실시간 미리보기"><div className="preview-caption"><span>LIVE PREVIEW</span><span>변경 사항이 바로 반영됩니다</span></div><div className="preview-phone"><div className="preview-phone-bar" aria-hidden="true"><span />invi invitation</div><div className="preview-phone-content" ref={previewRef}><PageRenderer pageData={draft} weddingDate={invitation.weddingDate} invitationId={invitation.id} interactive={false} /></div></div><p className="preview-footnote">하객에게도 같은 디자인으로 보여집니다.</p></section>
       </div>
       <dialog className="share-dialog" ref={dialogRef} aria-labelledby="share-title" onCancel={() => setShareOpen(false)} onClose={() => setShareOpen(false)}><p className="builder-eyebrow">READY TO SHARE</p><h2 id="share-title">두 사람의 초대장이 완성됐어요.</h2><p>링크를 복사해 소중한 분들께 전해 주세요.</p><label>공개 청첩장 주소<input value={publicUrl} readOnly onFocus={e => e.target.select()} /></label><div className="share-actions"><button type="button" onClick={() => void copyLink()}>링크 복사</button><a className="button-link" href={publicUrl} target="_blank" rel="noreferrer">청첩장 열기</a></div><p role="status" className="editor-section-hint">{copyStatus}</p><button className="secondary-button" type="button" onClick={() => setShareOpen(false)}>편집 계속하기</button></dialog>
       <dialog className="share-dialog leave-dialog" ref={leaveDialogRef} aria-labelledby="leave-title" aria-describedby="leave-description" onCancel={event => { event.preventDefault(); cancelNavigation() }} onClose={() => { if (blockerRef.current.state === 'blocked') cancelNavigation() }}>
