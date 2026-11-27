@@ -150,11 +150,11 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   // 미리보기 따라가기: focus inside a section tagged with data-preview-block scrolls the preview to that block.
   function followPreview(e: FocusEvent<HTMLFieldSetElement>) {
-    const blockId = (e.target as HTMLElement).closest<HTMLElement>('[data-preview-block]')?.dataset.previewBlock
+    const section = (e.target as HTMLElement).closest<HTMLElement>('[data-preview-block]')
+    const blockId = section?.dataset.previewBlock
     const container = previewRef.current
     if (!blockId || !container || previewOnly) return
-    followPreviewBlock(container, blockId, followedRef.current)
-    followedRef.current = blockId
+    followedRef.current = followPreviewBlock(container, blockId, section.dataset.previewAnchor?.split(' ') ?? [], followedRef.current)
   }
 
   function changeContent(block: Block | undefined, patch: Record<string, unknown>) {
@@ -390,7 +390,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 <details className="cover-photo-url"><summary>이미지 주소로 직접 입력</summary><label>대표 사진 URL<input type="url" disabled={photoPending} value={text(hero, 'coverImage')} onChange={e => changeContent(hero, { coverImage: e.target.value })} placeholder="https://.../photo.jpg" /></label>
                 {text(hero, 'coverImage') && !isImageUrl(text(hero, 'coverImage')) && <p className="form-error">http 또는 https 이미지 주소를 입력해 주세요. 올바른 주소만 표시됩니다.</p>}</details>
               </section>}
-              {hero && <section className="editor-section" data-preview-block={hero.id}><h2>혼주 <small>선택</small></h2><p className="editor-section-hint">부모님 성함을 입력하면 초대의 글 아래에 표시합니다. 신랑·신부 이름은 위에서 입력한 이름을 그대로 씁니다. 비워 두면 표시하지 않아요.</p>
+              {hero && <section className="editor-section" data-preview-block={hero.id} data-preview-anchor="parents greeting"><h2>혼주 <small>선택</small></h2><p className="editor-section-hint">부모님 성함을 입력하면 초대의 글 아래에 표시합니다. 신랑·신부 이름은 위에서 입력한 이름을 그대로 씁니다. 비워 두면 표시하지 않아요.</p>
                 {PARENT_SIDES.map(({ side, title, relations, nameKey }) => { const f = PARENT_FIELDS[side]; const preview = parentLine(hero.content, side, text(hero, nameKey)); return <div key={side}><p className="editor-section-sub">{title}</p><div className="form-columns form-columns-3">
                   <label>아버지<input value={text(hero, f.father)} maxLength={PARENT_NAME_MAX} onChange={e => changeContent(hero, { [f.father]: e.target.value })} placeholder="아버지 성함" /></label>
                   <label>어머니<input value={text(hero, f.mother)} maxLength={PARENT_NAME_MAX} onChange={e => changeContent(hero, { [f.mother]: e.target.value })} placeholder="어머니 성함" /></label>
@@ -399,7 +399,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
                 </div><p className="editor-section-hint">{preview ? '표시: ' + formatParentLine(preview) : '표시 안 함'}</p></div> })}
               </section>}
               {hero && sealShowsInitials(pageLook(design)) && <section className="editor-section"><h2>실링 이니셜 <small>봉투 인트로</small></h2><label>봉투 실링에 새길 영문 이니셜<MonogramInput value={text(hero, 'monogram')} onChange={monogram => changeContent(hero, { monogram })} /></label><p className="editor-section-hint" id="monogram-hint">영문·&·공백으로 최대 {MONOGRAM_MAX}자. 비워 두면 &로 표시됩니다. 하객 화면의 봉투에서 볼 수 있어요.</p></section>}
-              {hero && <section className="editor-section" data-preview-block={hero.id}><h2>초대의 글</h2><label>인사말<textarea rows={6} maxLength={1500} value={text(hero, 'greeting')} onChange={e => changeContent(hero, { greeting: e.target.value })} placeholder="소중한 분들께 전할 초대의 글을 써 주세요." /></label>
+              {hero && <section className="editor-section" data-preview-block={hero.id} data-preview-anchor="greeting"><h2>초대의 글</h2><label>인사말<textarea rows={6} maxLength={1500} value={text(hero, 'greeting')} onChange={e => changeContent(hero, { greeting: e.target.value })} placeholder="소중한 분들께 전할 초대의 글을 써 주세요." /></label>
                 <p className="editor-section-hint">샘플 문구를 선택하면 현재 인사말을 바꿉니다.</p><div className="sample-buttons">{GREETING_SAMPLES.map(sample => <button type="button" key={sample.name} onClick={() => { if (!text(hero, 'greeting') || window.confirm('현재 인사말을 샘플 문구로 바꿀까요?')) changeContent(hero, { greeting: sample.text }) }}>{sample.name}</button>)}</div>
               </section>}
               {map && <section className="editor-section" data-preview-block={map.id}><h2>오시는 길</h2><label>식장 이름<input value={text(map, 'venueName')} maxLength={150} onChange={e => changeContent(map, { venueName: e.target.value })} placeholder="웨딩홀 · 층 · 홀 이름" /></label><label>주소<input value={text(map, 'address')} maxLength={300} onChange={e => changeContent(map, { address: e.target.value })} placeholder="예식장 주소를 직접 입력해 주세요" /></label><label>교통 · 주차 안내<textarea rows={3} maxLength={1500} value={text(map, 'directions')} onChange={e => changeContent(map, { directions: e.target.value })} placeholder="지하철 출구, 셔틀버스, 주차 정보를 안내해 주세요." /></label></section>}

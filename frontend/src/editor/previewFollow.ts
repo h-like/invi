@@ -23,16 +23,36 @@ export function followScrollTop(scrollTop: number, block: Span, view: Span, maxS
   return Math.round(Math.min(Math.max(target, 0), Math.max(maxScrollTop, 0)))
 }
 
-/** Scrolls `container` to the preview block `blockId` if it is rendered; returns whether it did. */
-export function followPreviewBlock(container: HTMLElement, blockId: string, last: string | null): boolean {
-  const target = container.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"]`)
-  if (!target) return false // hidden blocks are not rendered in the preview
+type Box = { getBoundingClientRect(): Span; dataset: { blockId?: string; previewAnchor?: string } }
+type Elements<T> = ArrayLike<T> & Iterable<T>
+
+/** The parts of the preview scroll box this module touches (an HTMLElement satisfies it). */
+export type FollowContainer = Box & {
+  scrollTop: number
+  scrollHeight: number
+  clientHeight: number
+  querySelectorAll(selector: '[data-block-id]'): Elements<Box & { querySelectorAll(selector: '[data-preview-anchor]'): Elements<Box> }>
+  scrollTo(options: { top: number; behavior: 'auto' | 'smooth' }): void
+}
+
+/**
+ * Scrolls `container` to the preview block `blockId` — or, inside it, to the first of `anchors`
+ * that is rendered (a section of a tall block, e.g. the hero's greeting). Returns what is now
+ * followed, to pass back as `last`; an unrendered (hidden) block leaves `last` unchanged.
+ */
+export function followPreviewBlock(container: FollowContainer, blockId: string, anchors: readonly string[], last: string | null): string | null {
+  const block = [...container.querySelectorAll('[data-block-id]')].find(el => el.dataset.blockId === blockId)
+  if (!block) return last // hidden blocks are not rendered in the preview
+  const marks = [...block.querySelectorAll('[data-preview-anchor]')]
+  const anchor = anchors.find(a => marks.some(m => m.dataset.previewAnchor === a))
+  const target = anchor ? marks.find(m => m.dataset.previewAnchor === anchor)! : block
+  const key = anchor ? blockId + '#' + anchor : blockId
   const r = target.getBoundingClientRect()
   const c = container.getBoundingClientRect()
-  const block = { top: r.top, bottom: r.bottom }
+  const span = { top: r.top, bottom: r.bottom }
   const view = { top: c.top, bottom: c.bottom }
-  if (!shouldFollow(last, blockId, block, view)) return false
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  container.scrollTo({ top: followScrollTop(container.scrollTop, block, view, container.scrollHeight - container.clientHeight), behavior: reduce ? 'auto' : 'smooth' })
-  return true
+  if (!shouldFollow(last, key, span, view)) return key
+  const reduce = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  container.scrollTo({ top: followScrollTop(container.scrollTop, span, view, container.scrollHeight - container.clientHeight), behavior: reduce ? 'auto' : 'smooth' })
+  return key
 }
