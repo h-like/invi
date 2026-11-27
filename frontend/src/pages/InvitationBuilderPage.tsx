@@ -72,6 +72,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
   const [autosaveError, setAutosaveError] = useState('')
+  /** The banner text of the last refused autosave, cleared once an autosave goes through. */
+  const rejectedMessageRef = useRef<string | null>(null)
   const [autosave] = useState(() => createAutosave({ onStatus: setAutosaveStatus }))
   // Save, publish, date, unpublish, loading the latest copy: one at a time, each after any
   // autosave in flight, reading the latest copy from the refs inside the write.
@@ -178,12 +180,18 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       setAutosaveError(result.detail)
       if (!result.rejected) return 'failed'
       // Refused (expired login, ...): retrying on a timer would be refused again, so say why.
-      setError('자동 저장이 거절됐어요. ' + result.detail + ' 입력 내용은 화면에 그대로 있어요. 다시 로그인하는 등 문제를 해결한 뒤 [다시 시도]를 눌러 주세요.')
+      const message = '자동 저장이 거절됐어요: ' + result.detail.replace(/[.\s]+$/, '') + '. 입력 내용은 화면에 그대로 있어요. 다시 로그인하는 등 문제를 해결한 뒤 [다시 시도]를 눌러 주세요.'
+      rejectedMessageRef.current = message
+      setError(message)
       return 'rejected'
     }
     adoptInvitation(result.kind === 'publish-failed' ? result.saved : result.invitation)
     adoptBaseline(sent)
     setAutosaveError('')
+    // A retry that went through answers the refusal; any other message stays.
+    const rejected = rejectedMessageRef.current
+    rejectedMessageRef.current = null
+    if (rejected) setError(prev => (prev === rejected ? null : prev))
     return 'saved'
   }
   useEffect(() => { autosave.setSave(autosaveOnce) })
