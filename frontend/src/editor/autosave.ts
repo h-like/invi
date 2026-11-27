@@ -12,7 +12,8 @@
  *   overwriting someone else's save is not offered.
  * - Failures retry with exponential backoff; changes during the backoff wait for that retry.
  * - A refusal that would repeat (expired login, a request the server rejects) is not retried
- *   on its own: only `retryNow()` or a manual save (`reset()`) starts again.
+ *   on a timer: `retryNow()` or a manual save (`reset()`) starts again. `flush()` (tab hidden,
+ *   back online) still tries once, since the tab may be gone before the user can press retry.
  * - `hold()` lets a manual write take the guard: it cancels the pending autosave, waits for one
  *   in flight, and keeps new ones from starting until released.
  */
@@ -131,8 +132,9 @@ export function createAutosave(options: AutosaveOptions) {
 
   function canStart() { return !stopped && !detached && !refused && holds === 0 }
 
-  function start() {
-    if (inFlight || !canStart()) return
+  /** `afterRefusal`: one attempt despite a refusal (a flush), still not while stopped or held. */
+  function start(afterRefusal = false) {
+    if (inFlight || stopped || detached || holds > 0 || (refused && !afterRefusal)) return
     clearTimer()
     dirty = false
     dirtySince = null
@@ -175,7 +177,7 @@ export function createAutosave(options: AutosaveOptions) {
       if (canStart()) arm(busyRetryMs)
       return
     }
-    if (attempt === 'saved' || attempt === 'clean') failures = 0
+    if (attempt === 'saved' || attempt === 'clean') { failures = 0; refused = false }
     // 'blocked' drops the request; the caller schedules again once saving is allowed.
     if (attempt === 'blocked' && !dirty) { setStatus('idle'); return }
     if (!dirty) { setStatus('idle'); return }
@@ -206,10 +208,10 @@ export function createAutosave(options: AutosaveOptions) {
 
     /** Save now if anything is unsaved (tab hidden, page hiding, back online). */
     flush() {
-      if (stopped || detached || refused || (!dirty && status !== 'error')) return
+      if (stopped || detached || (!dirty && status !== 'error')) return
       if (inFlight) { flushAfter = true; return }
       if (holds > 0) return
-      start()
+      start(true)
     },
 
     /** The user asked to retry: skip the remaining backoff. */

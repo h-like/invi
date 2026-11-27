@@ -181,7 +181,7 @@ test('retryNow() skips the remaining backoff and resets it', async () => {
   assert.deepEqual(calls, [2500, 4500, 4500, 6500])
 })
 
-test('a rejected save (expired login, ...) is not retried on a timer, only by retryNow() or a manual save', async () => {
+test('a rejected save (expired login, ...) is not retried on a timer or by typing, only by retryNow() or a manual save', async () => {
   const clock = fakeClock()
   const { calls, save } = scriptedSave(clock, ['rejected', 'rejected', 'saved'])
   const autosave = createAutosave({ ...options, save, timers: clock.timers })
@@ -189,9 +189,8 @@ test('a rejected save (expired login, ...) is not retried on a timer, only by re
   await clock.advance(2500)
   assert.equal(autosave.status(), 'error')
   autosave.schedule()
-  autosave.flush()
   await clock.advance(10 * 60_000)
-  assert.deepEqual(calls, [2500], 'no timer, typing or tab-hide retries')
+  assert.deepEqual(calls, [2500], 'no timer or typing retries')
   const release = await autosave.hold()
   release()
   await clock.advance(60_000)
@@ -205,6 +204,28 @@ test('a rejected save (expired login, ...) is not retried on a timer, only by re
   await clock.advance(2500)
   assert.equal(calls.length, 3)
   assert.equal(autosave.status(), 'idle')
+})
+
+test('after a refusal, hiding the tab still tries once, and a save that goes through ends the refusal', async () => {
+  const clock = fakeClock()
+  const { calls, save } = scriptedSave(clock, ['rejected', 'rejected', 'saved', 'saved'])
+  const autosave = createAutosave({ ...options, save, timers: clock.timers })
+  autosave.schedule()
+  await clock.advance(2500)
+  autosave.schedule() // typed on: unsaved
+  autosave.flush() // tab hidden: the page may be gone before the user can press retry
+  await clock.advance(0)
+  assert.deepEqual(calls, [2500, 2500])
+  assert.equal(autosave.status(), 'error', 'refused again: still no timer')
+  await clock.advance(60_000)
+  assert.equal(calls.length, 2)
+  autosave.flush() // back online, say: this one goes through
+  await clock.advance(0)
+  assert.equal(calls.length, 3)
+  assert.equal(autosave.status(), 'idle')
+  autosave.schedule() // autosave is back to normal: debounced, no retry needed
+  await clock.advance(2500)
+  assert.deepEqual(calls.slice(3), [2500 + 60_000 + 2500])
 })
 
 test('busy (another write from this tab holds the guard) retries shortly without counting as a failure', async () => {

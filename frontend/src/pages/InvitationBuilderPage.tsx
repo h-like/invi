@@ -72,8 +72,9 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
   const [autosaveError, setAutosaveError] = useState('')
-  /** The banner text of the last refused autosave, cleared once an autosave goes through. */
-  const rejectedMessageRef = useRef<string | null>(null)
+  // A refused autosave: kept apart from `error`, which every edit clears, because autosave stays
+  // off until a save goes through and the user must not lose sight of that while typing on.
+  const [autosaveRefusal, setAutosaveRefusal] = useState<string | null>(null)
   const [autosave] = useState(() => createAutosave({ onStatus: setAutosaveStatus }))
   // Save, publish, date, unpublish, loading the latest copy: one at a time, each after any
   // autosave in flight, reading the latest copy from the refs inside the write.
@@ -172,6 +173,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     if (result.kind === 'stale') {
       // Nothing was written; no overwrite in the MVP, same as a manual save.
       setError(result.detail + ' 자동 저장을 멈췄고, 지금 화면의 내용은 그대로 남아 있습니다.')
+      setAutosaveRefusal(null) // the conflict banner takes over
       setFailedAction(null) // retrying an earlier failed save would only be refused again
       setStale(true)
       return 'stale'
@@ -180,18 +182,13 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       setAutosaveError(result.detail)
       if (!result.rejected) return 'failed'
       // Refused (expired login, ...): retrying on a timer would be refused again, so say why.
-      const message = '자동 저장이 거절됐어요: ' + result.detail.replace(/[.\s]+$/, '') + '. 입력 내용은 화면에 그대로 있어요. 다시 로그인하는 등 문제를 해결한 뒤 [다시 시도]를 눌러 주세요.'
-      rejectedMessageRef.current = message
-      setError(message)
+      setAutosaveRefusal('자동 저장이 거절돼 지금은 자동으로 저장되지 않아요: ' + result.detail.replace(/[.\s]+$/, '') + '. 입력 내용은 화면에 그대로 있어요. 다시 로그인하는 등 문제를 해결한 뒤 [다시 시도]를 눌러 주세요.')
       return 'rejected'
     }
     adoptInvitation(result.kind === 'publish-failed' ? result.saved : result.invitation)
     adoptBaseline(sent)
     setAutosaveError('')
-    // A retry that went through answers the refusal; any other message stays.
-    const rejected = rejectedMessageRef.current
-    rejectedMessageRef.current = null
-    if (rejected) setError(prev => (prev === rejected ? null : prev))
+    setAutosaveRefusal(null)
     return 'saved'
   }
   useEffect(() => { autosave.setSave(autosaveOnce) })
@@ -293,6 +290,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           autosave.resume()
           autosave.reset()
           setAutosaveError('')
+          setAutosaveRefusal(null)
           setError(null)
           setNotice('최신 내용을 불러왔습니다.')
         } catch (err) {
@@ -383,6 +381,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       autosave.resume()
       autosave.reset()
       setAutosaveError('')
+      setAutosaveRefusal(null)
       if (result.kind === 'publish-failed') {
         setNotice('내용 저장 완료 · 공개 확인 필요')
         setError('내용은 저장했지만 공개 완료를 확인하지 못했습니다. 다시 시도해 주세요. ' + result.detail)
@@ -479,6 +478,8 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }
 
   const showAutosaveRetry = autosaveOn && autosaveStatus === 'error' && !busy && !photoPending && !stale
+  // Shown until a save goes through; not while a conflict or a published page makes it moot.
+  const refusalShown = autosaveRefusal !== null && autosaveOn && !stale
   function saveStateLabel(): string {
     if (busy || (autosaveOn && autosaveStatus === 'saving')) return '저장 중…'
     if (photoPending) return '새 사진 처리 · 확인 필요'
@@ -505,7 +506,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
           <button type="button" className="publish-button" disabled={writing || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
-      {(error || stale) && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error ?? '다른 곳에서 먼저 저장된 내용이 있어 저장을 멈췄습니다. 지금 화면의 내용은 그대로 남아 있습니다.'}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
+      {(error || stale || refusalShown) && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error ?? (stale ? '다른 곳에서 먼저 저장된 내용이 있어 저장을 멈췄습니다. 지금 화면의 내용은 그대로 남아 있습니다.' : autosaveRefusal)}</p>{error && refusalShown && <p>{autosaveRefusal}</p>}{refusalShown && <button type="button" className="secondary-button" disabled={autosaveStatus === 'saving'} onClick={() => autosave.retryNow()}>{autosaveStatus === 'saving' ? '저장 중…' : '다시 시도'}</button>}{failedAction !== null && <button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
       <div className="builder-layout">
         <aside className="builder-panel" aria-label="청첩장 편집">
           <div className="builder-intro"><p className="builder-eyebrow">YOUR WEDDING, YOUR MOOD</p><h1>우리다운 초대장</h1><p>하나씩 채우면, 오른쪽에서 바로 완성돼요.</p></div>
