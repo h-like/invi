@@ -174,3 +174,31 @@
 .share-status-public { display: grid; gap: 10px; }
 .share-status-public a { color: var(--color-ink); text-underline-offset: 4px; }
 .share-status-warn { color: var(--color-ink); }
+
+/* Venue search (map block): the address comes only from a picked place. */
+.venue-search { margin-bottom: 14px; }
+.venue-search-row { display: flex; gap: 6px; align-items: stretch; }
+.builder-fields .venue-search-row input { margin-top: 0; flex: 1; min-width: 0; }
+.venue-search-row button { flex: none; white-space: nowrap; }
+.venue-search .editor-section-hint { margin-top: 6px; }
+.venue-search-error { color: var(--color-danger, #b42318); font-size: var(--text-xs); margin: 4px 0 8px; }
+.venue-unverified { font-size: var(--text-xs); line-height: 1.6; color: var(--color-ink-body); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-left: 3px solid var(--color-accent); border-radius: var(--radius-sm); padding: 8px 10px; margin: 0 0 10px; }
+.venue-picked { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px; margin-bottom: 10px; border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-raised); }
+.venue-picked > div:first-child { display: flex; flex-direction: column; min-width: 0; }
+.venue-picked strong { color: var(--color-ink); font-size: var(--text-md); }
+.venue-picked span { color: var(--color-ink-muted); font-size: var(--text-xs); }
+.venue-picked-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.venue-picked-actions a, .venue-picked-actions button { font-size: var(--text-xs); color: var(--color-accent); background: none; border: 0; padding: 0; font-weight: 600; text-decoration: none; }
+.venue-picked-actions a:hover, .venue-picked-actions button:hover { text-decoration: underline; }
+.venue-results { list-style: none; padding: 0; margin: 4px 0 0; border: 1px solid var(--color-line); border-radius: var(--radius-md); max-height: 300px; overflow-y: auto; background: var(--color-surface-raised); }
+.venue-results li + li { border-top: 1px solid var(--color-line); }
+.venue-results button { width: 100%; text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 10px 12px; background: none; color: var(--color-ink); border-radius: 0; font-weight: 400; }
+.venue-results button:hover { background: var(--color-surface); }
+.venue-results strong { font-size: var(--text-sm); font-weight: 600; }
+.venue-results small { color: var(--color-ink-muted); font-size: var(--text-xs); }
+.venue-results span { grid-column: 1 / -1; color: var(--color-ink-muted); font-size: var(--text-xs); }
+.venue-manual { margin-bottom: 10px; }
+.venue-manual .venue-unverified { margin-top: 8px; }
+.venue-fallback { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; font-size: var(--text-xs); color: var(--color-ink-muted); }
+.venue-fallback button { background: none; border: 0; padding: 0; font-size: var(--text-xs); font-weight: 600; color: var(--color-accent); }
+.venue-fallback button:hover:not(:disabled) { text-decoration: underline; }

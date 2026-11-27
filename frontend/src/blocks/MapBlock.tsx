@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import type { Block } from '../api/types'
-
-// Search links need no map API key or SDK; the address is the most precise query.
-const MAP_LINKS = [
-  { name: '네이버 지도', url: (q: string) => 'https://map.naver.com/p/search/' + encodeURIComponent(q) },
-  { name: '카카오맵', url: (q: string) => 'https://map.kakao.com/link/search/' + encodeURIComponent(q) },
-]
+import { mapLinks } from './mapPlace'
 
 export function MapBlock({ block, interactive }: { block: Block; interactive: boolean }) {
   const text = (key: string) => typeof block.content[key] === 'string' ? block.content[key] as string : ''
@@ -22,8 +17,8 @@ export function MapBlock({ block, interactive }: { block: Block; interactive: bo
       <p className="block-sub">{address || '주소를 입력해 주세요'}</p>
       {address && (
         <div className="map-links">
-          {MAP_LINKS.map(link => interactive
-            ? <a key={link.name} className="map-link" href={link.url(address)} target="_blank" rel="noopener noreferrer">{link.name}</a>
+          {mapLinks(block.content, address).map(link => interactive
+            ? <a key={link.name} className="map-link" href={link.url} target="_blank" rel="noopener noreferrer">{link.name}</a>
             : <span key={link.name} className="map-link">{link.name}</span>)}
           {interactive
             ? <button type="button" className="map-link" onClick={copyAddress}>{copied === null ? '주소 복사' : copied ? '복사됨' : '복사 안 됨'}</button>

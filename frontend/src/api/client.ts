@@ -3,6 +3,7 @@ import { API_BASE } from './baseUrl'
 import { putPhoto } from '../editor/putPhoto'
 import type { PhotoUploadOptions } from '../editor/coverUpload'
 import type { RsvpMeal, RsvpSide } from '../blocks/rsvpOptions'
+import type { PlaceSearchResult } from '../blocks/mapPlace'
 import type {
   GuestInvitation,
   GuestbookEntryItem,
@@ -58,6 +59,10 @@ export const api = {
   listTemplates: () => request<Template[]>('/api/templates'),
 
   getTemplate: (id: string) => request<TemplateDetail>(`/api/templates/${encodeURIComponent(id)}`),
+
+  /** 'venue' keeps wedding venues only (halls, hotels, convention halls); 'all' is the fallback for anywhere else. */
+  searchPlaces: (query: string, scope: 'venue' | 'all' = 'venue') =>
+    request<PlaceSearchResult[]>(`/api/places/search?query=${encodeURIComponent(query)}&scope=${scope}`),
 
   createInvitation: (body: { templateId: string; slug: string; weddingDate: string }) =>
     request<Invitation>('/api/invitations', { method: 'POST', body: JSON.stringify(body) }),

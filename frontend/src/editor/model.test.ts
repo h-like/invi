@@ -154,6 +154,16 @@ test('drafts can be incomplete; publishing checks only displayed required sectio
   assert.equal(publishIssues(page).length, 1)
 })
 
+test('a shown map needs a venue name and an address, picked or typed', () => {
+  let page = patchContent(createEmptyPage(), 'hero-1', { groomName: '민수', brideName: '지영' })
+  page = patchContent(page, 'map-1', { venueName: '명동성당' })
+  assert.equal(publishIssues(page).length, 1)
+  page = patchContent(page, 'map-1', { address: '서울 중구 명동길 74' })
+  assert.deepEqual(publishIssues(page), [])
+  page = patchContent(page, 'map-1', { place: { id: '8130419', name: '롯데호텔 서울', address: '서울 중구 을지로 30', lat: 37.56, lng: 126.98 }, address: '서울 중구 을지로 30' })
+  assert.deepEqual(publishIssues(page), [])
+})
+
 // Run with Node 22.18+ or 24+: node --test src/editor/model.test.ts
 
 test('look overrides keep only known parts and safe token values', () => {

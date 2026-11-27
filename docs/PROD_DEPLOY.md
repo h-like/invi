@@ -29,6 +29,7 @@ Render는 서비스 환경변수를 Docker 빌드 인자로도 넘기므로 두 
 - `JWT_SECRET`: 새로 만든 64바이트 이상. 테스트·로컬과 다른 값.
 - `INVI_R2_ACCOUNT_ID`, `INVI_R2_ACCESS_KEY_ID`, `INVI_R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL`: **새 운영 버킷**과 그 버킷만 쓰는 키. 버킷 CORS에 운영 Origin의 PUT/GET/HEAD.
 - `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: 없으면 기동하지 않는다.
+- `KAKAO_REST_API_KEY`: 편집기 예식장 검색용 Kakao REST API 키(Kakao Developers 앱 `wedding-invite` > 플랫폼 키 > REST API 키 `invi-venue-search`). 로그인용 `KAKAO_CLIENT_ID`와 다른 키다. 없어도 기동하지만(로그에 경고) 장소 검색이 503이라 커플은 주소를 직접 입력해야 한다. 같은 앱의 "유료 API > 카카오맵"은 **사용 안 함**으로 둔다 — 그래야 무료 한도(키워드 검색 하루 100,000건)를 넘으면 차단만 되고 청구되지 않는다. 앱 자체 한도는 `invi.place-search.*`(계정당 10분 30회, 하루 Kakao 호출 50,000건, 1시간 캐시).
 - 선택: `APP_PUBLIC_ORIGIN`(Render 기본 주소면 생략), `INVITATION_EXPIRY_DRY_RUN`, `INVITATION_MAX_PER_MEMBER`.
 
 ## 사람이 콘솔에서 할 일

@@ -390,6 +390,7 @@ export function publishIssues(page: PageData): string[] {
   if (!hero) issues.push('첫 화면을 표시해 주세요.')
   else if (![hero.content.groomName, hero.content.brideName].every(n => typeof n === 'string' && n.trim())) issues.push('신랑과 신부 이름을 입력해 주세요.')
   const map = page.blocks.find(b => b.type === 'map' && b.visible)
-  if (map && ![map.content.venueName, map.content.address].every(n => typeof n === 'string' && n.trim())) issues.push('오시는 길의 식장 이름과 주소를 입력하거나 해당 섹션을 숨겨 주세요.')
+  // A typed address may publish (the editor warns it is unverified): some ceremonies are held where no search finds them.
+  if (map && ![map.content.venueName, map.content.address].every(n => typeof n === 'string' && n.trim())) issues.push('오시는 길의 장소를 검색해 선택하거나 주소를 입력하고, 식장 이름을 입력해 주세요. 표시하지 않으려면 해당 섹션을 숨겨 주세요.')
   return issues
 }
