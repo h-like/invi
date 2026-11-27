@@ -122,6 +122,15 @@ RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽�
 - **대표 사진 업로드**: `CoverPhotoEditor`가 JPG/JPEG·PNG·WebP·HEIC/HEIF 원본을 장당 최대 30MiB까지 받는다. Worker에서 긴 변 최대 2,560px WebP(미지원 시 JPEG)로 최적화하고, 업로드·attach·공개 이미지 로드 확인이 모두 성공한 뒤에만 `hero.content.coverImage`를 바꾼다. 실패 시 기존 사진을 유지하고 재시도·취소를 제공한다. 처리 중/실패 선택이 남아 있으면 저장·공개를 막는다. 서버는 JPEG/PNG/WebP의 크기·MIME·키 소유 경로와 R2 HEAD/Range GET 시그니처를 검사한다. 갤러리는 최대 20장(8~12장 권장) 순차 다중 업로드·사진별 진행·실패 항목만 재시도·정렬·삭제를 지원하며 자르기는 제외한다. 설정·CORS·검증·제한은 `docs/PHOTO_UPLOAD.md` 참고.
 - **R2 잔여 파일 정리**: `tracked_media_object`로 presign/기존 객체를 추적한다. 저장된 모든 청첩장 상태·숨김·언어·미래 필드·템플릿 참조를 보호하고 기본 7일 유예를 둔다. 실제 삭제는 기본 비활성/점검 모드다. 참조를 쓰는 새 경로는 트랜잭션 시작 시 `MediaLifecycle.lock()`으로 공통 PostgreSQL 잠금을 잡고 `referencesChanged`/`assertUsable` 검사를 해야 한다. 삭제는 먼저 DELETING을 커밋하고 조건부 삭제 안전 검증 후 ETag 조건으로 진행하며 불확실한 실패에도 재참조 차단을 유지한다. 기존 DELETE API는 즉시 삭제가 아닌 202 예약이다. 자세한 설정·조건부 삭제 호환 한계·검증 상태는 `docs/MEDIA_CLEANUP.md` 참고.
 
+## 예식장 검색 (Kakao Local)
+
+`com.invi.api.place`에 있다. 오시는 길의 주소는 손으로 입력하지 않고 실제 장소를 검색해 고른다.
+
+- **흐름**: 편집기 `VenueSearch`가 `GET /api/places/search?query=`(로그인 필요, API 쿼터 보호)를 부르면 서버가 Kakao 키워드 검색을 최대 3페이지 읽고 `VenueFilter`로 예식 장소만 남긴다(카테고리 `예식장`·`웨딩홀`·`호텔`·`컨벤션`·`연회장` 등 + 뷔페/문화시설로 분류된 홀은 이름에 `웨딩`·`예식`·`컨벤션`·`볼룸`이 있을 때만. 드레스·스튜디오·주차장·모텔 등은 제외). 고르면 `map.content.place`(`id`·`name`·`address`·`lat`·`lng`)와 `address`(도로명 우선)가 함께 바뀐다. 읽기·검증은 `frontend/src/blocks/mapPlace.ts` 한 곳.
+- **하객 화면**: `place`가 있고 `address`와 같을 때만 카카오맵 버튼이 그 장소(`map.kakao.com/link/map/{id}`)를 연다. 아니면 예전처럼 주소 검색. 하객 기기에서 지도 SDK·타일 같은 제3자 요청은 내지 않는다(링크만).
+- **공개 조건**: 오시는 길이 보이면 검색으로 고른 장소가 있어야 공개된다(`publishIssues`).
+- **키**: Kakao Developers 앱 `wedding-invite`의 전용 REST API 키(`invi-venue-search`, 카카오맵 사용 ON). 로컬은 `backend/.env`(gitignored)의 `KAKAO_REST_API_KEY`를 `spring.config.import`로 읽고, 배포는 같은 이름의 환경변수다. 키가 없으면 앱은 뜨고 검색만 503.
+
 ## HTTPS 테스트 배포
 
 - `Dockerfile`은 React 정적 빌드와 boot JAR만 담아 비root JRE21로 실행한다. 개발 서버/bootRun/포트 포워딩을 외부 공개하지 않는다. 컨테이너 내부의 `0.0.0.0:$PORT`와 개인 PC 개발망 바인딩은 구분한다.

@@ -1,6 +1,10 @@
 spring:
   application:
     name: invi-api
+  config:
+    # backend/.env (gitignored) holds local API keys such as KAKAO_REST_API_KEY.
+    # Deployed servers set the same names as real environment variables instead.
+    import: optional:file:.env[.properties]
   datasource:
     url: jdbc:postgresql://localhost:5433/invi
     username: invi
@@ -40,6 +44,11 @@ management:
         include: health,info
 
 invi:
+  kakao:
+    local:
+      # Kakao Local REST API key for the editor's venue search (place/KakaoLocalClient).
+      # Empty -> the app still boots and only venue search answers 503.
+      rest-api-key: ${KAKAO_REST_API_KEY:}
   jwt:
     # Local-dev-only fallback. application-local.yml (gitignored) overrides this
     # with a real secret — never commit an actual signing key.
