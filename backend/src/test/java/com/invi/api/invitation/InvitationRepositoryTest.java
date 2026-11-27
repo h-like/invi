@@ -44,15 +44,16 @@ class InvitationRepositoryTest {
     void listsAMembersInvitationsNewestFirst_withTheIdBreakingTies() {
         Invitation oldest = save("2026-01-01T00:00:00Z");
         Invitation newest = save("2026-03-01T00:00:00Z");
-        Invitation tieA = save("2026-02-01T00:00:00Z");
-        Invitation tieB = save("2026-02-01T00:00:00Z");
-        entityManager.clear();
-        List<UUID> ties = Stream.of(tieA.getId(), tieB.getId())
+        // Five ties: without the id tie-break an arbitrary order would match only 1 time in 120.
+        List<UUID> ties = Stream.generate(() -> save("2026-02-01T00:00:00Z").getId()).limit(5)
                 .sorted(Comparator.comparing(UUID::toString).reversed()).toList();
+        entityManager.clear();
+        List<UUID> expected = Stream.of(Stream.of(newest.getId()), ties.stream(), Stream.of(oldest.getId()))
+                .flatMap(s -> s).toList();
 
         assertThat(invitations.findAllByMemberIdOrderByCreatedAtDescIdDesc(member.getId()))
                 .extracting(Invitation::getId)
-                .containsExactly(newest.getId(), ties.get(0), ties.get(1), oldest.getId());
+                .containsExactlyElementsOf(expected);
     }
 
     /** createdAt comes from auditing, so the test pins it afterwards to control the order. */

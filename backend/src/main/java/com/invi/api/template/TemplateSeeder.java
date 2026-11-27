@@ -57,7 +57,7 @@ public class TemplateSeeder implements CommandLineRunner {
         Template existing =
                 templateRepository
                         .findByCode(preset.code())
-                        .or(() -> templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAsc(preset.code()))
+                        .or(() -> templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAscIdAsc(preset.code()))
                         .orElse(null);
         if (existing == null) {
             Template created =

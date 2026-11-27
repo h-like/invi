@@ -81,13 +81,18 @@ class RsvpRepositoryTest {
     void listsNewestFirst_withTheIdBreakingTies() {
         Rsvp oldest = save("oldest", "2026-01-01T00:00:00Z");
         Rsvp newest = save("newest", "2026-03-01T00:00:00Z");
-        Rsvp tieA = save("tie-a", "2026-02-01T00:00:00Z");
-        Rsvp tieB = save("tie-b", "2026-02-01T00:00:00Z");
+        // Five ties: without the id tie-break an arbitrary order would match only 1 time in 120.
+        List<UUID> ties = java.util.stream.IntStream.range(0, 5)
+                .mapToObj(i -> save("tie-" + i, "2026-02-01T00:00:00Z").getId())
+                .sorted(java.util.Comparator.comparing(UUID::toString).reversed()).toList();
         entityManager.clear();
-        List<UUID> ties = java.util.stream.Stream.of(tieA.getId(), tieB.getId()).sorted(java.util.Comparator.comparing(UUID::toString).reversed()).toList();
+        List<UUID> expected = new java.util.ArrayList<>();
+        expected.add(newest.getId());
+        expected.addAll(ties);
+        expected.add(oldest.getId());
 
         assertThat(rsvps.findByInvitationIdOrderByCreatedAtDescIdDesc(invitation.getId())).extracting(Rsvp::getId)
-                .containsExactly(newest.getId(), ties.get(0), ties.get(1), oldest.getId());
+                .containsExactlyElementsOf(expected);
     }
 
     /** createdAt comes from auditing, so the test pins it afterwards to control the order. */

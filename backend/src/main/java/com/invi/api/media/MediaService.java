@@ -125,7 +125,7 @@ public class MediaService {
 
     public List<MediaAssetDto> list(UUID memberId, UUID invitationId) {
         getOwnedOrThrow(memberId, invitationId);
-        return mediaAssetRepository.findByInvitationIdOrderBySortOrderAsc(invitationId).stream()
+        return mediaAssetRepository.findByInvitationIdOrderBySortOrderAscIdAsc(invitationId).stream()
                 .map(this::toDto)
                 .toList();
     }
