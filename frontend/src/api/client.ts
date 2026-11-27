@@ -66,11 +66,16 @@ export const api = {
 
   getInvitation: (id: string) => request<Invitation>(`/api/invitations/${id}`),
 
-  updatePageData: (id: string, pageData: PageData, version: number) =>
-    request<Invitation>(`/api/invitations/${id}/page-data`, {
+  updatePageData: (id: string, pageData: PageData, version: number) => {
+    const body = JSON.stringify({ pageData, version })
+    return request<Invitation>(`/api/invitations/${id}/page-data`, {
       method: 'PUT',
-      body: JSON.stringify({ pageData, version }),
-    }),
+      body,
+      // An autosave sent as the tab hides may outlive the page. Browsers refuse keepalive bodies
+      // over 64KiB, so larger pages go out as a normal request.
+      keepalive: new TextEncoder().encode(body).length < 60_000,
+    })
+  },
 
   updateWeddingDate: (id: string, weddingDate: string) =>
     request<Invitation>(`/api/invitations/${id}/wedding-date`, {
