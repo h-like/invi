@@ -10,7 +10,8 @@ export interface PersistenceClient {
 
 export type PersistenceOutcome =
   | { kind: 'busy' }
-  | { kind: 'save-failed'; detail: string }
+  /** `rejected`: the server refused it (4xx), so sending the same request again would fail too. */
+  | { kind: 'save-failed'; detail: string; rejected?: true }
   /** Someone saved a newer copy first. Nothing was written; retrying would be refused again. */
   | { kind: 'stale'; detail: string }
   | { kind: 'publish-failed'; saved: Invitation; detail: string }
@@ -91,9 +92,12 @@ export function createInvitationPersistence(client: PersistenceClient) {
           }
         } catch (error) {
           if (isStaleVersion(error)) return { kind: 'stale', detail: errorDetail(error, '다른 곳에서 먼저 저장된 내용이 있습니다.') }
+          const detail = errorDetail(error, '서버와 연결하지 못했습니다.')
+          // A 4xx was refused outright: nothing landed, and the same request would be refused again.
+          if (isClientError(error)) return { kind: 'save-failed', detail, rejected: true }
           const sent = canonicalJson(pageData)
           unconfirmed = { id: invitation.id, from: invitation.version, version, applied: current => canonicalJson(current.pageData) === sent }
-          return { kind: 'save-failed', detail: errorDetail(error, '서버와 연결하지 못했습니다.') }
+          return { kind: 'save-failed', detail }
         }
         unconfirmed = null
 

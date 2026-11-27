@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FocusEvent, type SyntheticEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type FocusEvent, type SyntheticEvent } from 'react'
 import { Link, useBlocker, useParams, type BlockerFunction } from 'react-router-dom'
 import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
 import { createInvitationPersistence } from '../editor/persistence'
+import { autosaveGate, createAutosave, type AutosaveAttempt, type AutosaveStatus } from '../editor/autosave'
+import { createManualWrites } from '../editor/manualWrites'
 import { CoverPhotoEditor } from '../editor/CoverPhotoEditor'
 import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { LookEditor } from '../editor/LookEditor'
@@ -52,6 +54,31 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }
   function hasPendingPhotos() { return photoPendingRef.current.cover || photoPendingRef.current.gallery }
   const [persistence] = useState(() => createInvitationPersistence(api))
+  // Timers and async writes read the latest copy from refs: a closure from an earlier render
+  // would send an old version (a stale refusal by this tab's own save) or an old draft.
+  const invitationRef = useRef<Invitation | null>(null)
+  const draftRef = useRef<PageData | null>(null)
+  const baselineRef = useRef('')
+  useLayoutEffect(() => { draftRef.current = draft }, [draft])
+  function adoptInvitation(next: Invitation | ((prev: Invitation) => Invitation)) {
+    const value = typeof next === 'function' ? (invitationRef.current ? next(invitationRef.current) : null) : next
+    if (!value) return
+    invitationRef.current = value
+    setInvitation(value)
+  }
+  function adoptBaseline(json: string) {
+    baselineRef.current = json
+    setBaseline(json)
+  }
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
+  const [autosaveError, setAutosaveError] = useState('')
+  // A refused autosave: kept apart from `error`, which every edit clears, because autosave stays
+  // off until a save goes through and the user must not lose sight of that while typing on.
+  const [autosaveRefusal, setAutosaveRefusal] = useState<string | null>(null)
+  const [autosave] = useState(() => createAutosave({ onStatus: setAutosaveStatus }))
+  // Save, publish, date, unpublish, loading the latest copy: one at a time, each after any
+  // autosave in flight, reading the latest copy from the refs inside the write.
+  const [writes] = useState(() => createManualWrites(autosave))
   const [failedAction, setFailedAction] = useState<boolean | null>(null)
   // Another tab or device saved first: saving again would be refused, so offer the latest copy.
   const [stale, setStale] = useState(false)
@@ -73,8 +100,11 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   // save answered before them must not put the old token back on screen.
   const [reviewToken, setReviewToken] = useState<string | null>(null)
   const unsaved = draft !== null && JSON.stringify(draft) !== baseline
-  // An unpublish holds the save guard too: leaving or saving-and-leaving must wait for it.
-  const writeBusy = busy || unpublishing
+  // Drafts only: a published page's saves go live at once, and a half-typed account number or
+  // greeting must not reach guests. Published edits still wait for [저장하고 공유].
+  const autosaveOn = invitation !== null && invitation.status !== 'PUBLISHED'
+  // An unpublish or autosave holds the save guard too: leaving or saving-and-leaving must wait for it.
+  const writeBusy = busy || unpublishing || autosaveStatus === 'saving'
   const leaveState = { dirty: unsaved, busy: writeBusy, photoPending }
   const leaveMode = leaveDialogMode(leaveState)
   const shouldBlock = useCallback<BlockerFunction>(({ currentLocation, nextLocation }) =>
@@ -89,11 +119,11 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     if (id) api.getInvitation(id).then(inv => {
       if (!active) return
       const page = inv.pageData ?? createEmptyPage()
-      setInvitation(inv)
+      adoptInvitation(inv)
       setReviewToken(inv.reviewToken ?? null)
       setDateInput(inv.weddingDate)
       setDraft(page)
-      setBaseline(JSON.stringify(page))
+      adoptBaseline(JSON.stringify(page))
     }).catch(err => { if (active) setError(err instanceof Error ? err.message : '청첩장을 불러오지 못했습니다.') })
     return () => { active = false }
   }, [id])
@@ -107,6 +137,61 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
   }, [unsaved, writeBusy, photoPending])
 
   useEffect(() => { blockerRef.current = blocker }, [blocker])
+
+  useEffect(() => { autosave.attach(); return () => autosave.detach() }, [autosave])
+  // Every change re-arms the debounce while the draft differs from the stored copy.
+  useEffect(() => {
+    if (unsaved && autosaveOn && !photoPending && !stale && !busy && !loadingLatest) autosave.schedule()
+  }, [autosave, draft, unsaved, autosaveOn, photoPending, stale, busy, loadingLatest])
+  // Mobile browsers may discard a hidden tab without another event: save as soon as it hides.
+  useEffect(() => {
+    const flush = () => autosave.flush()
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flush() }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', flush)
+    window.addEventListener('online', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', flush)
+      window.removeEventListener('online', flush)
+    }
+  }, [autosave])
+
+  /**
+   * One autosave, through the same guard as every other write. The draft on screen is left as
+   * it is (the user may have typed on while this was in flight); only the baseline moves to
+   * what was sent, so later edits stay unsaved and get the follow-up save.
+   */
+  async function autosaveOnce(): Promise<AutosaveAttempt> {
+    const inv = invitationRef.current, page = draftRef.current
+    if (!inv || !page) return 'clean'
+    const sent = JSON.stringify(page)
+    const gate = autosaveGate({ published: inv.status === 'PUBLISHED', photosPending: hasPendingPhotos(), draftJson: sent, baselineJson: baselineRef.current })
+    if (gate !== 'save') return gate
+    const result = await persistence.run(inv, page, false)
+    if (result.kind === 'busy') return 'busy'
+    if (result.kind === 'stale') {
+      // Nothing was written; no overwrite in the MVP, same as a manual save.
+      setError(result.detail + ' 자동 저장을 멈췄고, 지금 화면의 내용은 그대로 남아 있습니다.')
+      setAutosaveRefusal(null) // the conflict banner takes over
+      setFailedAction(null) // retrying an earlier failed save would only be refused again
+      setStale(true)
+      return 'stale'
+    }
+    if (result.kind === 'save-failed') {
+      setAutosaveError(result.detail)
+      if (!result.rejected) return 'failed'
+      // Refused (expired login, ...): retrying on a timer would be refused again, so say why.
+      setAutosaveRefusal('자동 저장이 거절돼 지금은 자동으로 저장되지 않아요: ' + result.detail.replace(/[.\s]+$/, '') + '. 입력 내용은 화면에 그대로 있어요. 다시 로그인하는 등 문제를 해결한 뒤 [다시 시도]를 눌러 주세요.')
+      return 'rejected'
+    }
+    adoptInvitation(result.kind === 'publish-failed' ? result.saved : result.invitation)
+    adoptBaseline(sent)
+    setAutosaveError('')
+    setAutosaveRefusal(null)
+    return 'saved'
+  }
+  useEffect(() => { autosave.setSave(autosaveOnce) })
   useEffect(() => () => leaveGate.cancel(), [leaveGate])
 
   useEffect(() => {
@@ -184,24 +269,34 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   /** Replaces this screen's copy with the stored one; asks first because unsaved edits are lost. */
   async function loadLatest() {
-    if (!id || loadingLatest || persistence.isRunning()) return
+    if (!id || loadingLatest || writes.isRunning()) return
     // An upload finishing after the swap would patch the new copy with the old gallery.
     if (hasPendingPhotos()) { setError('사진 업로드를 마치거나 취소한 뒤 최신 내용을 불러와 주세요.'); return }
     if (!window.confirm('최신 내용을 불러오면 이 화면에서 저장하지 않은 변경 사항은 사라집니다. 불러올까요?')) return
     setLoadingLatest(true)
     try {
-      const latest = await api.getInvitation(id)
-      const page = latest.pageData ?? createEmptyPage()
-      setInvitation(latest)
-      setReviewToken(latest.reviewToken ?? null)
-      setDateInput(latest.weddingDate)
-      setDraft(page)
-      setBaseline(JSON.stringify(page))
-      setStale(false)
-      setError(null)
-      setNotice('최신 내용을 불러왔습니다.')
-    } catch (err) {
-      setError('최신 내용을 불러오지 못했습니다. 지금 화면의 내용은 그대로 남아 있습니다. ' + (err instanceof Error ? err.message : ''))
+      // No autosave may go out from the old copy while the latest one loads.
+      await writes.run(async () => {
+        try {
+          const latest = await api.getInvitation(id)
+          const page = latest.pageData ?? createEmptyPage()
+          adoptInvitation(latest)
+          setReviewToken(latest.reviewToken ?? null)
+          setDateInput(latest.weddingDate)
+          setDraft(page)
+          draftRef.current = page
+          adoptBaseline(JSON.stringify(page))
+          setStale(false)
+          autosave.resume()
+          autosave.reset()
+          setAutosaveError('')
+          setAutosaveRefusal(null)
+          setError(null)
+          setNotice('최신 내용을 불러왔습니다.')
+        } catch (err) {
+          setError('최신 내용을 불러오지 못했습니다. 지금 화면의 내용은 그대로 남아 있습니다. ' + (err instanceof Error ? err.message : ''))
+        }
+      })
     } finally {
       setLoadingLatest(false)
     }
@@ -209,21 +304,25 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   // Saved immediately, apart from the draft: free invitations are deleted 10 days after this date.
   async function saveWeddingDate() {
-    if (!invitation || dateSaving || loadingLatest || !dateInput || dateInput === invitation.weddingDate) return
+    if (!invitation || dateSaving || loadingLatest || writes.isRunning() || !dateInput || dateInput === invitation.weddingDate) return
     setDateSaving(true)
     setDateStatus('')
     try {
-      // Shares the page save's guard, so a page save cannot run while this one is in flight.
-      const result = await persistence.saveWeddingDate(invitation, dateInput)
-      // Never silent: free invitations are deleted by the stored date, not the one on screen.
-      if (result.kind === 'busy') { setDateStatus('다른 저장이 진행 중이라 예식일을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.'); return }
-      if (result.kind === 'failed') { setDateStatus(result.detail); return }
-      const saved = result.invitation
-      // `own`: only this tab's writes are in the returned version, possibly including a lost page
-      // save or publish, so take the copy whole (status, page) as a page save does. Otherwise
-      // another tab or device saved too: keep the old version so the next page save is stale.
-      setInvitation(prev => !prev ? prev : result.own ? saved : { ...prev, weddingDate: saved.weddingDate })
-      setDateStatus('예식일을 변경했습니다.')
+      // Waits for an autosave in flight instead of reporting "busy"; none starts until it ends.
+      await writes.run(async () => {
+        // Shares the page save's guard, so a page save cannot run while this one is in flight.
+        // The ref: an autosave that just finished moved the version past this render's copy.
+        const result = await persistence.saveWeddingDate(invitationRef.current ?? invitation, dateInput)
+        // Never silent: free invitations are deleted by the stored date, not the one on screen.
+        if (result.kind === 'busy') { setDateStatus('다른 저장이 진행 중이라 예식일을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.'); return }
+        if (result.kind === 'failed') { setDateStatus(result.detail); return }
+        const saved = result.invitation
+        // `own`: only this tab's writes are in the returned version, possibly including a lost page
+        // save or publish, so take the copy whole (status, page) as a page save does. Otherwise
+        // another tab or device saved too: keep the old version so the next page save is stale.
+        adoptInvitation(prev => result.own ? saved : { ...prev, weddingDate: saved.weddingDate })
+        setDateStatus('예식일을 변경했습니다.')
+      })
     } finally {
       setDateSaving(false)
     }
@@ -231,11 +330,12 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   async function persist(publish: boolean): Promise<boolean> {
     // While the latest copy loads, a save would go out from the old one and its edits be replaced.
-    if (!invitation || !draft || loadingLatest || persistence.isRunning()) return false
+    if (!invitation || !draft || loadingLatest || writes.isRunning()) return false
     if (hasPendingPhotos()) { setError('새 사진의 업로드를 완료하거나 실패한 사진을 재시도·삭제한 뒤 저장·공개해 주세요.'); return false }
     setError(null)
     setFailedAction(null)
-    setStale(false)
+    // `stale` stays until a save succeeds or the latest copy loads: autosave is stopped until
+    // then, and the banner's [최신 내용으로 바꾸기] must stay reachable.
     setNotice('')
     if (publish) {
       const issues = publishIssues(draft)
@@ -244,12 +344,25 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setShareOpen(false)
     setBusy(true)
     try {
-      const result = await persistence.run(invitation, draft, publish)
+      // Takes the guard from autosave: waits for one in flight, and none starts until done.
+      return await writes.run(() => persistLatest(publish)) ?? false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Runs inside `writes.run`, after any autosave in flight: reads the latest copy from the refs. */
+  async function persistLatest(publish: boolean): Promise<boolean> {
+    const current = invitationRef.current, page = draftRef.current
+    if (!current || !page) return false
+    try {
+      const result = await persistence.run(current, page, publish)
       if (result.kind === 'busy') return false
       if (result.kind === 'stale') {
         // Nothing was written and the draft stays on screen; no overwrite option in the MVP.
         setError(result.detail + ' 지금 화면의 내용은 그대로 남아 있습니다.')
         setStale(true)
+        autosave.stop()
         return false
       }
       if (result.kind === 'save-failed') {
@@ -259,9 +372,16 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
         return false
       }
       const saved = result.kind === 'publish-failed' ? result.saved : result.invitation
-      setInvitation(saved)
-      setDraft(saved.pageData ?? draft)
-      setBaseline(JSON.stringify(saved.pageData ?? draft))
+      adoptInvitation(saved)
+      setDraft(saved.pageData ?? page)
+      draftRef.current = saved.pageData ?? page
+      adoptBaseline(JSON.stringify(saved.pageData ?? page))
+      // Saved on top of the latest version, so autosave may run again after a stale stop.
+      setStale(false)
+      autosave.resume()
+      autosave.reset()
+      setAutosaveError('')
+      setAutosaveRefusal(null)
       if (result.kind === 'publish-failed') {
         setNotice('내용 저장 완료 · 공개 확인 필요')
         setError('내용은 저장했지만 공개 완료를 확인하지 못했습니다. 다시 시도해 주세요. ' + result.detail)
@@ -278,7 +398,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       setError('처리 결과를 확인하지 못했습니다. 현재 화면의 내용을 확인하고 다시 시도해 주세요.')
       setFailedAction(publish)
       return false
-    } finally { setBusy(false) }
+    }
   }
 
   async function saveAndLeave() {
@@ -293,7 +413,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   /** Shares the page-save guard: it bumps the version, so it must not race this tab's saves. */
   async function unpublish() {
-    if (!invitation || writing || persistence.isRunning()) return
+    if (!invitation || writing || writes.isRunning()) return
     // The review link works whatever the status, so closing the guest link does not close it.
     const reviewLinkOpen = reviewToken !== null
     const reviewWarning = reviewLinkOpen ? '\n\n확인 링크는 계속 열려 있어서, 링크를 아는 사람은 계좌를 포함한 저장 내용을 볼 수 있어요. 막으려면 [링크 끄기]도 눌러 주세요.' : ''
@@ -301,17 +421,20 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setUnpublishing(true)
     setError(null)
     setFailedAction(null)
-    setStale(false)
+    // Not `setStale(false)`: unpublishing does not bring this copy up to date, so autosave stays
+    // stopped and the banner keeps [최신 내용으로 바꾸기].
     setNotice('')
     try {
-      const result = await persistence.unpublish(invitation)
-      // Never silent: the couple would think the guest link is closed.
-      if (result.kind === 'busy') { setError('다른 저장이 진행 중이라 비공개로 바꾸지 못했어요. 하객 링크는 아직 열려 있어요. 잠시 후 다시 눌러 주세요.'); return }
-      if (result.kind === 'failed') { setError('비공개로 바꾸지 못했습니다. 하객 링크가 아직 열려 있을 수 있어요. ' + result.detail); return }
-      const saved = result.invitation
-      // Not `own`: another tab or device saved too, so keep the old version (the next save is stale).
-      setInvitation(prev => !prev ? prev : result.own ? saved : { ...prev, status: saved.status })
-      setNotice(reviewLinkOpen ? '비공개로 바꿨습니다 · 확인 링크는 열려 있어요' : '비공개로 바꿨습니다.')
+      await writes.run(async () => {
+        const result = await persistence.unpublish(invitationRef.current ?? invitation)
+        // Never silent: the couple would think the guest link is closed.
+        if (result.kind === 'busy') { setError('다른 저장이 진행 중이라 비공개로 바꾸지 못했어요. 하객 링크는 아직 열려 있어요. 잠시 후 다시 눌러 주세요.'); return }
+        if (result.kind === 'failed') { setError('비공개로 바꾸지 못했습니다. 하객 링크가 아직 열려 있을 수 있어요. ' + result.detail); return }
+        const saved = result.invitation
+        // Not `own`: another tab or device saved too, so keep the old version (the next save is stale).
+        adoptInvitation(prev => result.own ? saved : { ...prev, status: saved.status })
+        setNotice(reviewLinkOpen ? '비공개로 바꿨습니다 · 확인 링크는 열려 있어요' : '비공개로 바꿨습니다.')
+      })
     } finally {
       setUnpublishing(false)
     }
@@ -354,6 +477,19 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     catch { setReviewStatus('자동 복사가 차단되었습니다. 위 주소를 선택해 직접 복사해 주세요.') }
   }
 
+  const showAutosaveRetry = autosaveOn && autosaveStatus === 'error' && !busy && !photoPending && !stale
+  // Shown until a save goes through; not while a conflict or a published page makes it moot.
+  const refusalShown = autosaveRefusal !== null && autosaveOn && !stale
+  function saveStateLabel(): string {
+    if (busy || (autosaveOn && autosaveStatus === 'saving')) return '저장 중…'
+    if (photoPending) return '새 사진 처리 · 확인 필요'
+    if (showAutosaveRetry) return '저장 실패 · '
+    if (notice) return notice
+    if (!autosaveOn) return unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨'
+    if (stale || autosaveStatus === 'stopped') return '자동 저장 멈춤'
+    return unsaved ? '저장 대기 중' : '모두 저장됨'
+  }
+
   async function copyLink() {
     try { await navigator.clipboard.writeText(publicUrl); setCopyStatus('링크를 복사했습니다.') }
     catch { setCopyStatus('자동 복사가 차단되었습니다. 위 주소를 선택해 직접 복사해 주세요.') }
@@ -364,13 +500,13 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       <header className="builder-header">
         <Link className="builder-brand" to="/" aria-label="invi 홈">invi<span className="builder-brand-dot">.</span><small>우리의 시작을 담다</small></Link>
         <div className="builder-header-actions">
-          <span className="save-state" role="status">{busy ? '저장 중...' : photoPending ? '새 사진 처리 · 확인 필요' : notice || (unsaved ? '저장하지 않은 변경 사항' : '모든 변경 사항 저장됨')}</span>
+          <span className="save-state" role="status">{saveStateLabel()}{showAutosaveRetry && <button type="button" className="save-state-retry" title={autosaveError || undefined} onClick={() => autosave.retryNow()}>다시 시도</button>}</span>
           <button type="button" className="secondary-button" disabled={photoPending} onClick={() => setPreviewOnly(!previewOnly)}>{previewOnly ? '편집으로 돌아가기' : '미리보기'}</button>
           <button type="button" className="secondary-button" disabled={writing || photoPending || !unsaved} onClick={() => void persist(false)}>저장</button>
           <button type="button" className="publish-button" disabled={writing || photoPending} onClick={() => void persist(true)}>{busy ? '처리 중...' : invitation.status === 'PUBLISHED' ? '저장하고 공유' : '공개 · 공유'}</button>
         </div>
       </header>
-      {error && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error}</p>{failedAction !== null && <button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
+      {(error || stale || refusalShown) && <div className="builder-feedback"><div className="builder-error" role="alert"><p>{error ?? (stale ? '다른 곳에서 먼저 저장된 내용이 있어 저장을 멈췄습니다. 지금 화면의 내용은 그대로 남아 있습니다.' : autosaveRefusal)}</p>{error && refusalShown && <p>{autosaveRefusal}</p>}{refusalShown && <button type="button" className="secondary-button" disabled={autosaveStatus === 'saving'} onClick={() => autosave.retryNow()}>{autosaveStatus === 'saving' ? '저장 중…' : '다시 시도'}</button>}{failedAction !== null && <button type="button" className="secondary-button" disabled={busy || loadingLatest} onClick={() => void persist(failedAction)}>{failedAction ? '저장하고 공개 다시 시도' : '저장 다시 시도'}</button>}{stale && <><button type="button" className="secondary-button" onClick={() => window.open('/e/' + invitation.id, '_blank', 'noopener')}>최신 내용 새 탭에서 보기</button><button type="button" className="secondary-button" disabled={busy || dateSaving || loadingLatest || photoPending} onClick={() => void loadLatest()}>{loadingLatest ? '불러오는 중...' : '최신 내용으로 바꾸기'}</button></>}</div></div>}
       <div className="builder-layout">
         <aside className="builder-panel" aria-label="청첩장 편집">
           <div className="builder-intro"><p className="builder-eyebrow">YOUR WEDDING, YOUR MOOD</p><h1>우리다운 초대장</h1><p>하나씩 채우면, 오른쪽에서 바로 완성돼요.</p></div>
@@ -419,12 +555,12 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
               <span className={'share-status-badge' + (invitation.status === 'PUBLISHED' ? ' is-published' : '')}>{invitation.status === 'PUBLISHED' ? '공개 중' : '비공개'}</span>
             </div>
             {invitation.status === 'PUBLISHED'
-              ? <div className="share-status-public"><p className="editor-section-hint">하객 링크로 누구나 볼 수 있어요. <a href={publicUrl} target="_blank" rel="noreferrer">하객 화면 열기</a></p><button type="button" className="secondary-button" disabled={writing || photoPending} onClick={() => void unpublish()}>{unpublishing ? '바꾸는 중...' : '비공개로 전환'}</button><p className="editor-section-hint">하객 링크만 닫혀요. 받은 참석 응답·방명록은 그대로 남고, 언제든 다시 공개할 수 있어요.{reviewToken && ' 아래 확인 링크는 따로 꺼야 닫혀요.'}</p></div>
+              ? <div className="share-status-public"><p className="editor-section-hint">하객 링크로 누구나 볼 수 있어요. <a href={publicUrl} target="_blank" rel="noreferrer">하객 화면 열기</a></p><p className="editor-section-hint">공개 중에는 자동 저장하지 않아요. 고친 내용은 [저장하고 공유]를 눌러야 하객 화면에 반영돼요.</p><button type="button" className="secondary-button" disabled={writing || photoPending} onClick={() => void unpublish()}>{unpublishing ? '바꾸는 중...' : '비공개로 전환'}</button><p className="editor-section-hint">하객 링크만 닫혀요. 받은 참석 응답·방명록은 그대로 남고, 언제든 다시 공개할 수 있어요.{reviewToken && ' 아래 확인 링크는 따로 꺼야 닫혀요.'}</p></div>
               : <p className="editor-section-hint">아직 하객은 볼 수 없어요. 준비가 끝나면 [공개 · 공유]를 눌러 주세요.{reviewToken && ' 아래 확인 링크를 아는 사람은 저장된 내용을 볼 수 있어요.'}</p>}
             <h3>공개 전에 먼저 보여주기</h3>
             <p className="editor-section-hint">예비 배우자나 가족에게 확인받을 때 쓰는 링크예요. 링크를 아는 사람만 <strong>마지막으로 저장된</strong> 청첩장을 하객 화면 그대로 볼 수 있고, 참석 응답·방명록은 받지 않아요.</p>
             {reviewUrl
-              ? <><label>확인 링크<input value={reviewUrl} readOnly onFocus={e => e.target.select()} /></label><div className="share-actions"><button type="button" disabled={reviewBusy} onClick={() => void copyReviewLink()}>링크 복사</button><a className="button-link" href={reviewUrl} target="_blank" rel="noreferrer">열어 보기</a><button type="button" className="secondary-button" disabled={reviewBusy} onClick={() => void revokeReviewLink()}>링크 끄기</button></div>{unsaved && <p className="editor-section-hint share-status-warn">저장하지 않은 변경 사항은 [저장]을 눌러야 링크에 보여요.</p>}</>
+              ? <><label>확인 링크<input value={reviewUrl} readOnly onFocus={e => e.target.select()} /></label><div className="share-actions"><button type="button" disabled={reviewBusy} onClick={() => void copyReviewLink()}>링크 복사</button><a className="button-link" href={reviewUrl} target="_blank" rel="noreferrer">열어 보기</a><button type="button" className="secondary-button" disabled={reviewBusy} onClick={() => void revokeReviewLink()}>링크 끄기</button></div>{unsaved && <p className="editor-section-hint share-status-warn">{autosaveOn ? '입력을 멈추면 곧 자동 저장돼 링크에도 보여요.' : '저장하지 않은 변경 사항은 [저장하고 공유]를 눌러야 링크에 보여요.'}</p>}</>
               : <button type="button" className="secondary-button" disabled={reviewBusy} onClick={() => void makeReviewLink()}>{reviewBusy ? '만드는 중...' : '확인 링크 만들기'}</button>}
             {reviewStatus && <p role="status" className="editor-section-hint">{reviewStatus}</p>}
           </section>
