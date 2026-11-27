@@ -76,9 +76,9 @@ class TemplateSeederTest {
     void legacyRowWithoutCode_isClaimedInsteadOfDuplicated() {
         Template legacy = Template.builder().name("클래식").category("classic").build();
         when(templateRepository.findByCode(anyString())).thenReturn(Optional.empty());
-        when(templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAsc(anyString()))
+        when(templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAscIdAsc(anyString()))
                 .thenReturn(Optional.empty());
-        when(templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAsc("classic"))
+        when(templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAscIdAsc("classic"))
                 .thenReturn(Optional.of(legacy));
 
         seeder.run();
@@ -111,7 +111,7 @@ class TemplateSeederTest {
 
     private List<Template> seedFresh() {
         when(templateRepository.findByCode(anyString())).thenReturn(Optional.empty());
-        when(templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAsc(anyString()))
+        when(templateRepository.findFirstByCodeIsNullAndCategoryOrderByCreatedAtAscIdAsc(anyString()))
                 .thenReturn(Optional.empty());
         seeder.run();
         ArgumentCaptor<Template> captor = ArgumentCaptor.forClass(Template.class);

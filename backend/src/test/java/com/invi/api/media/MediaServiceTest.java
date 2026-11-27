@@ -205,7 +205,7 @@ class MediaServiceTest {
         when(invitationRepository.findById(invitationId)).thenReturn(Optional.of(ownedInvitation(ownerId, invitationId)));
         Invitation invitation = ownedInvitation(ownerId, invitationId);
         MediaAsset asset = MediaAsset.builder().invitation(invitation).r2Key("k").type(MediaType.GALLERY).sortOrder(0).build();
-        when(mediaAssetRepository.findByInvitationIdOrderBySortOrderAsc(invitationId)).thenReturn(List.of(asset));
+        when(mediaAssetRepository.findByInvitationIdOrderBySortOrderAscIdAsc(invitationId)).thenReturn(List.of(asset));
 
         List<MediaAssetDto> result = mediaService.list(ownerId, invitationId);
 

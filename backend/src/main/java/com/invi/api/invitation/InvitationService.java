@@ -79,7 +79,7 @@ public class InvitationService {
     }
 
     public List<InvitationDto> findAllOwnedBy(UUID memberId) {
-        return invitationRepository.findAllByMemberIdOrderByCreatedAtDesc(memberId).stream()
+        return invitationRepository.findAllByMemberIdOrderByCreatedAtDescIdDesc(memberId).stream()
                 .map(this::toDto)
                 .toList();
     }

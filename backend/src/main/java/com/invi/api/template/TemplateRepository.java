@@ -9,10 +9,10 @@ public interface TemplateRepository extends JpaRepository<Template, UUID> {
 
     List<Template> findByCategory(String category);
 
-    List<Template> findAllByOrderByCreatedAtAsc();
+    List<Template> findAllByOrderByCreatedAtAscIdAsc();
 
     Optional<Template> findByCode(String code);
 
     /** Rows seeded before {@code code} existed, matched by their original category. */
-    Optional<Template> findFirstByCodeIsNullAndCategoryOrderByCreatedAtAsc(String category);
+    Optional<Template> findFirstByCodeIsNullAndCategoryOrderByCreatedAtAscIdAsc(String category);
 }

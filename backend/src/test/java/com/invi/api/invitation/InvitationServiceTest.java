@@ -279,7 +279,7 @@ class InvitationServiceTest {
                         .template(template)
                         .member(ownerWithId(ownerId))
                         .build();
-        when(invitationRepository.findAllByMemberIdOrderByCreatedAtDesc(ownerId)).thenReturn(List.of(newer, older));
+        when(invitationRepository.findAllByMemberIdOrderByCreatedAtDescIdDesc(ownerId)).thenReturn(List.of(newer, older));
 
         List<InvitationDto> result = invitationService.findAllOwnedBy(ownerId);
 

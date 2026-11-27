@@ -14,7 +14,7 @@ public class TemplateService {
 
     public List<TemplateDto> findAll() {
         // Seed order == registry order; an unordered scan reshuffles once the seeder updates rows.
-        return templateRepository.findAllByOrderByCreatedAtAsc().stream().map(this::toDto).toList();
+        return templateRepository.findAllByOrderByCreatedAtAscIdAsc().stream().map(this::toDto).toList();
     }
 
     public TemplateDetailDto findById(UUID id) {

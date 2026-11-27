@@ -52,18 +52,21 @@ class GuestbookEntryRepositoryTest {
     void listsLiveEntriesNewestFirst_withTheIdBreakingTies() {
         GuestbookEntry oldest = save("oldest", "2026-01-01T00:00:00Z");
         GuestbookEntry newest = save("newest", "2026-03-01T00:00:00Z");
-        GuestbookEntry tieA = save("tie-a", "2026-02-01T00:00:00Z");
-        GuestbookEntry tieB = save("tie-b", "2026-02-01T00:00:00Z");
+        // Five ties: without the id tie-break an arbitrary order would match only 1 time in 120.
+        // PostgreSQL orders uuids by their bytes, i.e. by hex text (Java's compareTo is signed).
+        List<UUID> ties = java.util.stream.IntStream.range(0, 5)
+                .mapToObj(i -> save("tie-" + i, "2026-02-01T00:00:00Z").getId())
+                .sorted(Comparator.comparing(UUID::toString).reversed()).toList();
         GuestbookEntry deleted = save("deleted", "2026-04-01T00:00:00Z");
         entityManager.createNativeQuery("update guestbook_entry set deleted_at = now() where id = :id")
                 .setParameter("id", deleted.getId()).executeUpdate();
         entityManager.clear();
-        // PostgreSQL orders uuids by their bytes, i.e. by hex text (Java's compareTo is signed).
-        List<UUID> ties = Stream.of(tieA.getId(), tieB.getId()).sorted(Comparator.comparing(UUID::toString).reversed()).toList();
+        List<UUID> expected = Stream.of(Stream.of(newest.getId()), ties.stream(), Stream.of(oldest.getId()))
+                .flatMap(s -> s).toList();
 
         assertThat(entries.findByInvitationIdAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(invitation.getId()))
                 .extracting(GuestbookEntry::getId)
-                .containsExactly(newest.getId(), ties.get(0), ties.get(1), oldest.getId());
+                .containsExactlyElementsOf(expected);
     }
 
     /** createdAt comes from auditing, so the test pins it afterwards to control the order. */

@@ -31,7 +31,7 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
     @Query("update Invitation i set i.reviewToken = :token where i.id = :id")
     int updateReviewToken(@Param("id") UUID id, @Param("token") String token);
 
-    List<Invitation> findAllByMemberIdOrderByCreatedAtDesc(UUID memberId);
+    List<Invitation> findAllByMemberIdOrderByCreatedAtDescIdDesc(UUID memberId);
 
     List<Invitation> findByPlanAndWeddingDateBeforeOrderByWeddingDateAscIdAsc(Plan plan, LocalDate date, Limit limit);
 }

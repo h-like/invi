@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface MediaAssetRepository extends JpaRepository<MediaAsset, UUID> {
 
-    List<MediaAsset> findByInvitationIdOrderBySortOrderAsc(UUID invitationId);
+    List<MediaAsset> findByInvitationIdOrderBySortOrderAscIdAsc(UUID invitationId);
 
     List<MediaAsset> findByR2Key(String r2Key);
 
