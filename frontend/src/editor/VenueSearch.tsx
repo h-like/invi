@@ -17,8 +17,12 @@ export function VenueSearch({ content, onPick, onManualAddress }: {
   const place = readMapPlace(content)
   const verified = isVerifiedAddress(content)
   const address = typeof content.address === 'string' ? content.address : ''
-  const [open, setOpen] = useState(!verified)
-  const [manual, setManual] = useState(!verified && address.trim() !== '')
+  // Only the couple's own toggles are state; what is shown follows the current content, which can
+  // change under this component (e.g. replacing the draft with another tab's newer version).
+  const [open, setOpen] = useState(false)
+  const [manual, setManual] = useState(false)
+  const searchShown = open || !verified
+  const manualShown = !verified && (manual || address.trim() !== '')
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<Scope>('venue')
   const [results, setResults] = useState<PlaceSearchResult[] | null>(null)
@@ -66,13 +70,13 @@ export function VenueSearch({ content, onPick, onManualAddress }: {
           </div>
         </div>
       )}
-      {manual && !verified && (
+      {manualShown && (
         <div className="venue-manual">
           <label>주소 (직접 입력)<input value={address} maxLength={300} onChange={e => onManualAddress(e.target.value)} placeholder="도로명 주소를 정확히 입력해 주세요" /></label>
           <p className="venue-unverified" role="status">검색으로 확인하지 않은 주소예요. 하객의 지도 버튼은 이 글자로 검색하니 오타가 없는지 꼭 확인해 주세요. 가능하면 아래에서 장소를 검색해 선택해 주세요.</p>
         </div>
       )}
-      {open && (
+      {searchShown && (
         <>
           <div className="venue-search-row">
             <input type="search" value={query} maxLength={50} onChange={e => setQuery(e.target.value)} onKeyDown={onKeyDown}
@@ -98,7 +102,7 @@ export function VenueSearch({ content, onPick, onManualAddress }: {
             <div className="venue-fallback">
               <span>{results ? '찾는 곳이 없나요?' : '검색이 안 되면'}</span>
               {results && scope === 'venue' && <button type="button" disabled={loading} onClick={() => void search('all')}>모든 장소에서 찾기 (성당·레스토랑 등)</button>}
-              {!manual && <button type="button" onClick={typeAddress}>주소 직접 입력</button>}
+              {!manualShown && <button type="button" onClick={typeAddress}>주소 직접 입력</button>}
             </div>
           )}
         </>
