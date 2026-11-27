@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isVerifiedAddress, mapLinks, placeContentPatch, readMapPlace, type PlaceSearchResult } from './mapPlace.ts'
+import { isVerifiedAddress, manualAddressPatch, mapLinks, placeContentPatch, readMapPlace, type PlaceSearchResult } from './mapPlace.ts'
 
 const result: PlaceSearchResult = {
   id: '8130419', name: '롯데호텔 서울', category: '특급호텔', roadAddress: '서울 중구 을지로 30', address: '서울 중구 소공동 1',
@@ -38,4 +38,11 @@ test('kakao opens the exact place when verified, otherwise both maps search the 
     'https://map.kakao.com/link/map/8130419',
   ])
   assert.equal(mapLinks({ address: '어딘가' }, '어딘가')[1].url, 'https://map.kakao.com/link/search/' + encodeURIComponent('어딘가'))
+})
+
+test('typing an address by hand drops the picked place, so links search the typed text', () => {
+  const content = { ...placeContentPatch(result, '', null), ...manualAddressPatch('서울 중구 명동길 74') }
+  assert.equal(readMapPlace(content), null)
+  assert.equal(isVerifiedAddress(content), false)
+  assert.equal(mapLinks(content, '서울 중구 명동길 74')[1].url, 'https://map.kakao.com/link/search/' + encodeURIComponent('서울 중구 명동길 74'))
 })

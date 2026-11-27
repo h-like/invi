@@ -2,6 +2,7 @@ package com.invi.api.place;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -40,6 +41,18 @@ class PlaceSearchServiceTest {
         assertThat(place.category()).isEqualTo("웨딩홀");
         assertThat(place.lat()).isEqualTo(37.52);
         assertThat(place.lng()).isEqualTo(127.04);
+    }
+
+    @Test
+    void searchAll_keepsPlacesTheVenueFilterWouldDrop_forCeremoniesHeldElsewhere() {
+        when(kakao.search("명동성당", 1)).thenReturn(new KeywordPage(List.of(
+                doc("10", "명동성당", "종교 > 천주교 > 성당"),
+                doc("11", "아펠가모 앳홈 청담점", "서비스,산업 > 전문대행 > 공간대여")), new Meta(false)));
+
+        assertThat(service.searchAll("명동성당")).extracting(PlaceDto::id, PlaceDto::category)
+                .containsExactly(tuple("10", "성당"), tuple("11", "공간대여"));
+        verify(kakao, never()).search("명동성당", 2);
+        assertThatThrownBy(() -> service.searchAll("가")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

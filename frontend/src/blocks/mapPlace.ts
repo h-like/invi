@@ -48,6 +48,14 @@ export function placeContentPatch(result: PlaceSearchResult, currentVenueName: s
   return { place, address, venueName: keepVenueName ? currentVenueName : result.name }
 }
 
+/**
+ * A typed address for a ceremony the place search cannot find. The picked place is dropped so the
+ * guest links fall back to searching this text, and the editor keeps warning that it is unverified.
+ */
+export function manualAddressPatch(address: string): Record<string, unknown> {
+  return { address, place: null }
+}
+
 /** True when the shown address came from the place search rather than being typed by hand. */
 export function isVerifiedAddress(content: Record<string, unknown>): boolean {
   const place = readMapPlace(content)

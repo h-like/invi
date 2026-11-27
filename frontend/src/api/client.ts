@@ -60,8 +60,9 @@ export const api = {
 
   getTemplate: (id: string) => request<TemplateDetail>(`/api/templates/${encodeURIComponent(id)}`),
 
-  /** Wedding venues only (halls, hotels, convention halls); the server filters by category. */
-  searchPlaces: (query: string) => request<PlaceSearchResult[]>(`/api/places/search?query=${encodeURIComponent(query)}`),
+  /** 'venue' keeps wedding venues only (halls, hotels, convention halls); 'all' is the fallback for anywhere else. */
+  searchPlaces: (query: string, scope: 'venue' | 'all' = 'venue') =>
+    request<PlaceSearchResult[]>(`/api/places/search?query=${encodeURIComponent(query)}&scope=${scope}`),
 
   createInvitation: (body: { templateId: string; slug: string; weddingDate: string }) =>
     request<Invitation>('/api/invitations', { method: 'POST', body: JSON.stringify(body) }),

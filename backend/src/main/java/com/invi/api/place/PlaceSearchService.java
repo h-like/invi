@@ -17,14 +17,27 @@ public class PlaceSearchService {
     private final KakaoLocalClient kakao;
 
     /**
+     * Any place Kakao knows, for ceremonies held where the venue filter does not reach
+     * (churches, restaurants, rented spaces). Still a real place with an id, so links stay exact.
+     */
+    public List<PlaceDto> searchAll(String rawQuery) {
+        String query = validQuery(rawQuery);
+        KakaoLocalClient.KeywordPage result = kakao.search(query, 1);
+        List<KakaoLocalClient.Document> docs = result.documents() == null ? List.of() : result.documents();
+        Map<String, PlaceDto> places = new LinkedHashMap<>();
+        for (KakaoLocalClient.Document doc : docs) {
+            PlaceDto place = toDto(doc);
+            if (place != null) places.putIfAbsent(place.id(), place);
+        }
+        return new ArrayList<>(places.values());
+    }
+
+    /**
      * Searches venues only. Kakao returns at most 45 places over three pages and a generic word
      * matches many non-venues, so further pages are read until enough venues are found.
      */
     public List<PlaceDto> searchVenues(String rawQuery) {
-        String query = rawQuery == null ? "" : rawQuery.strip();
-        if (query.length() < 2) throw new IllegalArgumentException("검색어를 두 글자 이상 입력해 주세요.");
-        if (query.length() > MAX_QUERY_LENGTH)
-            throw new IllegalArgumentException("검색어는 " + MAX_QUERY_LENGTH + "자 이하로 입력해 주세요.");
+        String query = validQuery(rawQuery);
         Map<String, PlaceDto> venues = new LinkedHashMap<>();
         for (int page = 1; page <= KakaoLocalClient.MAX_PAGE && venues.size() < ENOUGH_RESULTS; page++) {
             KakaoLocalClient.KeywordPage result = kakao.search(query, page);
@@ -39,6 +52,14 @@ public class PlaceSearchService {
         return new ArrayList<>(venues.values());
     }
 
+    private static String validQuery(String rawQuery) {
+        String query = rawQuery == null ? "" : rawQuery.strip();
+        if (query.length() < 2) throw new IllegalArgumentException("검색어를 두 글자 이상 입력해 주세요.");
+        if (query.length() > MAX_QUERY_LENGTH)
+            throw new IllegalArgumentException("검색어는 " + MAX_QUERY_LENGTH + "자 이하로 입력해 주세요.");
+        return query;
+    }
+
     private static PlaceDto toDto(KakaoLocalClient.Document doc) {
         if (blankToNull(doc.id()) == null || blankToNull(doc.placeName()) == null) return null;
         String road = blankToNull(doc.roadAddressName());
@@ -47,7 +68,8 @@ public class PlaceSearchService {
         try {
             double lng = Double.parseDouble(doc.x());
             double lat = Double.parseDouble(doc.y());
-            return new PlaceDto(doc.id(), doc.placeName().trim(), lastSegment(doc.categoryName()), road, jibun,
+            String category = doc.categoryName() == null ? "" : lastSegment(doc.categoryName());
+            return new PlaceDto(doc.id(), doc.placeName().trim(), category, road, jibun,
                     blankToNull(doc.phone()), lat, lng, blankToNull(doc.placeUrl()));
         } catch (NumberFormatException | NullPointerException e) {
             return null;

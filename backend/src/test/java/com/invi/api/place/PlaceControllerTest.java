@@ -51,6 +51,19 @@ class PlaceControllerTest {
     }
 
     @Test
+    void search_scopeAllUsesTheUnfilteredSearch_andUnknownScopeIs400() throws Exception {
+        when(placeSearchService.searchAll("명동성당")).thenReturn(List.of(new PlaceDto(
+                "10", "명동성당", "성당", "서울 중구 명동길 74", null, null, 37.56, 126.98, null)));
+
+        mvc.perform(get("/api/places/search").param("query", "명동성당").param("scope", "all").with(user("member")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].category").value("성당"));
+        mvc.perform(get("/api/places/search").param("query", "명동성당").param("scope", "x").with(user("member")))
+                .andExpect(status().isBadRequest());
+        verify(placeSearchService, never()).searchVenues(any());
+    }
+
+    @Test
     void search_answers400ForBadQuery_and503WhenKakaoIsUnavailable() throws Exception {
         when(placeSearchService.searchVenues("가")).thenThrow(new IllegalArgumentException("검색어를 두 글자 이상 입력해 주세요."));
         mvc.perform(get("/api/places/search").param("query", "가").with(user("member")))

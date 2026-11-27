@@ -124,11 +124,12 @@ RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽�
 
 ## 예식장 검색 (Kakao Local)
 
-`com.invi.api.place`에 있다. 오시는 길의 주소는 손으로 입력하지 않고 실제 장소를 검색해 고른다.
+`com.invi.api.place`에 있다. 오시는 길의 주소는 실제 장소를 검색해 고르는 것이 기본이다.
 
 - **흐름**: 편집기 `VenueSearch`가 `GET /api/places/search?query=`(로그인 필요, API 쿼터 보호)를 부르면 서버가 Kakao 키워드 검색을 최대 3페이지 읽고 `VenueFilter`로 예식 장소만 남긴다(카테고리 `예식장`·`웨딩홀`·`호텔`·`컨벤션`·`연회장` 등 + 뷔페/문화시설로 분류된 홀은 이름에 `웨딩`·`예식`·`컨벤션`·`볼룸`이 있을 때만. 드레스·스튜디오·주차장·모텔 등은 제외). 고르면 `map.content.place`(`id`·`name`·`address`·`lat`·`lng`)와 `address`(도로명 우선)가 함께 바뀐다. 읽기·검증은 `frontend/src/blocks/mapPlace.ts` 한 곳.
 - **하객 화면**: `place`가 있고 `address`와 같을 때만 카카오맵 버튼이 그 장소(`map.kakao.com/link/map/{id}`)를 연다. 아니면 예전처럼 주소 검색. 하객 기기에서 지도 SDK·타일 같은 제3자 요청은 내지 않는다(링크만).
-- **공개 조건**: 오시는 길이 보이면 검색으로 고른 장소가 있어야 공개된다(`publishIssues`).
+- **예식장이 아닌 곳**: 검색 결과 아래 "모든 장소에서 찾기"가 `scope=all`(필터 없이 첫 페이지)로 성당·레스토랑·공간대여 등을 찾는다. 이것도 실제 장소라 링크가 정확하다. 어디에도 없으면 "주소 직접 입력"(`manualAddressPatch`: `place`를 `null`로 비움)을 쓰고, 편집기는 확인되지 않은 주소라고 계속 경고한다.
+- **공개 조건**: 오시는 길이 보이면 식장 이름과 주소가 있어야 공개된다(`publishIssues`). 검색 확인 여부는 막지 않는다 — 검색으로 찾을 수 없는 예식 장소가 있어서다.
 - **키**: Kakao Developers 앱 `wedding-invite`의 전용 REST API 키(`invi-venue-search`, 카카오맵 사용 ON). 로컬은 `backend/.env`(gitignored)의 `KAKAO_REST_API_KEY`를 `spring.config.import`로 읽고, 배포는 같은 이름의 환경변수다. 키가 없으면 앱은 뜨고 검색만 503.
 
 ## HTTPS 테스트 배포

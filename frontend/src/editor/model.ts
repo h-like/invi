@@ -1,7 +1,6 @@
 import type { Block, BlockType, HeroLayout, LookOverrides, PageData, PageDesign } from '../api/types.ts'
 import type { FontFaceId, ThemeFonts } from '../blocks/fonts.ts'
 import themes from './themes.json' with { type: 'json' }
-import { isVerifiedAddress } from '../blocks/mapPlace.ts'
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
   hero: '첫 화면 · 초대의 글', countdown: '예식일 카운트다운', gallery: '웨딩 갤러리',
@@ -391,6 +390,7 @@ export function publishIssues(page: PageData): string[] {
   if (!hero) issues.push('첫 화면을 표시해 주세요.')
   else if (![hero.content.groomName, hero.content.brideName].every(n => typeof n === 'string' && n.trim())) issues.push('신랑과 신부 이름을 입력해 주세요.')
   const map = page.blocks.find(b => b.type === 'map' && b.visible)
-  if (map && !(typeof map.content.venueName === 'string' && map.content.venueName.trim() && isVerifiedAddress(map.content))) issues.push('오시는 길은 예식장 검색으로 장소를 선택하고 식장 이름을 입력하거나, 해당 섹션을 숨겨 주세요.')
+  // A typed address may publish (the editor warns it is unverified): some ceremonies are held where no search finds them.
+  if (map && ![map.content.venueName, map.content.address].every(n => typeof n === 'string' && n.trim())) issues.push('오시는 길의 장소를 검색해 선택하거나 주소를 입력하고, 식장 이름을 입력해 주세요. 표시하지 않으려면 해당 섹션을 숨겨 주세요.')
   return issues
 }
