@@ -1,7 +1,17 @@
 # invi — 모바일 청첩장 서비스
 
 1인 개발 · 포트폴리오 겸 실서비스. 하객 100명 이상 실사용 확보가 목표.
-전체 아키텍처 배경은 프로젝트 기획서(구글 문서)와 별도로 정리한 아키텍처 문서를 참고 — 이 파일은 그중 "코드를 어떻게 짜는가"만 다룬다.
+전체 아키텍처 배경은 프로젝트 기획서(구글 문서)와 별도로 정리한 아키텍처 문서를 참고 — 이 파일은 그중 "코드를 어떻게 짜는가"의 원칙만 다룬다. 단계별 절차는 아래 프로젝트 스킬과 `docs/`에 있다.
+
+## 프로젝트 스킬 (`.claude/skills/`)
+
+작업이 해당하면 코드를 쓰기 전에 먼저 연다.
+
+| 스킬 | 언제 |
+|---|---|
+| `invitation-write-path` | 청첩장·RSVP·방명록·미디어를 읽고 쓰는 엔드포인트/서비스, 편집기 저장 경로 |
+| `schema-change` | 엔티티·컬럼·제약·enum 변경, Flyway 마이그레이션 |
+| `template-design-system` | 테마·파츠·토큰·폰트·봉투, page_data의 design/content 필드 |
 
 ## 레포 구조
 
@@ -14,46 +24,34 @@ invi/
 
 ## 백엔드 컨벤션 (backend/)
 
-**패키지**: `com.invi.api.<domain>` 단위로 기능별 분리. domain 하나에 entity·repository·dto를 같이 둔다(계층별 패키지 아님). 아직 컨트롤러/서비스가 없는 도메인은 entity + repository까지만 존재해도 된다 — 다음 단계에서 채운다.
+**패키지**: `com.invi.api.<domain>` 단위로 기능별 분리. domain 하나에 entity·repository·dto를 같이 둔다(계층별 패키지 아님). 아직 컨트롤러/서비스가 없는 도메인은 entity + repository까지만 있어도 된다.
 
-- `common` — BaseEntity, JPA/Security 설정, 아직 도메인이 정해지지 않은 공용 코드
-- `account` — Member(신랑신부 계정)
-- `invitation` — Invitation(청첩장 본체)
+- `common` — BaseEntity, JPA/Security 설정, 배포 가드, 아직 도메인이 정해지지 않은 공용 코드
+- `account` — Member(신랑신부 계정), 인증
+- `invitation` — Invitation(청첩장 본체), 하객 응답 뷰, 만료 배치
 - `template` — Template(템플릿 프리셋)
 - `rsvp` — Rsvp(참석 응답)
 - `guestbook` — GuestbookEntry(방명록)
-- `media` — MediaAsset(갤러리·OG·커버 이미지), Cloudflare R2 presigned 업로드
+- `media` — MediaAsset, R2 presigned 업로드, 잔여 파일 정리
 - `payment` — Phase 3에서 추가 예정, 아직 생성하지 않음
 
-**ID**: 모든 엔티티는 `BaseEntity`(`com.invi.api.common.BaseEntity`)를 상속한다. `UUID id`, `createdAt`, `updatedAt`을 자동으로 갖는다 — 엔티티에 다시 선언하지 않는다. PK를 UUID로 쓰는 이유는 슬러그·초대 링크처럼 외부에 노출되는 리소스라 순차 ID를 숨겨야 해서다.
+**엔티티**: 모두 `BaseEntity`를 상속해 `UUID id`·`createdAt`·`updatedAt`을 자동으로 갖는다(다시 선언하지 않음). UUID PK인 이유는 슬러그·초대 링크처럼 외부에 노출되는 리소스라 순차 ID를 숨겨야 해서다. Lombok은 `@Getter` + `@NoArgsConstructor(access = PROTECTED)` + `@Builder`/정적 팩토리만 쓴다. `@Setter`/`@Data` 금지 — 상태 변경은 의도가 드러나는 메서드(`publish()` 등)로. DTO는 Java `record`.
 
-**Lombok**: 엔티티는 `@Getter` + `@NoArgsConstructor(access = AccessLevel.PROTECTED)` + `@Builder`/정적 팩토리 메서드 조합을 쓴다. `@Setter`나 `@Data`는 엔티티에 쓰지 않는다 — 상태 변경은 의도가 드러나는 메서드(`publish()`, `markPaid()` 등)로 한다. DTO는 Java `record`를 쓴다(Lombok 불필요).
+**JSONB 컬럼**: `page_data`처럼 자유도 높은 구조는 POJO로 고정하지 않고 `JsonNode`를 그대로 `jsonb`에 저장한다(아키텍처 문서 03번 — 에디터와 하객뷰가 같은 JSON을 공유 렌더링하므로 백엔드가 스키마를 고정하면 안 된다).
 
-**JSONB 컬럼**: `page_data`처럼 자유도 높은 구조는 고정 POJO로 매핑하지 않고 Jackson `JsonNode`를 그대로 저장한다.
-```java
-@JdbcTypeCode(SqlTypes.JSON)
-@Column(columnDefinition = "jsonb")
-private JsonNode pageData;
-```
-이유는 아키텍처 문서 03번 결정 참고 — 에디터와 하객뷰가 같은 JSON을 공유 렌더링하기 때문에 백엔드가 스키마를 강하게 고정하면 안 된다.
+**Jackson 2 / 3 경계 (조용히 깨지는 함정)**: Spring Boot 4의 HTTP 레이어는 Jackson 3(`tools.jackson.databind`), Hibernate JSON 매핑은 Jackson 2(`com.fasterxml.jackson.databind`)다. 클래스명이 같아서 섞으면 오류 없이 이상한 JSON이 나간다. 규칙: **엔티티 = Jackson 2 `JsonNode`, 응답 DTO = `@JsonRawValue String`, 요청 바디(Jackson 3) → 엔티티 변환은 서비스 레이어**(`InvitationService.toEntityJson()`, `JacksonConfig`의 `entityJsonMapper`). 상세는 `invitation-write-path` 스킬.
 
-**Jackson 2 / 3 경계 (중요, 헷갈리기 쉬움)**: Spring Boot 4가 HTTP 레이어를 Jackson 3(`tools.jackson.databind`)로 옮겼는데, Hibernate의 JSON 컬럼 매핑(`@JdbcTypeCode(SqlTypes.JSON)`)은 여전히 Jackson 2(`com.fasterxml.jackson.databind`)를 기준으로 동작한다. 두 라이브러리가 같은 클래스명(`JsonNode`, `ObjectMapper`)을 쓰기 때문에 섞어 쓰면 조용히 잘못 동작한다(예: `pageData`가 JSON이 아니라 `JsonNode`의 getter들을 직렬화한 이상한 객체로 나감).
-- **엔티티**는 항상 Jackson 2 `com.fasterxml.jackson.databind.JsonNode`를 쓴다(`Invitation.pageData/langVariants`, `Template.defaultPageData`). Hibernate가 이걸 기준으로 매핑한다.
-- **DTO**(HTTP 응답으로 나가는 것: `InvitationDto`, `GuestInvitationDto`)는 JsonNode를 직접 노출하지 않고, `@JsonRawValue` 붙은 `String` 필드에 `node.toString()`을 담아 내보낸다. `@JsonRawValue`는 `com.fasterxml.jackson.annotation` 패키지라 Jackson 2/3 어느 쪽에서도 동일하게 인식된다.
-- **요청 바디**로 들어오는 JSON(`UpdatePageDataRequest.pageData`)은 Spring이 Jackson 3로 역직렬화하므로 타입이 `tools.jackson.databind.JsonNode`다. 서비스 레이어에서 `entityJsonMapper.readTree(node.toString())`로 Jackson 2 `JsonNode`로 변환한 뒤 엔티티에 반영한다(`InvitationService.toEntityJson()` 참고). `entityJsonMapper`는 `JacksonConfig`가 등록하는 Jackson 2 전용 빈이다.
-- 새 엔드포인트에서 JSONB 필드를 다룰 때는 이 패턴(엔티티=Jackson2, DTO=`@JsonRawValue String`, 입력 변환=서비스 레이어)을 그대로 따른다.
+**삭제 정책**: "삭제 권한은 있지만 감사 추적이 필요한" 데이터(방명록)는 `deletedAt` 소프트 삭제. 예외로 무료 만료(예식일+10일 배치, `InvitationExpiryService`)는 개인정보 보관 최소화가 우선이라 레코드를 실제로 지우고 R2 이미지는 `MediaLifecycle`로 넘긴다. 기본 dry-run, 규칙은 `docs/INVITATION_EXPIRY.md`.
 
-**소프트 삭제**: 방명록처럼 "삭제 권한은 있지만 감사 추적이 필요한" 데이터는 물리 삭제 대신 `deletedAt(Instant, nullable)` 컬럼을 둔다. 무료 만료로 인한 청첩장 자체 삭제(예식일+10일 배치, `InvitationExpiryService`)는 예외로, 실제 레코드를 지우고 R2 이미지는 `MediaLifecycle`로 넘겨 정리 작업이 지운다(개인정보 보관 최소화가 우선이라 소프트 삭제하지 않음). 기본 dry-run이며 규칙·설정은 `docs/INVITATION_EXPIRY.md` 참고.
+**스키마 (Flyway)**: 스키마는 `db/migration`의 Flyway 마이그레이션으로만 바꾸고 Hibernate는 `ddl-auto: validate`만 한다. 엔티티 변경과 같은 커밋에 다음 번호 `V{n}__설명.sql`, 이미 적용된 파일은 수정 금지. `baseline-on-migrate`는 모든 프로필에서 꺼져 있다 — `ddl-auto` 시절 DB의 일회성 baseline 절차는 `docs/HTTPS_TEST_DEPLOY.md`(`FlywayLegacyBaselineTest`). 변경 절차는 `schema-change` 스킬.
 
-**스키마 변경 (Flyway)**: 스키마는 `backend/src/main/resources/db/migration`의 Flyway 마이그레이션만 바꾼다. Hibernate는 `ddl-auto: validate`로 엔티티와 일치하는지만 확인한다(https-test 배포 가드도 `validate`만 허용). 엔티티에 컬럼·제약을 추가하거나 바꾸면 같은 커밋에 다음 번호 `V{n}__설명.sql`을 추가한다. 이미 적용된 마이그레이션 파일은 수정하지 않는다. enum 값을 늘리면 그 컬럼의 CHECK 제약을 마이그레이션에서 다시 만든다. `V1__baseline.sql`은 전환 시점 Hibernate 스키마 그대로(제약 이름 포함)다. `baseline-on-migrate`는 모든 프로필에서 꺼져 있어서, 이력 없이 테이블만 있는 DB는 기동을 거절한다. `ddl-auto`로 만든 기존 DB(https-test의 Neon DB는 `51e6e1b` 때)는 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`로 **한 번만** 기동해 V1로 표시하고 `V2`가 그 이후 바뀐 부분을 보충한다(`FlywayLegacyBaselineTest`). 끝나면 변수를 지운다 — 켜 둔 채면 잘못 가리킨 다른 DB도 받아들인다. V2는 `51e6e1b`보다 오래된 DB까지 맞춰 주지는 않는다. 절차는 `docs/HTTPS_TEST_DEPLOY.md`.
+**로컬 DB가 Flyway 오류로 기동을 거절할 때** (`bootRun`·`./gradlew test`가 docker의 같은 DB를 쓴다): "non-empty schema ... without a schema history table"이면 Flyway 이전 `ddl-auto`로 만든 DB다. 데이터가 필요 없으면 `docker compose down -v && docker compose up -d`(볼륨 삭제), 남기려면 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`로 한 번 기동한 뒤 변수 없이 다시 띄운다. Flyway 이전에 딴 브랜치는 `ddl-auto: update`로 마이그레이션 밖 변경을 남기므로 main을 받은 뒤 실행한다.
 
-**로컬 DB가 Flyway 오류로 기동을 거절할 때** (`bootRun`·`./gradlew test` 모두 docker의 같은 DB를 쓴다): "non-empty schema ... without a schema history table"이면 Flyway 이전 `ddl-auto`로 만든 DB다. 로컬 데이터가 필요 없으면 `docker compose down -v && docker compose up -d`로 새로 만든다(볼륨 데이터 삭제). 남기려면 백엔드를 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`로 한 번 기동한 뒤 변수 없이 다시 띄운다. Flyway 이전에 딴 브랜치는 같은 DB에 `ddl-auto: update`로 마이그레이션 밖의 변경을 남기므로 main을 받은 뒤 실행한다.
+**저장 충돌 (낙관적 잠금)**: `Invitation.version`(`@Version`)은 청첩장이 바뀔 때마다 오른다(페이지 저장·예식일·공개·비공개). `PUT /page-data`는 편집기가 마지막으로 받은 `version`을 보내고, 다르면 409 + `code: STALE_VERSION` — 다른 탭·기기의 저장을 덮어쓰지 않기 위해서다. 쓰기는 미디어 잠금 안에서 검사하고 `flushedDto()`로 flush 후 응답한다. 편집기는 같은 탭의 쓰기를 `createInvitationPersistence` 한 가드로 하나씩 보내고, 응답이 끊긴 경우 "version이 정확히 1 올랐고 이 탭의 쓰기가 보일 때만" 성공으로 본다(`editor/persistence.ts`). 충돌 시 초안은 유지하고 "최신 내용 새 탭에서 보기"·"최신 내용으로 바꾸기"만 제공한다(강제 덮어쓰기는 MVP 제외). 쓰기별 세부 규칙은 `invitation-write-path` 스킬.
 
-**저장 충돌 (낙관적 잠금)**: `Invitation.version`(`@Version`, V3)은 청첩장이 바뀔 때마다 오른다(페이지 저장·예식일·공개). `PUT /page-data`는 편집기가 마지막으로 받은 `version`을 함께 보내야 하고, 다르면 저장하지 않고 409 + `code: STALE_VERSION`(`StaleVersionException`)을 돌려준다 — 다른 탭·기기에서 먼저 저장한 내용을 덮어쓰지 않기 위해서다. 검사는 미디어 잠금 안에서 하므로 다른 저장과 경합하지 않고, 놓친 경우는 Hibernate `@Version`이 같은 409로 막는다. 버전은 flush 때 오르므로 쓰기 서비스는 `flushedDto()`로 flush 후 응답한다(안 그러면 다음 저장이 늘 충돌한다). 편집기는 충돌 시 초안을 그대로 두고 "최신 내용 새 탭에서 보기"·"최신 내용으로 바꾸기"(확인 후 덮어씀)만 제공한다. 강제 덮어쓰기는 MVP에서 제외했다. 같은 탭의 쓰기(페이지 저장·공개·예식일)는 `createInvitationPersistence`의 한 가드로 하나씩만 보낸다 — 동시에 보내면 자기 저장끼리 충돌한다. 그래서 예식일 저장 응답은 버전이 정확히 1 올랐을 때만 반영해서, 그 사이 다른 곳의 저장을 놓치지 않는다(예외: 이 탭의 응답 끊긴 쓰기가 먼저 반영돼 2 오른 경우, 응답에 그 쓰기가 보이면 반영한다 — `persistence.ts`의 `own`). 공개 응답을 못 받으면 다시 읽어서 `PUBLISHED`이고 버전이 정확히 1 올랐을 때만 공개 완료로 본다(안 그러면 재시도가 자기 공개 때문에 충돌한다). 같은 이유로 저장·공개 응답이 끊긴 뒤 재시도가 409를 받으면 저장본을 한 번 읽어, 버전이 정확히 1 앞서 있고 이 탭이 보낸 내용(키 순서 무시)이나 공개 상태가 보일 때만 그 버전 위에 다시 저장한다(`persistence.ts`의 `ownWriteLanded`). 비공개 전환(`POST /unpublish`, 이미 DRAFT면 변화 없음)도 버전을 올리므로 같은 가드로 보내고, 응답이 끊기면 예식일처럼 기억한다(`persistence.unpublish`). 이 탭의 응답 끊긴 쓰기 위에 비공개가 반영돼 2 오른 경우도 그 쓰기가 보이면 반영한다(끊긴 비공개 자신은 제외 — 다시 보내도 버전이 안 오르므로 2 올랐다면 다른 곳의 저장이다).
+**확인 링크와 비공개 전환**: 소유자가 `POST /{id}/review-link`로 추측 불가 토큰(`reviewToken`)을 만들어 `/r/{token}`으로 공유한다. 상태와 무관하게 저장본을 하객 화면 그대로(숨긴 블록 제외) 보여주되 RSVP·방명록은 받지 않는다. `DELETE`하면 즉시 404, 다시 만들면 새 주소. 토큰은 `@Version`을 올리지 않도록 벌크 업데이트(`updateReviewToken`)로만 쓴다. 공개 후 비공개로 되돌려도 응답·방명록은 보존된다.
 
-**확인 링크와 비공개 전환**: 공개 전에 가족·예비 배우자에게 보여줄 수 있게 소유자가 `POST /{id}/review-link`로 추측 불가 토큰(`Invitation.reviewToken`, V4)을 만들고 `/r/{token}`으로 공유한다. 이 페이지는 상태와 관계없이 저장본을 하객 화면 그대로(숨긴 블록 제외) 보여주지만 RSVP·방명록은 받지 않는다(`PageRenderer`의 `guestWrites={false}`, 서버도 PUBLISHED에만 쓰기 허용). `DELETE`로 끄면 그 주소는 즉시 404, 다시 만들면 새 주소다. 토큰은 엔티티를 고치지 않고 `InvitationRepository.updateReviewToken` 벌크 업데이트로만 쓴다 — 엔티티 변경은 `@Version`을 올려(`@OptimisticLock(excluded)`도 이 환경에선 올렸다) 다른 탭의 다음 저장을 충돌시킨다. 공개 후에는 편집기 "공개 상태"에서 비공개로 되돌릴 수 있고 응답·방명록은 보존된다.
-
-**테이블명 예외**: `user`는 PostgreSQL 예약어라 엔티티명을 `Member`로 한다(기획서/아키텍처 문서의 "User"와 동일 개념).
+**테이블명 예외**: `user`는 PostgreSQL 예약어라 엔티티명을 `Member`로 한다(기획서의 "User"와 동일 개념).
 
 ## page_data 블록 스키마
 
@@ -74,64 +72,59 @@ private JsonNode pageData;
 }
 ```
 
-- `type`: `hero | gallery | rsvp | map | account | guestbook | countdown` (아키텍처 문서 03번)
-- 모든 블록은 `id`, `type`, `order`, `visible`, `content`, `style`을 공통으로 갖는다. `content`의 내부 구조만 타입별로 다르다.
-- 백엔드는 이 구조를 검증하지 않고 그대로 저장/반환한다(자유도 우선). 지금 계약의 기준은 프론트 `src/api/types.ts`의 TS 타입과 `src/editor/model.ts`의 정규화 함수다 — 런타임 스키마 라이브러리(Zod 등)는 아직 쓰지 않는다. 검증이 필요해지면 프론트에 런타임 스키마를 먼저 만들어 기준으로 삼고 백엔드는 최소한의 sanity check만 추가한다.
-- 예외: 하객에게 나가는 응답은 숨긴 블록(`visible`이 `true`가 아닌 블록)을 서버에서 뺀다 — 공개 JSON은 누구나 읽을 수 있어서 렌더러에서 거르는 것만으로는 숨긴 계좌·혼주 정보가 노출되기 때문이다. `GuestPageView` 한 곳에서 처리하며 공개 청첩장(`/slug/**`), 확인 링크(`/review/*`), 링크 미리보기, `langVariants`에 같은 규칙을 쓴다. 저장본과 편집용 응답은 그대로다. 숨긴 RSVP·방명록은 신규 제출을 403으로 막고 기존 응답은 보존하며, 하객용 방명록 조회는 빈 목록을 돌려준다.
-- 편집기는 모르는 필드를 지우지 않는다(이전 버전 탭이 새 편집기의 설정을 날리지 않게). 최상위·블록·`content`는 펼쳐 복사하고, `design`은 `withDesign()`이 아는 필드만 정규화하고 나머지는 그대로 둔다(`look`은 보안상 `sanitizeLook` 결과만 남긴다). 갤러리 `images`는 `splitGalleryImages()`/`withGalleryImages()`로 편집기가 보여줄 수 있는 http(s) 주소만 고치고, 그 밖의 항목(향후 객체형 항목 등)은 뒤에 그대로 붙인다.
-- `Invitation.langVariants`도 같은 JSONB 방식. 블록별로 언어 코드(`ko`/`en`)를 키로 갖는 텍스트 오버라이드만 저장한다.
-- `hero.content` 선택 필드: 혼주 `groomFather`·`groomMother`·`groomRelation`·`brideFather`·`brideMother`·`brideRelation`(부모 이름이 하나도 없으면 표시 안 함, 관계가 비면 아들/딸), 실링 이니셜 `monogram`(영문·`&`·공백 최대 5자, 비면 "&", 봉투 인트로가 있는 테마만 사용, 숨긴 hero(`visible: false`)의 값은 쓰지 않고 "&"). 읽기·정규화는 `frontend/src/blocks/heroDetails.ts` 한 곳에서 한다.
+- `type`: `hero | gallery | rsvp | map | account | guestbook | countdown`. 모든 블록이 `id`·`type`·`order`·`visible`·`content`·`style`을 갖고 `content`만 타입별로 다르다.
+- 백엔드는 구조를 검증하지 않고 그대로 저장/반환한다. 계약의 기준은 프론트 `src/api/types.ts`와 `src/editor/model.ts`의 정규화 함수다(런타임 스키마 라이브러리는 아직 없음 — 필요해지면 프론트에 먼저 만들고 백엔드는 최소 sanity check만).
+- **하객 응답은 숨긴 블록(`visible !== true`)을 서버에서 뺀다** — 공개 JSON은 누구나 읽으므로 렌더러에서만 거르면 숨긴 계좌·혼주 정보가 샌다. `GuestPageView` 한 곳에서 공개 청첩장·확인 링크·링크 미리보기·`langVariants`에 같은 규칙을 쓴다. 숨긴 RSVP·방명록은 신규 제출 403, 기존 데이터 보존.
+- **편집기는 모르는 필드를 지우지 않는다**(이전 버전 탭이 새 설정을 날리지 않게). `design.look`은 보안상 `sanitizeLook` 결과만 남긴다.
+- `Invitation.langVariants`: 블록별로 언어 코드(`ko`/`en`)를 키로 갖는 텍스트 오버라이드만 저장.
+- `hero.content` 선택 필드(혼주 `groom/brideFather·Mother·Relation`, 실링 이니셜 `monogram`)의 읽기·정규화 규칙은 `frontend/src/blocks/heroDetails.ts` 한 곳.
 
 ## 데이터 모델
 
 | 엔티티 | 테이블 | 핵심 필드 | 비고 |
 |---|---|---|---|
-| `Member` | `member` | provider(LOCAL/KAKAO/GOOGLE), providerId, email, name, passwordHash | providerId+provider로 유니크. `LOCAL`(이메일 가입)은 providerId가 이메일이고 `passwordHash`를 쓴다. 소셜 계정은 `passwordHash`가 비어 있다 |
-| `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt, version, reviewToken(unique, nullable) | slug는 서브도메인과 1:1. `version`은 위 "저장 충돌", `reviewToken`(V4)은 위 "확인 링크와 비공개 전환" 참고. `expiresAt`은 만료 배치가 쓰지 않는다(`docs/INVITATION_EXPIRY.md`) |
-| `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋 원본은 `frontend/src/editor/themes.json` 하나 — 에디터 `DESIGN_PRESETS`가 import하고, `backend/build.gradle`이 `presets/themes.json`으로 복사해 `TemplateSeeder`가 읽는다(Dockerfile도 이 파일을 복사). `code` = `category` = `design.theme`. 시더는 `pageData.design`을 직접 저장한다. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
-| `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal은 nullable(이전 응답·이전 클라이언트 호환), 불참이면 meal은 저장하지 않음. 값 종류를 늘리면 새 Flyway 마이그레이션에서 CHECK 제약을 다시 만든다 |
+| `Member` | `member` | provider(LOCAL/KAKAO/GOOGLE), providerId, email, name, passwordHash | providerId+provider 유니크. `LOCAL`은 providerId가 이메일이고 `passwordHash` 사용, 소셜은 비어 있음 |
+| `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt, version, reviewToken(unique, nullable) | slug는 서브도메인과 1:1. `expiresAt`은 만료 배치가 쓰지 않는다 |
+| `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 원본은 `frontend/src/editor/themes.json` 하나(에디터와 `TemplateSeeder`가 공유). `code` = `category` = `design.theme`. 부팅마다 code 기준 생성·동기화, 목록에서 빠진 행도 지우지 않음 |
+| `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal nullable(이전 클라이언트 호환), 불참이면 meal 저장 안 함 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
 | `MediaAsset` | `media_asset` | invitation, r2Key, type(GALLERY/OG/COVER), sortOrder | 업로드 attach 시 생성. 청첩장 만료 시 실제 삭제 |
-| `TrackedMediaObject` | `tracked_media_object` | bucket, r2Key, state(ACTIVE/DELETING/DELETED), unreferencedSince, safeAfter, objectEtag, deletedAt | bucket+r2Key로 유니크. R2 잔여 파일 정리용 추적 표(`docs/MEDIA_CLEANUP.md`) |
+| `TrackedMediaObject` | `tracked_media_object` | bucket, r2Key, state(ACTIVE/DELETING/DELETED), unreferencedSince, safeAfter, objectEtag, deletedAt | bucket+r2Key 유니크. R2 잔여 파일 정리용(`docs/MEDIA_CLEANUP.md`) |
 
-RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽고 DTO에 `createdAt`을 담는다 — `ORDER BY`가 없으면 PostgreSQL이 순서를 보장하지 않아 목록이 읽을 때마다 섞일 수 있다.
+목록은 항상 `createdAt desc, id desc`로 읽고 DTO에 `createdAt`을 담는다 — `ORDER BY`가 없으면 PostgreSQL이 순서를 보장하지 않는다.
 
-## 인증 (Kakao / Google 로그인)
+## 인증 (JWT + Kakao / Google / 이메일)
 
-`com.invi.api.account`에 있다. 세션이 아니라 JWT 기반 — SPA가 API를 호출할 때마다 `Authorization: Bearer <token>`을 보낸다.
+`com.invi.api.account`. 세션이 아니라 JWT — SPA가 매 요청 `Authorization: Bearer <token>`을 보낸다.
 
-- **로그인 흐름**: 프론트가 `GET /oauth2/authorization/{kakao|google}`로 이동 → Spring Security의 `oauth2Login()`이 제공자 로그인 페이지로 리다이렉트 → 콜백에서 `CustomOAuth2UserService`가 Kakao/Google의 서로 다른 유저 정보 응답을 공통 `(provider, providerId, email, name)`으로 매핑하고 `Member`를 find-or-create → `OAuth2LoginSuccessHandler`가 JWT를 발급해 `{FRONTEND_BASE_URL}/oauth/callback?token=...`로 리다이렉트 → 프론트의 `OAuthCallbackPage`가 토큰을 저장하고 `/api/auth/me`를 호출해 로그인 완료.
-- **이후 모든 API 호출**: `JwtAuthenticationFilter`가 `Authorization` 헤더를 검증해서 `Authentication#getName()`에 `Member.id`(문자열 UUID)를 심는다. 컨트롤러는 `CurrentMember.requireId(authentication)`으로 꺼내 쓴다 — `Invitation` 생성 시 `memberId`를 요청 바디로 받지 않는 이유가 이거다(과거엔 받았지만 로그인이 생기면서 제거함).
-- **공개 엔드포인트**(로그인 불필요, `SecurityConfig` 참고): `GET /api/templates/**`, `GET /api/invitations/slug/**`, `GET /api/invitations/slug-available`, `GET /api/invitations/review/*`(확인 링크, 토큰이 곧 권한), RSVP 제출(`POST /api/invitations/*/rsvps`), 방명록 조회·작성(`GET`/`POST` `/api/invitations/*/guestbook`, 하객이 서로의 글을 읽어야 하는 기능이라 조회도 공개 — 단 게시된 청첩장에서 방명록이 보일 때만 글을 준다). 신랑신부의 응답 관리 화면은 숨김과 무관하게 전체를 보는 `GET /api/invitations/*/guestbook/manage`(로그인·소유권 필요)를 쓴다. RSVP 열람(`GET /api/invitations/*/rsvps`)은 기획서 5번대로 관리자 전용이라 로그인 필요. 그 외 `/api/**`는 전부 로그인 필요. 공개 쓰기(RSVP·방명록 작성)는 `GuestWriteRateLimiter`로 접속 주소별·청첩장별 한도를 둔다(429, `docs/GUEST_RATE_LIMIT.md`).
-- **소유권 검증**: 로그인만으로는 부족하다 — `InvitationService`/`RsvpService`/`GuestbookService`가 각각 `getOwnedOrThrow` 스타일 체크로 "이 토큰의 memberId가 이 청첩장의 실제 소유자인가"를 한 번 더 확인한다. 아니면 `ForbiddenException`(403). 새 엔드포인트가 특정 청첩장에 종속된 데이터를 다루면 이 패턴을 그대로 따른다 — 로그인 여부만 확인하고 소유권을 빼먹는 게 제일 흔한 실수다.
-- **인증 실패 응답**: `/api/**`로 시작하는 요청이 인증 없이 보호된 엔드포인트에 닿으면 Spring Security 기본값(로그인 페이지로 302 리다이렉트) 대신 401을 반환한다(`SecurityConfig`의 `exceptionHandling().defaultAuthenticationEntryPointFor`) — SPA가 JSON을 기대하는데 HTML 리다이렉트가 오면 fetch가 이상하게 깨지기 때문.
-- **비밀값**: Kakao/Google client-id·secret과 JWT 서명 키는 `backend/src/main/resources/application-local.yml`에 있다 — **git에 안 올라간다**(`.gitignore` 참고). 새로 clone한 환경에서는 이 파일을 직접 만들어야 하고, JWT 시크릿이 없으면 `application.yml`의 개발용 기본값(`dev-only-insecure-default-...`)으로 폴백한다 — 운영 배포 전에는 반드시 실제 값으로 교체.
-- **외부 콘솔 설정** (코드로 못 하는 부분, 사람이 직접): Kakao Developers/Google Cloud Console 양쪽에 리다이렉트 URI를 `http://localhost:8080/login/oauth2/code/{kakao|google}`로 등록해야 로그인이 동작한다. Kakao는 추가로 "카카오 로그인" 활성화 + 동의항목(닉네임, 카카오계정(이메일))을 켜둬야 `account_email` 스코프가 실제 이메일을 준다 — 동의 안 하면 `Member.email`은 `{providerId}@kakao.invi.local` 같은 대체값으로 채워진다.
-- **로그인 없이 테스트하던 시절의 흔적**: `MemberController.dev` / `MemberSeeder`는 실제 로그인이 붙으면서 삭제했다. 새 임시 우회가 필요해지면 만들지 말고 로컬 계정으로 실제 로그인해서 테스트할 것.
+- **소셜 로그인 흐름**: `GET /oauth2/authorization/{kakao|google}` → `CustomOAuth2UserService`가 제공자별 응답을 `(provider, providerId, email, name)`으로 매핑해 `Member` find-or-create → `OAuth2LoginSuccessHandler`가 JWT를 발급해 `{FRONTEND_BASE_URL}/oauth/callback?token=...`로 → `OAuthCallbackPage`가 저장 후 `/api/auth/me`.
+- **요청 인증**: `JwtAuthenticationFilter`가 `Authentication#getName()`에 `Member.id`를 심고, 컨트롤러는 `CurrentMember.requireId(authentication)`으로 꺼낸다. memberId를 요청 바디로 받지 않는다.
+- **소유권**: 로그인만으로는 부족하다. 청첩장에 종속된 데이터는 서비스가 `getOwnedOrThrow`로 소유자인지 확인하고 아니면 403 — 이걸 빼먹는 게 제일 흔한 실수다.
+- **공개 엔드포인트**(`SecurityConfig`): `GET /api/templates/**`, `GET /api/invitations/slug/**`, `GET /api/invitations/slug-available`, `GET /api/invitations/review/*`(토큰이 곧 권한), `POST /api/invitations/*/rsvps`, `GET`/`POST /api/invitations/*/guestbook`(게시된 청첩장에서 방명록이 보일 때만 글을 준다). 소유자용 방명록 전체 조회는 `GET .../guestbook/manage`, RSVP 열람 `GET .../rsvps`는 로그인 필요. 그 외 `/api/**`는 전부 로그인 필요. 공개 쓰기는 `GuestWriteRateLimiter`로 한도(429, `docs/GUEST_RATE_LIMIT.md`).
+- **인증 실패**: `/api/**`는 로그인 페이지 302 대신 401 JSON(SPA fetch가 HTML 리다이렉트에 깨지지 않게).
+- **비밀값**: OAuth client-id·secret, JWT 키, R2 키는 gitignored `backend/src/main/resources/application-local.yml`. 새 clone에서는 직접 만든다. JWT 시크릿이 없으면 개발용 기본값으로 폴백 — 운영에서는 반드시 실제 값.
+- **외부 콘솔 설정(사람이 직접)**: Kakao/Google 콘솔에 리다이렉트 URI `http://localhost:8080/login/oauth2/code/{kakao|google}` 등록. Kakao는 "카카오 로그인" 활성화 + 동의항목(닉네임, 이메일)을 켜야 실제 이메일이 온다(안 켜면 `{providerId}@kakao.invi.local`).
+- 로그인 우회용 dev 엔드포인트/시더는 만들지 않는다 — 로컬 계정으로 실제 로그인해서 테스트한다.
 
 ## 이미지 업로드 (Cloudflare R2)
 
-`com.invi.api.media`에 있다. 백엔드를 거치지 않는 presigned URL 방식 — 아키텍처 문서 02번(오브젝트 스토리지) 결정 그대로다.
+`com.invi.api.media`. 백엔드를 거치지 않는 presigned URL 방식(아키텍처 문서 02번).
 
-- **업로드 흐름**: 프론트가 원본을 변환·최적화한 뒤 `POST /api/invitations/{id}/media/presign`으로 파일명·컨텐트타입·타입(`GALLERY`/`OG`/`COVER`)·실제 바이트 수(`contentLength`)를 보냄 → `MediaService`가 소유권 확인 후 `invitations/{invitationId}/{uuid}.{ext}` 키로 R2 presigned PUT URL(5분 유효)을 발급 → 프론트가 그 URL로 파일 바이트를 **직접** PUT(우리 API를 거치지 않음) → 성공하면 `POST /api/invitations/{id}/media`로 `r2Key`를 전달해 `MediaAsset` 레코드를 생성하고 공개 URL을 돌려받음.
-- **소유권 검증**: `InvitationService`와 동일한 `getOwnedOrThrow` 패턴을 따른다.
-- **R2 미설정 시 동작**: `invi.r2.account-id`가 비어있으면 `R2StorageConfig`가 `S3Presigner`/`S3Client` 빈을 아예 만들지 않는다(`@ConditionalOnProperty` — `SecurityConfig`의 `ClientRegistrationRepository` 옵셔널 처리와 같은 이유: CI·새 clone에서도 앱이 정상 기동해야 함). `MediaService`는 `ObjectProvider`로 이 빈들을 받아, 없으면 업로드 시도 시점에 `StorageUnavailableException`(503)을 던진다 — 앱 부팅 실패가 아니라 그 기능만 막힌다.
-- **비밀값**: `invi.r2.account-id` / `access-key-id` / `secret-access-key`는 OAuth 시크릿과 동일하게 `application-local.yml`(gitignored)에 넣는다. `bucket`(기본값 `invi-media`)과 `public-base-url`은 `application.yml`에 기본값이 있어 로컬에서 굳이 안 채워도 된다.
-- **외부 콘솔 설정** (코드로 못 하는 부분, 사람이 직접):
-  1. Cloudflare 대시보드에서 R2 버킷 생성, R2 API 토큰(Object Read & Write) 발급 → account-id·access-key-id·secret-access-key 확보.
-  2. **버킷 CORS 설정 필수** — 프론트(`http://localhost:5173`)가 presigned URL로 R2에 직접 PUT하므로, 버킷의 CORS 정책에 해당 오리진의 `PUT`을 허용해두지 않으면 브라우저가 요청을 막는다. 배포 후에는 실제 프론트 도메인도 추가해야 한다.
-  3. `public-base-url`은 R2 버킷의 공개 접근 방식(R2.dev 서브도메인 또는 커스텀 도메인 연결)에 따라 결정 — 아직 도메인을 안 정했으므로 당장은 R2.dev 공개 URL이나 임시 프록시로 채워두면 된다.
-- **대표 사진 업로드**: `CoverPhotoEditor`가 JPG/JPEG·PNG·WebP·HEIC/HEIF 원본을 장당 최대 30MiB까지 받는다. Worker에서 긴 변 최대 2,560px WebP(미지원 시 JPEG)로 최적화하고, 업로드·attach·공개 이미지 로드 확인이 모두 성공한 뒤에만 `hero.content.coverImage`를 바꾼다. 실패 시 기존 사진을 유지하고 재시도·취소를 제공한다. 처리 중/실패 선택이 남아 있으면 저장·공개를 막는다. 서버는 JPEG/PNG/WebP의 크기·MIME·키 소유 경로와 R2 HEAD/Range GET 시그니처를 검사한다. 갤러리는 최대 20장(8~12장 권장) 순차 다중 업로드·사진별 진행·실패 항목만 재시도·정렬·삭제를 지원하며 자르기는 제외한다. 설정·CORS·검증·제한은 `docs/PHOTO_UPLOAD.md` 참고.
-- **R2 잔여 파일 정리**: `tracked_media_object`로 presign/기존 객체를 추적한다. 저장된 모든 청첩장 상태·숨김·언어·미래 필드·템플릿 참조를 보호하고 기본 7일 유예를 둔다. 실제 삭제는 기본 비활성/점검 모드다. 참조를 쓰는 새 경로는 트랜잭션 시작 시 `MediaLifecycle.lock()`으로 공통 PostgreSQL 잠금을 잡고 `referencesChanged`/`assertUsable` 검사를 해야 한다. 삭제는 먼저 DELETING을 커밋하고 조건부 삭제 안전 검증 후 ETag 조건으로 진행하며 불확실한 실패에도 재참조 차단을 유지한다. 기존 DELETE API는 즉시 삭제가 아닌 202 예약이다. 자세한 설정·조건부 삭제 호환 한계·검증 상태는 `docs/MEDIA_CLEANUP.md` 참고.
+- **흐름**: 프론트가 최적화한 파일 정보로 `POST /api/invitations/{id}/media/presign` → 소유권 확인 후 `invitations/{invitationId}/{uuid}.{ext}` presigned PUT(5분) 발급 → 프론트가 R2에 **직접** PUT → `POST /api/invitations/{id}/media`로 attach해 `MediaAsset` 생성.
+- **R2 미설정 시**: `invi.r2.account-id`가 비면 S3 빈을 만들지 않고, 업로드 시점에만 503(`StorageUnavailableException`) — CI·새 clone에서도 앱이 기동해야 하므로.
+- **외부 설정(사람이 직접)**: R2 버킷·API 토큰 발급, **버킷 CORS에 프론트 오리진의 `PUT` 허용**(배포 도메인도), `public-base-url` 결정.
+- 대표 사진·갤러리의 형식·크기·최적화·검증 규칙은 `docs/PHOTO_UPLOAD.md`.
+- **잔여 파일 정리**: `tracked_media_object`로 추적하고 모든 청첩장 참조를 보호하며 기본 7일 유예, 실제 삭제는 기본 꺼짐. **이미지 참조를 쓰는 새 경로는 트랜잭션 시작 시 `MediaLifecycle.lock()`을 잡고 `referencesChanged`/`assertUsable`을 거친다.** 상세는 `docs/MEDIA_CLEANUP.md`.
 
-## HTTPS 테스트 배포
+## 배포 (https-test / prod)
 
-- `Dockerfile`은 React 정적 빌드와 boot JAR만 담아 비root JRE21로 실행한다. 개발 서버/bootRun/포트 포워딩을 외부 공개하지 않는다. 컨테이너 내부의 `0.0.0.0:$PORT`와 개인 PC 개발망 바인딩은 구분한다.
-- `https-test` 프로필은 새 TLS 검증 Postgres DB·별도 R2 테스트 버킷·강한 JWT·전용 테스트 계정 비밀값을 런타임에 요구한다. 로컬 프로필, `invi-media`, 활성 R2 정리, 공개 신규 가입, 상세 actuator 노출 등 안전 조건을 어기면 시작을 거절한다. 기존 계정 비밀번호를 재시작 때 덮어쓰지 않는다.
-- 프론트 `build:https-test`는 API를 현재 HTTPS Origin으로 사용하고 소셜/가입 UI를 숨긴다. 일반 localhost와 mobile 모드는 유지한다. VITE 변수나 Docker ARG에 비밀값을 넣지 않는다.
-- 공개 HTML shell 경로와 private API를 구분한다. 하객 링크 직접 접속/새로고침은 index.html로 보내지만 API/누락된 asset 오류는 HTML로 삼키지 않는다. 준비 확인은 `/actuator/health/readiness`다.
-- 계정 생성·플랜·배포 리소스/비용·실기기 검증은 별도 상태를 확인한다. 코드/이미지 빌드만으로 외부 HTTPS 배포 완료라고 하지 않는다. 절차와 미확인 사항은 `docs/HTTPS_TEST_DEPLOY.md`를 따른다.
-- **운영(`prod`)**: 같은 `Dockerfile`을 `APP_MODE=prod`로 빌드한다(기본은 https-test). 테스트와 같은 안전장치(`DeploymentChecks`)에 가입·소셜 로그인을 열고, `ProdDeploymentGuard`가 테스트 DB·버킷, R2 정리 켜짐을 거절한다. 계정당 청첩장은 3개(`InvitationQuota`, R2가 유일하게 과금될 수 있어서). 이메일 가입은 약관·처리방침 동의(`agreedToPolicies`)를 서버에서도 요구한다. 처리방침·약관(`/privacy`, `/terms`)은 실제 수집 항목·보관 기간·위탁 업체를 적은 것이라, 수집 필드나 삭제 규칙·호스팅을 바꾸면 그 문구와 `site.ts`의 시행일도 같이 고친다. 문의처는 빌드 인자 `VITE_CONTACT_EMAIL`(저장소에 넣지 않음). 운영은 무료 플랜만 쓰고 비용이 생길 수 있는 설정은 먼저 묻는다. 절차는 `docs/PROD_DEPLOY.md`.
+- `Dockerfile`은 React 정적 빌드와 boot JAR만 담아 비root JRE21로 실행한다. 기본은 https-test, `APP_MODE=prod`로 운영 빌드. 개발 서버/bootRun/포트 포워딩은 외부에 공개하지 않는다.
+- 배포 프로필은 안전 조건(TLS DB, 프로필별 R2 버킷, 강한 JWT, R2 정리 꺼짐, actuator 최소 노출 등)을 어기면 시작을 거절한다(`DeploymentChecks`, `HttpsTestDeploymentGuard`, `ProdDeploymentGuard`). https-test는 가입·소셜을 닫고, prod는 연다.
+- VITE 변수나 Docker ARG에 비밀값을 넣지 않는다. 문의처는 빌드 인자 `VITE_CONTACT_EMAIL`(저장소에 넣지 않음).
+- 하객 링크 직접 접속은 index.html로 보내되 API/누락 asset 오류는 HTML로 삼키지 않는다. 준비 확인은 `/actuator/health/readiness`.
+- 운영: 계정당 청첩장 3개(`InvitationQuota` — R2가 유일하게 과금될 수 있어서), 이메일 가입은 서버에서도 약관 동의(`agreedToPolicies`) 요구. **무료 플랜만 쓰고 비용이 생길 수 있는 설정은 먼저 묻는다.**
+- **처리방침·약관(`/privacy`, `/terms`)은 실제 수집 항목·보관 기간·위탁 업체를 적은 문서다.** 수집 필드·삭제 규칙·호스팅을 바꾸면 문구와 `site.ts`의 `POLICY_EFFECTIVE_DATE`를 같이 고친다.
+- 코드/이미지 빌드만으로 배포 완료라고 하지 않는다. 절차는 `docs/HTTPS_TEST_DEPLOY.md`, `docs/PROD_DEPLOY.md`.
 
 ## 프론트엔드 컨벤션 (frontend/)
 
@@ -139,38 +132,32 @@ RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽�
   - 공개: `/`, `/templates`, `/templates/:id`, `/login`, `/oauth/callback`, `/privacy`, `/terms`
   - 로그인 필요(`RequireAuth`): `/create`, `/invitations`, `/e/:id`(편집기), `/e/:id/guests`(응답 관리)
   - 하객용(공통 레이아웃 밖): `/i/:slug`(공개 청첩장), `/r/:token`(확인 링크)
-- 청첩장 웹폰트는 npm 패키지로 자체 호스팅한다(`@fontsource/noto-serif-kr` = serif, `pretendard` = sans, 둘 다 OFL). 폰트 CDN을 쓰지 않는다 — 하객 기기에서 제3자 요청이 나가지 않게. `src/blocks/fonts.ts`가 `design.fontFamily`에 맞는 CSS를 `PageRenderer`에서 지연 import하고, unicode-range 분할이라 화면에 쓰인 글자 구간의 woff2만 받는다. 폰트를 추가할 때도 같은 방식(테마별 지연 로딩, 시스템 폰트 폴백 스택 유지)을 따른다.
-- 템플릿의 생김새는 데이터다. `themes.json` 프리셋마다 `design` 옆에 `parts`(슬롯별 선택, 허용값은 `editor/model.ts`의 `PART_OPTIONS`)·`tokens`(`TOKEN_VARS`의 CSS 변수)·`fonts`(`blocks/fonts.ts`의 `FONT_FACES`)를 둔다. `PageRenderer`가 기본값이 아닌 파츠마다 `part-<slot>-<value>` 클래스를 붙이고, `invitation.css`는 이 클래스만 스타일링한다 — 테마 이름 셀렉터(`invitation-theme-*`)는 쓰지 않는다(테스트가 막는다). 새 테마는 JSON만으로, 새 디자인 요소는 슬롯 값 + CSS로 추가한다. `parts`/`tokens`/`fonts`는 `design`에 넣지 않는다 — 시더가 `design`을 페이지에 복사하므로, 프리셋에서 읽어야 기존 청첩장도 템플릿 개선을 받는다. 사용자의 세부 꾸미기는 `pageData.design.look`(`{ parts, tokens }`)에 템플릿과 다른 값만 저장하고 `pageLook(design)`이 프리셋 위에 겹친다. look 토큰은 인라인 CSS 변수가 되므로 `sanitizeLook`이 허용값(hex 색, 정해진 자간)만 남긴다 — `url()` 등 외부 요청이 생기는 값은 받지 않는다. 다른 템플릿을 고르면 look은 비운다. 봉투(`envelope` 파츠가 켜진 페이지만)는 `envelopeFlap`·`envelopeMaterial`·`envelopeLiner`·`sealColor`·`sealEmblem`·`envelopeDecor` 슬롯과 `envelopeColor` 토큰(없으면 강조색)으로 꾸민다. 그림은 `blocks/envelopeArt.tsx` 한 곳에서 그리고 하객 화면 `EnvelopeIntro`와 편집기 `EnvelopePreview`가 공유한다. SVG id는 `EnvelopeIds`로 봉투마다 접두어를 붙인다.
-- 로그인 상태는 `src/auth/AuthContext.tsx`(Context) + `src/auth/token.ts`(localStorage 저장)로 관리한다. `api/client.ts`의 모든 요청이 토큰이 있으면 자동으로 `Authorization` 헤더를 붙인다.
-- 백엔드 API 베이스는 `VITE_API_BASE_URL`로 설정하며 기본값은 `http://localhost:8080`이다. `api/baseUrl.ts`를 일반 API와 소셜 로그인에서 공유한다. Origin만 허용하고 경로·인증정보·query·fragment는 거절한다. 프록시는 사용하지 않는다. 백엔드 `SecurityConfig` CORS는 `invi.frontend.base-url`의 정확한 HTTP(S) Origin만 허용한다(기본 localhost:5173). 휴대폰 개인 Wi-Fi 테스트는 gitignored `.env.mobile.local` + Vite `--mode mobile`, Wi-Fi 사설 IP 한 개로의 명시적 바인딩을 사용한다. 이메일 로그인·실기기 체크·복구는 `docs/MOBILE_PHOTO_CHECK.md` 참고.
+- **하객 기기에서 제3자 요청이 나가지 않게 한다.** 웹폰트는 npm 패키지로 자체 호스팅(CDN 금지)하고 `blocks/fonts.ts`가 쓰는 서체만 지연 로딩한다.
+- **템플릿의 생김새는 데이터다.** 새 테마는 `themes.json`만으로, 새 디자인 요소는 파츠 슬롯 값 + `part-<slot>-<value>` CSS로 추가한다(테마 이름 셀렉터 금지). `parts`/`tokens`/`fonts`는 `design` 밖에 둬서 기존 청첩장도 템플릿 개선을 받는다. 사용자 꾸미기(`design.look`)는 `sanitizeLook` 허용값만 받는다. 절차는 `template-design-system` 스킬.
+- 로그인 상태는 `src/auth/AuthContext.tsx` + `src/auth/token.ts`(localStorage). `api/client.ts`가 토큰이 있으면 `Authorization`을 자동으로 붙인다.
+- API 베이스는 `VITE_API_BASE_URL`(기본 `http://localhost:8080`, `api/baseUrl.ts`가 Origin만 허용). 프록시 없음. 백엔드 CORS는 `invi.frontend.base-url`의 정확한 Origin만 허용. 휴대폰 실기기 테스트는 gitignored `.env.mobile.local` + `--mode mobile`(`docs/MOBILE_PHOTO_CHECK.md`).
 
 ## 테스트
 
-- 백엔드: `./gradlew test` (JUnit 5). 리포지토리 계층은 `@DataJpaTest`, 컨트롤러는 `@WebMvcTest` 우선 — 굳이 `@SpringBootTest` 풀 컨텍스트를 매번 띄우지 않는다.
-- 로컬 DB는 `docker compose up -d`로 PostgreSQL을 먼저 띄운 뒤 백엔드를 실행한다.
+- 백엔드: `./gradlew test` (JUnit 5). 리포지토리는 `@DataJpaTest`, 컨트롤러는 `@WebMvcTest` 우선 — `@SpringBootTest` 풀 컨텍스트를 매번 띄우지 않는다. 로컬 DB는 `docker compose up -d`로 먼저 띄운다.
+- 프론트: `npm test`는 `package.json`의 `scripts.test`에 **나열된 파일만** 실행한다 — 새 `*.test.ts`는 목록에 추가한다. 타입 체크는 `npm run build`.
 
 ## Git 컨벤션
 
-**저장소**: [github.com/h-like/invi](https://github.com/h-like/invi) (public — 비밀값·실제 개인정보 커밋 금지). 로컬 git 계정은 이 저장소에만 로컬로 설정돼 있다(`git config user.name/email`, 전역 설정 아님) — 다른 저장소를 새로 클론하면 다시 설정해야 한다.
+**저장소**: [github.com/h-like/invi](https://github.com/h-like/invi) (public — 비밀값·실제 개인정보 커밋 금지). 로컬 git 계정은 이 저장소에만 로컬로 설정돼 있다(전역 아님).
 
 **브랜치**
-- `main`: 항상 빌드/컴파일이 되는 상태로 유지한다. Phase 0 스캐폴딩 이후로는 여기 직접 커밋하지 않는다.
-- 기능 단위로 `phase-N/기능명` 형식의 브랜치를 판다. 예: `phase-1/invitation-editor`, `phase-1/rsvp-api`. 예외: Claude 앱이 자동으로 만든 `claude/...` 브랜치는 이름을 바꾸지 않는다(앱이 그 이름으로 브랜치·PR을 추적한다). 대신 PR 제목으로 기능을 드러낸다.
-- 완료되면 PR을 올리고 `/code-review` 통과 후 머지한다. 1인 개발이라 리뷰해줄 사람은 없지만, PR을 남겨두면 변경 이력이 기능 단위로 정리되고 나중에 포트폴리오에서 보여주기도 좋다.
+- `main`: 항상 빌드되는 상태. 직접 커밋하지 않는다.
+- 기능 단위로 `phase-N/기능명` 브랜치(예: `phase-1/rsvp-api`). 예외: Claude 앱이 만든 `claude/...` 브랜치는 이름을 바꾸지 않고 PR 제목으로 기능을 드러낸다.
+- 완료되면 PR → `/code-review` 통과 후 머지. 1인 개발이지만 기능 단위 이력과 포트폴리오를 위해 PR을 남긴다.
 
-**커밋 메시지**: Conventional Commits 형식.
-```
-<type>(<scope>): <설명>
-```
-- type: `feat` `fix` `refactor` `test` `chore` `docs`
-- scope: 모듈명(`invitation`, `rsvp`, `editor` 등) — 애매하면 생략
-- 예: `feat(invitation): add slug uniqueness check`, `test(rsvp): cover guest-count validation`
+**커밋 메시지**: Conventional Commits `<type>(<scope>): <설명>`. type은 `feat` `fix` `refactor` `test` `chore` `docs`, scope는 모듈명(`invitation`, `rsvp`, `editor` 등, 애매하면 생략). 예: `feat(invitation): add slug uniqueness check`.
 
-**커밋 단위**: 항상 빌드가 되고 테스트가 통과하는 상태에서 커밋한다. "일단 커밋하고 나중에 고치기"는 하지 않는다 — 에이전트 루프가 자동으로 커밋할 때는 특히 이 원칙이 더 중요해진다(아래 참고).
+**커밋 단위**: 항상 빌드·테스트가 통과하는 상태에서 커밋한다. "일단 커밋하고 나중에 고치기" 금지.
 
-**에이전트 루프와 git** — 아키텍처 문서 08번 "에이전트 루프 사용 원칙"의 연장:
-- 로컬 커밋(`git add` + `git commit`)까지는 루프가 자동으로 남겨도 된다. 단, 테스트 통과·빌드 성공 상태에서만 — 원칙 3(검증 가능한 산출물)과 직결된다.
-- 기능 브랜치 `git push`는 루프가 해도 된다(테스트 통과 상태, `wip:` 커밋 제외). PR 생성/머지, `main`으로의 직접 반영, force-push는 루프가 하지 않는다 — 원칙 2(되돌리기 어려운 액션은 자동 실행에서 제외)와 같은 논리다. `main`과 force-push는 GitHub ruleset으로도 막혀 있다.
-- 루프가 반복 작업 중에 남긴 커밋은 메시지에 그 사실을 남긴다. 예: `test(rsvp): tighten guest-count validation via TDD loop` — 나중에 이 커밋이 루프 산출물인지 직접 짠 건지 구분할 수 있게.
+**에이전트 루프와 git** (아키텍처 문서 08번):
+- 로컬 커밋은 루프가 자동으로 해도 된다 — 테스트 통과·빌드 성공 상태에서만.
+- 기능 브랜치 `git push`도 루프가 해도 된다(`wip:` 커밋 제외). PR 생성/머지, `main` 반영, force-push는 루프가 하지 않는다(되돌리기 어려운 액션). `main`과 force-push는 GitHub ruleset으로도 막혀 있다.
+- 루프가 남긴 커밋은 메시지에 표시한다. 예: `test(rsvp): tighten guest-count validation via TDD loop`.
 
-자세한 절차와 명령어(브랜치 생성·switch 시점, push 시점, `wip:` 커밋, GitHub 보호 설정)는 [docs/GIT.md](docs/GIT.md) 참고.
+자세한 절차(브랜치 생성·push 시점, `wip:` 커밋, GitHub 보호 설정)는 [docs/GIT.md](docs/GIT.md).
