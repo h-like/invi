@@ -43,9 +43,9 @@ invi/
 
 **삭제 정책**: "삭제 권한은 있지만 감사 추적이 필요한" 데이터(방명록)는 `deletedAt` 소프트 삭제. 예외로 무료 만료(예식일+10일 배치, `InvitationExpiryService`)는 개인정보 보관 최소화가 우선이라 레코드를 실제로 지우고 R2 이미지는 `MediaLifecycle`로 넘긴다. 기본 dry-run, 규칙은 `docs/INVITATION_EXPIRY.md`.
 
-**스키마 (Flyway)**: 스키마는 `db/migration`의 Flyway 마이그레이션으로만 바꾸고 Hibernate는 `ddl-auto: validate`만 한다. 엔티티 변경과 같은 커밋에 다음 번호 `V{n}__설명.sql`, 이미 적용된 파일은 수정 금지. `baseline-on-migrate`는 모든 프로필에서 꺼져 있다 — `ddl-auto` 시절 DB의 일회성 baseline 절차는 `docs/HTTPS_TEST_DEPLOY.md`(`FlywayLegacyBaselineTest`). 변경 절차는 `schema-change` 스킬.
+**스키마 (Flyway)**: 스키마는 `db/migration`의 Flyway 마이그레이션으로만 바꾸고 Hibernate는 `ddl-auto: validate`만 한다. 엔티티 변경과 같은 커밋에 다음 번호 `V{n}__설명.sql`, 이미 적용된 파일은 수정 금지. **Java enum에 값을 늘리거나 줄이면 그 컬럼의 CHECK 제약을 새 마이그레이션에서 다시 만든다** — 안 하면 새 값 저장이 운영에서 제약 위반(500)으로 실패한다. `baseline-on-migrate`는 모든 프로필에서 꺼져 있다 — `ddl-auto` 시절 DB의 일회성 baseline 절차는 `docs/HTTPS_TEST_DEPLOY.md`(`FlywayLegacyBaselineTest`). 변경 절차는 `schema-change` 스킬.
 
-**로컬 DB가 Flyway 오류로 기동을 거절할 때** (`bootRun`·`./gradlew test`가 docker의 같은 DB를 쓴다): "non-empty schema ... without a schema history table"이면 Flyway 이전 `ddl-auto`로 만든 DB다. 데이터가 필요 없으면 `docker compose down -v && docker compose up -d`(볼륨 삭제), 남기려면 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`로 한 번 기동한 뒤 변수 없이 다시 띄운다. Flyway 이전에 딴 브랜치는 `ddl-auto: update`로 마이그레이션 밖 변경을 남기므로 main을 받은 뒤 실행한다.
+**로컬 DB가 Flyway 오류로 기동을 거절할 때** (`bootRun`·`./gradlew test`가 docker의 같은 DB를 쓴다): "non-empty schema ... without a schema history table"이면 Flyway 이전 `ddl-auto`로 만든 DB다. 데이터가 필요 없으면 `docker compose down -v && docker compose up -d`(볼륨 삭제), 남기려면 `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`로 한 번 기동한 뒤 변수 없이 다시 띄운다. 이 변수는 **한 번 쓰고 반드시 지운다** — 켜 둔 채면 잘못 가리킨 다른 비어 있지 않은 DB도 V1로 표시하고 V2를 실행해 버린다. Flyway 이전에 딴 브랜치는 `ddl-auto: update`로 마이그레이션 밖 변경을 남기므로 main을 받은 뒤 실행한다.
 
 **저장 충돌 (낙관적 잠금)**: `Invitation.version`(`@Version`)은 청첩장이 바뀔 때마다 오른다(페이지 저장·예식일·공개·비공개). `PUT /page-data`는 편집기가 마지막으로 받은 `version`을 보내고, 다르면 409 + `code: STALE_VERSION` — 다른 탭·기기의 저장을 덮어쓰지 않기 위해서다. 쓰기는 미디어 잠금 안에서 검사하고 `flushedDto()`로 flush 후 응답한다. 편집기는 같은 탭의 쓰기를 `createInvitationPersistence` 한 가드로 하나씩 보내고, 응답이 끊긴 경우 "version이 정확히 1 올랐고 이 탭의 쓰기가 보일 때만" 성공으로 본다(`editor/persistence.ts`). 충돌 시 초안은 유지하고 "최신 내용 새 탭에서 보기"·"최신 내용으로 바꾸기"만 제공한다(강제 덮어쓰기는 MVP 제외). 쓰기별 세부 규칙은 `invitation-write-path` 스킬.
 
@@ -119,7 +119,7 @@ invi/
 ## 배포 (https-test / prod)
 
 - `Dockerfile`은 React 정적 빌드와 boot JAR만 담아 비root JRE21로 실행한다. 기본은 https-test, `APP_MODE=prod`로 운영 빌드. 개발 서버/bootRun/포트 포워딩은 외부에 공개하지 않는다.
-- 배포 프로필은 안전 조건(TLS DB, 프로필별 R2 버킷, 강한 JWT, R2 정리 꺼짐, actuator 최소 노출 등)을 어기면 시작을 거절한다(`DeploymentChecks`, `HttpsTestDeploymentGuard`, `ProdDeploymentGuard`). https-test는 가입·소셜을 닫고, prod는 연다.
+- 배포 프로필은 안전 조건을 어기면 시작을 거절한다. 두 프로필 공통(`DeploymentChecks`와 각 가드): `local` 프로필, 로컬 버킷 `invi-media`(`application.yml`의 `bucket` 기본값), TLS 검증 없는 DB, 약한 JWT, R2 정리 켜짐, actuator 상세 노출. https-test(`HttpsTestDeploymentGuard`)는 가입·소셜을 닫는다. prod(`ProdDeploymentGuard`)는 이름에 `test`가 든 DB·버킷과 `https-test` 프로필을 거절하고 가입·소셜을 연다. 시작 거절은 가드를 약하게 하지 말고 설정을 고친다.
 - VITE 변수나 Docker ARG에 비밀값을 넣지 않는다. 문의처는 빌드 인자 `VITE_CONTACT_EMAIL`(저장소에 넣지 않음).
 - 하객 링크 직접 접속은 index.html로 보내되 API/누락 asset 오류는 HTML로 삼키지 않는다. 준비 확인은 `/actuator/health/readiness`.
 - 운영: 계정당 청첩장 3개(`InvitationQuota` — R2가 유일하게 과금될 수 있어서), 이메일 가입은 서버에서도 약관 동의(`agreedToPolicies`) 요구. **무료 플랜만 쓰고 비용이 생길 수 있는 설정은 먼저 묻는다.**

@@ -75,7 +75,10 @@ public InvitationDto something(UUID memberId, UUID id, ...) {
 공개 JSON은 누구나 읽는다. 렌더러에서 숨기는 것만으로는 숨긴 계좌·혼주 정보가 샌다.
 
 - page_data는 `GuestPageView.visibleOnly(pageData)`, langVariants는 `GuestPageView.langVariantsFor(langVariants, pageData)`를 거쳐 내보낸다. 공개 청첩장·확인 링크·링크 미리보기(`LinkPreview`)가 모두 이 한 곳을 쓴다 — 새 경로도 여기를 쓰고 필터를 따로 만들지 않는다.
-- 블록 종속 하객 쓰기(RSVP·방명록 류)는 `status == PUBLISHED` **그리고** `GuestPageView.hasVisibleBlock(pageData, "<type>")`일 때만 허용, 아니면 403. 기존 데이터는 지우지 않는다. 하객용 조회는 빈 목록.
+- 블록 종속 하객 쓰기(RSVP·방명록 류)는 두 단계로 막는다(`RsvpService` 참고):
+  - 공개되지 않은 청첩장은 없는 id와 똑같이 **404**(`findById(...).filter(PUBLISHED)` → `NotFoundException`). 초안이 있다는 사실도 드러내지 않기 위해서다.
+  - 공개됐지만 그 블록이 숨겨져 있으면 **403**(`GuestPageView.hasVisibleBlock(pageData, "<type>")`가 false → `ForbiddenException`). 기존 데이터는 지우지 않는다. 하객용 조회는 빈 목록.
+  - 접속 한도(`rateLimiter.acquire`)는 이 조회 **뒤**에 건다 — 없는 id로 한도 항목이 생기지 않게.
 - 확인 링크(`/review/*`)는 상태와 무관하게 보여주지만 쓰기는 받지 않는다.
 - 저장본·편집용(소유자) 응답은 필터하지 않는다.
 - 응답 DTO에 member 정보·내부 id·`reviewToken`이 섞이지 않았는지 본다.
@@ -83,7 +86,7 @@ public InvitationDto something(UUID memberId, UUID id, ...) {
 
 ## 6. 편집기 쪽 (frontend/src/editor/persistence.ts)
 
-- version을 올리는 요청은 전부 `createInvitationPersistence`의 단일 가드로 **하나씩** 보낸다. 같은 탭에서 동시에 보내면 자기 저장끼리 409가 난다. `InvitationBuilderPage`에서 `api/client`를 직접 부르지 않는다.
+- version을 올리는 요청은 전부 `createInvitationPersistence`의 단일 가드로 **하나씩** 보낸다. 같은 탭에서 동시에 보내면 자기 저장끼리 409가 난다. 이런 요청은 `InvitationBuilderPage`에서 `api/client`로 직접 부르지 않는다. version을 올리지 않는 요청(확인 링크 `api.issueReviewLink`/`revokeReviewLink` 등)은 가드 밖에서 직접 불러도 된다 — 저장 뒤에 줄 세울 이유가 없다.
 - 응답을 받으면 편집기의 version을 응답 값으로 갱신한다.
 - 응답이 끊긴 경우의 규칙을 새 쓰기에도 정한다: 재조회했을 때 version이 **정확히 1** 올랐고 이 탭의 내용(`canonicalJson`으로 키 순서 무시)이나 상태가 보일 때만 성공으로 본다(`ownWriteLanded`, `own`, `ownWriteUnder*` 참고). 멱등 요청(다시 보내도 version이 안 오르는 것)은 "2 오름"의 설명이 될 수 없다는 점도 반영한다.
 - 현재 쓰기별 규칙(새 쓰기를 설계할 때 같은 기준으로 맞춘다):
@@ -100,7 +103,7 @@ public InvitationDto something(UUID memberId, UUID id, ...) {
 - [ ] `@WebMvcTest` 컨트롤러 테스트: 비로그인 401, **남의 청첩장 403**, 정상 200 응답 JSON 모양(page_data가 문자열/이상한 객체가 아니라 실제 JSON인지).
 - [ ] version을 올리는 쓰기: 잘못된 `version` → 409 + `code: STALE_VERSION`; 응답의 version이 증가해 있는지(`InvitationVersionIntegrationTest` 패턴).
 - [ ] version을 올리면 안 되는 쓰기: 호출 전후 version 동일.
-- [ ] 하객 응답: `visible: false` 블록이 응답에 없는지(`GuestPageViewTest` 패턴), 숨긴/미공개 상태에서 하객 쓰기 403.
+- [ ] 하객 응답: `visible: false` 블록이 응답에 없는지(`GuestPageViewTest` 패턴), 미공개 청첩장에 하객 쓰기 404, 숨긴 블록에 하객 쓰기 403.
 - [ ] 참조가 바뀌는 쓰기: `referencesChanged`/`assertUsable` 호출 검증(`InvitationServiceTest` 패턴).
 
 프론트 (`frontend/`):
