@@ -91,7 +91,7 @@ invi/
 | `MediaAsset` | `media_asset` | invitation, r2Key, type(GALLERY/OG/COVER), sortOrder | 업로드 attach 시 생성. 청첩장 만료 시 실제 삭제 |
 | `TrackedMediaObject` | `tracked_media_object` | bucket, r2Key, state(ACTIVE/DELETING/DELETED), unreferencedSince, safeAfter, objectEtag, deletedAt | bucket+r2Key 유니크. R2 잔여 파일 정리용(`docs/MEDIA_CLEANUP.md`) |
 
-목록은 항상 `createdAt desc, id desc`로 읽고 DTO에 `createdAt`을 담는다 — `ORDER BY`가 없으면 PostgreSQL이 순서를 보장하지 않는다.
+목록 조회에는 항상 끝까지 정해지는 `ORDER BY`를 둔다 — 없으면 PostgreSQL이 순서를 보장하지 않는다. 하객 응답(RSVP·방명록)은 `createdAt desc, id desc`로 읽고 DTO에 `createdAt`을 담는다. 사용자가 정한 순서가 있는 목록은 그 순서를 따른다(미디어는 `sortOrder`).
 
 ## 인증 (JWT + Kakao / Google / 이메일)
 
@@ -119,7 +119,7 @@ invi/
 ## 배포 (https-test / prod)
 
 - `Dockerfile`은 React 정적 빌드와 boot JAR만 담아 비root JRE21로 실행한다. 기본은 https-test, `APP_MODE=prod`로 운영 빌드. 개발 서버/bootRun/포트 포워딩은 외부에 공개하지 않는다.
-- 배포 프로필은 안전 조건을 어기면 시작을 거절한다. 두 프로필 공통(`DeploymentChecks`와 각 가드): `local` 프로필, 로컬 버킷 `invi-media`(`application.yml`의 `bucket` 기본값), TLS 검증 없는 DB, 약한 JWT, R2 정리 켜짐, actuator 상세 노출. https-test(`HttpsTestDeploymentGuard`)는 가입·소셜을 닫는다. prod(`ProdDeploymentGuard`)는 이름에 `test`가 든 DB·버킷과 `https-test` 프로필을 거절하고 가입·소셜을 연다. 시작 거절은 가드를 약하게 하지 말고 설정을 고친다.
+- 배포 프로필은 안전 조건을 어기면 시작을 거절한다. 두 프로필 공통(`DeploymentChecks`와 각 가드): `local` 프로필, 로컬 버킷 `invi-media`(`application.yml`의 `bucket` 기본값), TLS 검증 없는 DB, 약한 JWT, R2 정리 켜짐, actuator 상세 노출. https-test(`HttpsTestDeploymentGuard`)는 가입·소셜을 닫고 만료 삭제·R2 정리를 dry-run으로 고정한다. prod(`ProdDeploymentGuard`)는 이름에 `test`가 든 DB·버킷과 `https-test` 프로필을 거절하고, 가입·소셜은 `true`/`false` 형식만 검사한다(켜는 건 `application-prod.yml`). 시작 거절은 가드를 약하게 하지 말고 설정을 고친다.
 - VITE 변수나 Docker ARG에 비밀값을 넣지 않는다. 문의처는 빌드 인자 `VITE_CONTACT_EMAIL`(저장소에 넣지 않음).
 - 하객 링크 직접 접속은 index.html로 보내되 API/누락 asset 오류는 HTML로 삼키지 않는다. 준비 확인은 `/actuator/health/readiness`.
 - 운영: 계정당 청첩장 3개(`InvitationQuota` — R2가 유일하게 과금될 수 있어서), 이메일 가입은 서버에서도 약관 동의(`agreedToPolicies`) 요구. **무료 플랜만 쓰고 비용이 생길 수 있는 설정은 먼저 묻는다.**

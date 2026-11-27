@@ -48,7 +48,7 @@ description: JPA 엔티티의 필드·컬럼·제약·enum 값을 추가/변경/
 
 ## 3. 리포지토리·조회
 
-- 목록은 항상 `ORDER BY createdAt desc, id desc`(PostgreSQL은 순서를 보장하지 않는다). DTO에 `createdAt`.
+- 목록 조회에는 끝까지 정해지는 `ORDER BY`를 둔다(PostgreSQL은 순서를 보장하지 않는다). 하객 응답류는 `createdAt desc, id desc` + DTO에 `createdAt`, 사용자가 정한 순서가 있으면 그 컬럼(미디어 `sortOrder`).
 - 소프트 삭제 엔티티는 조회 메서드 이름/쿼리에 `DeletedAtIsNull` 포함.
 
 ## 4. DTO·API
