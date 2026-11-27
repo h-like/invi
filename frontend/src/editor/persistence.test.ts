@@ -223,7 +223,23 @@ test('other 409s, such as photos being cleaned up, stay ordinary save failures',
     updatePageData: async () => { throw fenced },
     publishInvitation: async () => invitation(),
   }))
-  assert.equal((await controller.run(invitation(), draft(), false)).kind, 'save-failed')
+  assert.deepEqual(await controller.run(invitation(), draft(), false), { kind: 'save-failed', detail: '정리 중이거나 삭제된 사진이 포함되어 있습니다.', rejected: true })
+})
+
+test('a refused save (4xx) is marked rejected and is not remembered as possibly landed', async () => {
+  let calls = 0
+  const controller = createInvitationPersistence(stub({
+    updatePageData: async () => {
+      calls++
+      if (calls === 1) throw Object.assign(new Error('로그인이 필요합니다.'), { status: 401 })
+      throw Object.assign(new Error('stale'), { status: 409, code: STALE_VERSION })
+    },
+    getInvitation: async () => { throw new Error('a refused save never landed: no read-back') },
+  }))
+  assert.deepEqual(await controller.run(invitation(), draft(), false), { kind: 'save-failed', detail: '로그인이 필요합니다.', rejected: true })
+  // A later stale refusal is someone else's save, not this tab's refused one.
+  assert.equal((await controller.run(invitation(), draft(), false)).kind, 'stale')
+  assert.equal(calls, 2)
 })
 
 test('a publish applied despite a lost response is confirmed instead of left for a stale retry', async () => {

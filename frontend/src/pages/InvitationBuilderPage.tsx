@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { PageRenderer } from '../blocks/PageRenderer'
 import { createInvitationPersistence } from '../editor/persistence'
 import { autosaveGate, createAutosave, type AutosaveAttempt, type AutosaveStatus } from '../editor/autosave'
+import { createManualWrites } from '../editor/manualWrites'
 import { CoverPhotoEditor } from '../editor/CoverPhotoEditor'
 import { GalleryPhotoEditor } from '../editor/GalleryPhotoEditor'
 import { LookEditor } from '../editor/LookEditor'
@@ -69,11 +70,12 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     baselineRef.current = json
     setBaseline(json)
   }
-  // Manual saves/publishes: a ref, so a second click in the same tick is refused too.
-  const manualRef = useRef(false)
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
   const [autosaveError, setAutosaveError] = useState('')
   const [autosave] = useState(() => createAutosave({ onStatus: setAutosaveStatus }))
+  // Save, publish, date, unpublish, loading the latest copy: one at a time, each after any
+  // autosave in flight, reading the latest copy from the refs inside the write.
+  const [writes] = useState(() => createManualWrites(autosave))
   const [failedAction, setFailedAction] = useState<boolean | null>(null)
   // Another tab or device saved first: saving again would be refused, so offer the latest copy.
   const [stale, setStale] = useState(false)
@@ -168,10 +170,17 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     if (result.kind === 'stale') {
       // Nothing was written; no overwrite in the MVP, same as a manual save.
       setError(result.detail + ' 자동 저장을 멈췄고, 지금 화면의 내용은 그대로 남아 있습니다.')
+      setFailedAction(null) // retrying an earlier failed save would only be refused again
       setStale(true)
       return 'stale'
     }
-    if (result.kind === 'save-failed') { setAutosaveError(result.detail); return 'failed' }
+    if (result.kind === 'save-failed') {
+      setAutosaveError(result.detail)
+      if (!result.rejected) return 'failed'
+      // Refused (expired login, ...): retrying on a timer would be refused again, so say why.
+      setError('자동 저장이 거절됐어요. ' + result.detail + ' 입력 내용은 화면에 그대로 있어요. 다시 로그인하는 등 문제를 해결한 뒤 [다시 시도]를 눌러 주세요.')
+      return 'rejected'
+    }
     adoptInvitation(result.kind === 'publish-failed' ? result.saved : result.invitation)
     adoptBaseline(sent)
     setAutosaveError('')
@@ -255,69 +264,72 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   /** Replaces this screen's copy with the stored one; asks first because unsaved edits are lost. */
   async function loadLatest() {
-    if (!id || loadingLatest || manualRef.current) return
+    if (!id || loadingLatest || writes.isRunning()) return
     // An upload finishing after the swap would patch the new copy with the old gallery.
     if (hasPendingPhotos()) { setError('사진 업로드를 마치거나 취소한 뒤 최신 내용을 불러와 주세요.'); return }
     if (!window.confirm('최신 내용을 불러오면 이 화면에서 저장하지 않은 변경 사항은 사라집니다. 불러올까요?')) return
     setLoadingLatest(true)
-    // No autosave may go out from the old copy while the latest one loads.
-    const release = await autosave.hold()
     try {
-      const latest = await api.getInvitation(id)
-      const page = latest.pageData ?? createEmptyPage()
-      adoptInvitation(latest)
-      setReviewToken(latest.reviewToken ?? null)
-      setDateInput(latest.weddingDate)
-      setDraft(page)
-      draftRef.current = page
-      adoptBaseline(JSON.stringify(page))
-      setStale(false)
-      autosave.resume()
-      autosave.reset()
-      setAutosaveError('')
-      setError(null)
-      setNotice('최신 내용을 불러왔습니다.')
-    } catch (err) {
-      setError('최신 내용을 불러오지 못했습니다. 지금 화면의 내용은 그대로 남아 있습니다. ' + (err instanceof Error ? err.message : ''))
+      // No autosave may go out from the old copy while the latest one loads.
+      await writes.run(async () => {
+        try {
+          const latest = await api.getInvitation(id)
+          const page = latest.pageData ?? createEmptyPage()
+          adoptInvitation(latest)
+          setReviewToken(latest.reviewToken ?? null)
+          setDateInput(latest.weddingDate)
+          setDraft(page)
+          draftRef.current = page
+          adoptBaseline(JSON.stringify(page))
+          setStale(false)
+          autosave.resume()
+          autosave.reset()
+          setAutosaveError('')
+          setError(null)
+          setNotice('최신 내용을 불러왔습니다.')
+        } catch (err) {
+          setError('최신 내용을 불러오지 못했습니다. 지금 화면의 내용은 그대로 남아 있습니다. ' + (err instanceof Error ? err.message : ''))
+        }
+      })
     } finally {
-      release()
       setLoadingLatest(false)
     }
   }
 
   // Saved immediately, apart from the draft: free invitations are deleted 10 days after this date.
   async function saveWeddingDate() {
-    if (!invitation || dateSaving || loadingLatest || !dateInput || dateInput === invitation.weddingDate) return
+    if (!invitation || dateSaving || loadingLatest || writes.isRunning() || !dateInput || dateInput === invitation.weddingDate) return
     setDateSaving(true)
     setDateStatus('')
-    // Waits for an autosave in flight instead of reporting "busy"; none starts until released.
-    const release = await autosave.hold()
     try {
-      // Shares the page save's guard, so a page save cannot run while this one is in flight.
-      // The ref: an autosave that just finished moved the version past this render's copy.
-      const result = await persistence.saveWeddingDate(invitationRef.current ?? invitation, dateInput)
-      // Never silent: free invitations are deleted by the stored date, not the one on screen.
-      if (result.kind === 'busy') { setDateStatus('다른 저장이 진행 중이라 예식일을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.'); return }
-      if (result.kind === 'failed') { setDateStatus(result.detail); return }
-      const saved = result.invitation
-      // `own`: only this tab's writes are in the returned version, possibly including a lost page
-      // save or publish, so take the copy whole (status, page) as a page save does. Otherwise
-      // another tab or device saved too: keep the old version so the next page save is stale.
-      adoptInvitation(prev => result.own ? saved : { ...prev, weddingDate: saved.weddingDate })
-      setDateStatus('예식일을 변경했습니다.')
+      // Waits for an autosave in flight instead of reporting "busy"; none starts until it ends.
+      await writes.run(async () => {
+        // Shares the page save's guard, so a page save cannot run while this one is in flight.
+        // The ref: an autosave that just finished moved the version past this render's copy.
+        const result = await persistence.saveWeddingDate(invitationRef.current ?? invitation, dateInput)
+        // Never silent: free invitations are deleted by the stored date, not the one on screen.
+        if (result.kind === 'busy') { setDateStatus('다른 저장이 진행 중이라 예식일을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.'); return }
+        if (result.kind === 'failed') { setDateStatus(result.detail); return }
+        const saved = result.invitation
+        // `own`: only this tab's writes are in the returned version, possibly including a lost page
+        // save or publish, so take the copy whole (status, page) as a page save does. Otherwise
+        // another tab or device saved too: keep the old version so the next page save is stale.
+        adoptInvitation(prev => result.own ? saved : { ...prev, weddingDate: saved.weddingDate })
+        setDateStatus('예식일을 변경했습니다.')
+      })
     } finally {
-      release()
       setDateSaving(false)
     }
   }
 
   async function persist(publish: boolean): Promise<boolean> {
     // While the latest copy loads, a save would go out from the old one and its edits be replaced.
-    if (!invitation || !draft || loadingLatest || manualRef.current) return false
+    if (!invitation || !draft || loadingLatest || writes.isRunning()) return false
     if (hasPendingPhotos()) { setError('새 사진의 업로드를 완료하거나 실패한 사진을 재시도·삭제한 뒤 저장·공개해 주세요.'); return false }
     setError(null)
     setFailedAction(null)
-    setStale(false)
+    // `stale` stays until a save succeeds or the latest copy loads: autosave is stopped until
+    // then, and the banner's [최신 내용으로 바꾸기] must stay reachable.
     setNotice('')
     if (publish) {
       const issues = publishIssues(draft)
@@ -325,13 +337,19 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     }
     setShareOpen(false)
     setBusy(true)
-    manualRef.current = true
-    // Takes the guard from autosave: waits for one in flight, and none starts until released.
-    const release = await autosave.hold()
     try {
-      // Refs, not this render's copy: an autosave that just finished moved the version on.
-      const current = invitationRef.current ?? invitation
-      const page = draftRef.current ?? draft
+      // Takes the guard from autosave: waits for one in flight, and none starts until done.
+      return await writes.run(() => persistLatest(publish)) ?? false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Runs inside `writes.run`, after any autosave in flight: reads the latest copy from the refs. */
+  async function persistLatest(publish: boolean): Promise<boolean> {
+    const current = invitationRef.current, page = draftRef.current
+    if (!current || !page) return false
+    try {
       const result = await persistence.run(current, page, publish)
       if (result.kind === 'busy') return false
       if (result.kind === 'stale') {
@@ -353,6 +371,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       draftRef.current = saved.pageData ?? page
       adoptBaseline(JSON.stringify(saved.pageData ?? page))
       // Saved on top of the latest version, so autosave may run again after a stale stop.
+      setStale(false)
       autosave.resume()
       autosave.reset()
       setAutosaveError('')
@@ -372,10 +391,6 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
       setError('처리 결과를 확인하지 못했습니다. 현재 화면의 내용을 확인하고 다시 시도해 주세요.')
       setFailedAction(publish)
       return false
-    } finally {
-      release()
-      manualRef.current = false
-      setBusy(false)
     }
   }
 
@@ -391,7 +406,7 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
 
   /** Shares the page-save guard: it bumps the version, so it must not race this tab's saves. */
   async function unpublish() {
-    if (!invitation || writing || manualRef.current) return
+    if (!invitation || writing || writes.isRunning()) return
     // The review link works whatever the status, so closing the guest link does not close it.
     const reviewLinkOpen = reviewToken !== null
     const reviewWarning = reviewLinkOpen ? '\n\n확인 링크는 계속 열려 있어서, 링크를 아는 사람은 계좌를 포함한 저장 내용을 볼 수 있어요. 막으려면 [링크 끄기]도 눌러 주세요.' : ''
@@ -399,20 +414,21 @@ function InvitationBuilder({ id }: { id: string | undefined }) {
     setUnpublishing(true)
     setError(null)
     setFailedAction(null)
-    setStale(false)
+    // Not `setStale(false)`: unpublishing does not bring this copy up to date, so autosave stays
+    // stopped and the banner keeps [최신 내용으로 바꾸기].
     setNotice('')
-    const release = await autosave.hold()
     try {
-      const result = await persistence.unpublish(invitationRef.current ?? invitation)
-      // Never silent: the couple would think the guest link is closed.
-      if (result.kind === 'busy') { setError('다른 저장이 진행 중이라 비공개로 바꾸지 못했어요. 하객 링크는 아직 열려 있어요. 잠시 후 다시 눌러 주세요.'); return }
-      if (result.kind === 'failed') { setError('비공개로 바꾸지 못했습니다. 하객 링크가 아직 열려 있을 수 있어요. ' + result.detail); return }
-      const saved = result.invitation
-      // Not `own`: another tab or device saved too, so keep the old version (the next save is stale).
-      adoptInvitation(prev => result.own ? saved : { ...prev, status: saved.status })
-      setNotice(reviewLinkOpen ? '비공개로 바꿨습니다 · 확인 링크는 열려 있어요' : '비공개로 바꿨습니다.')
+      await writes.run(async () => {
+        const result = await persistence.unpublish(invitationRef.current ?? invitation)
+        // Never silent: the couple would think the guest link is closed.
+        if (result.kind === 'busy') { setError('다른 저장이 진행 중이라 비공개로 바꾸지 못했어요. 하객 링크는 아직 열려 있어요. 잠시 후 다시 눌러 주세요.'); return }
+        if (result.kind === 'failed') { setError('비공개로 바꾸지 못했습니다. 하객 링크가 아직 열려 있을 수 있어요. ' + result.detail); return }
+        const saved = result.invitation
+        // Not `own`: another tab or device saved too, so keep the old version (the next save is stale).
+        adoptInvitation(prev => result.own ? saved : { ...prev, status: saved.status })
+        setNotice(reviewLinkOpen ? '비공개로 바꿨습니다 · 확인 링크는 열려 있어요' : '비공개로 바꿨습니다.')
+      })
     } finally {
-      release()
       setUnpublishing(false)
     }
   }

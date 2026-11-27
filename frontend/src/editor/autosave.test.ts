@@ -181,6 +181,32 @@ test('retryNow() skips the remaining backoff and resets it', async () => {
   assert.deepEqual(calls, [2500, 4500, 4500, 6500])
 })
 
+test('a rejected save (expired login, ...) is not retried on a timer, only by retryNow() or a manual save', async () => {
+  const clock = fakeClock()
+  const { calls, save } = scriptedSave(clock, ['rejected', 'rejected', 'saved'])
+  const autosave = createAutosave({ ...options, save, timers: clock.timers })
+  autosave.schedule()
+  await clock.advance(2500)
+  assert.equal(autosave.status(), 'error')
+  autosave.schedule()
+  autosave.flush()
+  await clock.advance(10 * 60_000)
+  assert.deepEqual(calls, [2500], 'no timer, typing or tab-hide retries')
+  const release = await autosave.hold()
+  release()
+  await clock.advance(60_000)
+  assert.deepEqual(calls, [2500], 'a manual write that ends without a save does not re-arm it')
+  autosave.retryNow()
+  await clock.advance(0)
+  assert.deepEqual(calls, [2500, 2500 + 10 * 60_000 + 60_000])
+  assert.equal(autosave.status(), 'error')
+  autosave.reset() // a manual save succeeded
+  autosave.schedule()
+  await clock.advance(2500)
+  assert.equal(calls.length, 3)
+  assert.equal(autosave.status(), 'idle')
+})
+
 test('busy (another write from this tab holds the guard) retries shortly without counting as a failure', async () => {
   const clock = fakeClock()
   const { calls, save } = scriptedSave(clock, ['busy', 'busy', 'saved'])
@@ -289,7 +315,7 @@ function editor(client: PersistenceClient, start: Invitation) {
     const result = await persistence.run(state.invitation, state.page, false)
     if (result.kind === 'busy') return 'busy'
     if (result.kind === 'stale') return 'stale'
-    if (result.kind === 'save-failed') return 'failed'
+    if (result.kind === 'save-failed') return result.rejected ? 'rejected' : 'failed'
     state.invitation = result.kind === 'completed' ? result.invitation : result.saved
     state.baseline = sent
     return 'saved'

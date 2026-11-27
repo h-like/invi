@@ -11,6 +11,8 @@
  * - A stale refusal stops autosave until `resume()`: saving again would be refused again, and
  *   overwriting someone else's save is not offered.
  * - Failures retry with exponential backoff; changes during the backoff wait for that retry.
+ * - A refusal that would repeat (expired login, a request the server rejects) is not retried
+ *   on its own: only `retryNow()` or a manual save (`reset()`) starts again.
  * - `hold()` lets a manual write take the guard: it cancels the pending autosave, waits for one
  *   in flight, and keeps new ones from starting until released.
  */
@@ -27,6 +29,8 @@ export type AutosaveAttempt =
   | 'busy'
   /** Network or server error: retry with backoff. */
   | 'failed'
+  /** The server refused the request (4xx other than stale): retrying alone would be refused again. */
+  | 'rejected'
   /** Someone else saved first: stop until `resume()`. */
   | 'stale'
 
@@ -99,6 +103,8 @@ export function createAutosave(options: AutosaveOptions) {
   let holds = 0
   let stopped = false
   let detached = false
+  /** After a 'rejected' save: no automatic retries until `retryNow()` or `reset()`. */
+  let refused = false
 
   function setStatus(next: AutosaveStatus) {
     if (next === status) return
@@ -123,7 +129,7 @@ export function createAutosave(options: AutosaveOptions) {
     setStatus('pending')
   }
 
-  function canStart() { return !stopped && !detached && holds === 0 }
+  function canStart() { return !stopped && !detached && !refused && holds === 0 }
 
   function start() {
     if (inFlight || !canStart()) return
@@ -153,6 +159,14 @@ export function createAutosave(options: AutosaveOptions) {
       markDirty()
       setStatus('error')
       if (canStart()) arm(retryDelay(failures, retryBaseMs, retryMaxMs))
+      return
+    }
+    if (attempt === 'rejected') {
+      refused = true
+      failures = 0
+      markDirty()
+      clearTimer()
+      setStatus('error')
       return
     }
     if (attempt === 'busy') {
@@ -192,7 +206,7 @@ export function createAutosave(options: AutosaveOptions) {
 
     /** Save now if anything is unsaved (tab hidden, page hiding, back online). */
     flush() {
-      if (stopped || detached || (!dirty && status !== 'error')) return
+      if (stopped || detached || refused || (!dirty && status !== 'error')) return
       if (inFlight) { flushAfter = true; return }
       if (holds > 0) return
       start()
@@ -202,6 +216,7 @@ export function createAutosave(options: AutosaveOptions) {
     retryNow() {
       if (stopped || detached) return
       failures = 0
+      refused = false
       markDirty()
       if (inFlight) { flushAfter = true; return }
       if (holds > 0) return
@@ -234,6 +249,7 @@ export function createAutosave(options: AutosaveOptions) {
      */
     reset() {
       failures = 0
+      refused = false
       dirty = false
       dirtySince = null
       clearTimer()
