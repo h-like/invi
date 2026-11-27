@@ -3,6 +3,8 @@ package com.invi.api.place;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -16,6 +18,8 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 class KakaoLocalClient {
 
+    private static final Logger log = LoggerFactory.getLogger(KakaoLocalClient.class);
+
     static final int PAGE_SIZE = 15;
     static final int MAX_PAGE = 3;
 
@@ -27,6 +31,9 @@ class KakaoLocalClient {
             @Value("${invi.kakao.local.rest-api-key:}") String restApiKey) {
         this.restClient = RestClient.builder().baseUrl(baseUrl).build();
         this.restApiKey = restApiKey == null ? "" : restApiKey.trim();
+        if (this.restApiKey.isEmpty()) {
+            log.warn("KAKAO_REST_API_KEY is not set: venue search answers 503 and couples must type the address.");
+        }
     }
 
     KeywordPage search(String query, int page) {
@@ -43,6 +50,8 @@ class KakaoLocalClient {
                     .body(KeywordPage.class);
             return result == null ? new KeywordPage(List.of(), new Meta(true)) : result;
         } catch (RestClientResponseException e) {
+            // Past the free quota Kakao answers 429 (the paid API is off, so nothing is billed).
+            if (e.getStatusCode().value() == 429) throw new PlaceSearchUnavailableException(PlaceSearchGuard.DAILY_LIMIT_MESSAGE, e);
             throw new PlaceSearchUnavailableException(
                     "지도 검색에 실패했습니다 (" + e.getStatusCode().value() + ").", e);
         } catch (RestClientException e) {

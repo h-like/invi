@@ -130,7 +130,8 @@ RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽�
 - **하객 화면**: `place`가 있고 `address`와 같을 때만 카카오맵 버튼이 그 장소(`map.kakao.com/link/map/{id}`)를 연다. 아니면 예전처럼 주소 검색. 하객 기기에서 지도 SDK·타일 같은 제3자 요청은 내지 않는다(링크만).
 - **예식장이 아닌 곳**: 검색 결과 아래 "모든 장소에서 찾기"가 `scope=all`(필터 없이 첫 페이지)로 성당·레스토랑·공간대여 등을 찾는다. 이것도 실제 장소라 링크가 정확하다. 어디에도 없으면 "주소 직접 입력"(`manualAddressPatch`: `place`를 `null`로 비움)을 쓰고, 편집기는 확인되지 않은 주소라고 계속 경고한다.
 - **공개 조건**: 오시는 길이 보이면 식장 이름과 주소가 있어야 공개된다(`publishIssues`). 검색 확인 여부는 막지 않는다 — 검색으로 찾을 수 없는 예식 장소가 있어서다.
-- **키**: Kakao Developers 앱 `wedding-invite`의 전용 REST API 키(`invi-venue-search`, 카카오맵 사용 ON). 로컬은 `backend/.env`(gitignored)의 `KAKAO_REST_API_KEY`를 `spring.config.import`로 읽고, 배포는 같은 이름의 환경변수다. 키가 없으면 앱은 뜨고 검색만 503.
+- **키**: Kakao Developers 앱 `wedding-invite`의 전용 REST API 키(`invi-venue-search`, 카카오맵 사용 ON). 로컬은 `backend/.env`(gitignored)의 `KAKAO_REST_API_KEY`를 `spring.config.import`로 읽고, 운영은 같은 이름의 Render 환경변수다(사용자가 직접 입력, `docs/PROD_DEPLOY.md`). 키가 없으면 앱은 뜨고(경고 로그) 검색만 503이며, 편집기는 오류와 함께 "주소 직접 입력"을 보여 준다.
+- **한도·비용**: 그 앱의 "유료 API > 카카오맵"이 **사용 안 함**이라 무료 한도(키워드 검색 하루 100,000건)를 넘으면 Kakao가 429로 막을 뿐 청구되지 않는다. 켜면 건당 2원이 청구되므로 켜지 않는다. 한도 소진을 막으려고 `PlaceSearchGuard`가 계정당 10분 30회(429), 한국 날짜 기준 하루 Kakao 호출 50,000건(503), 같은 검색 1시간 캐시를 둔다(`invi.place-search.*`, 메모리·단일 인스턴스 가정).
 
 ## HTTPS 테스트 배포
 

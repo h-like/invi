@@ -13,6 +13,10 @@ import static org.mockito.Mockito.when;
 import com.invi.api.place.KakaoLocalClient.Document;
 import com.invi.api.place.KakaoLocalClient.KeywordPage;
 import com.invi.api.place.KakaoLocalClient.Meta;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
@@ -20,7 +24,10 @@ import org.junit.jupiter.api.Test;
 class PlaceSearchServiceTest {
 
     private final KakaoLocalClient kakao = mock(KakaoLocalClient.class);
-    private final PlaceSearchService service = new PlaceSearchService(kakao);
+    private final PlaceSearchGuard guard = new PlaceSearchGuard(
+            new PlaceSearchProperties(1000, Duration.ofMinutes(10), 1000, Duration.ZERO, 0, 100),
+            Clock.fixed(Instant.parse("2026-11-27T00:00:00Z"), ZoneOffset.UTC));
+    private final PlaceSearchService service = new PlaceSearchService(kakao, guard);
 
     private static Document doc(String id, String name, String category) {
         return new Document(id, name, category, "02-000-0000", "서울 강남구 청담동 1", "서울 강남구 도산대로 1",
@@ -33,7 +40,7 @@ class PlaceSearchServiceTest {
                 doc("1", "청담 웨딩홀", "가정,생활 > 결혼 > 웨딩홀"),
                 doc("2", "청담 웨딩드레스", "가정,생활 > 결혼 > 웨딩드레스")), new Meta(true)));
 
-        List<PlaceDto> result = service.searchVenues("  청담 웨딩 ");
+        List<PlaceDto> result = service.searchVenues("m", "  청담 웨딩 ");
 
         assertThat(result).extracting(PlaceDto::id).containsExactly("1");
         PlaceDto place = result.get(0);
@@ -49,10 +56,10 @@ class PlaceSearchServiceTest {
                 doc("10", "명동성당", "종교 > 천주교 > 성당"),
                 doc("11", "아펠가모 앳홈 청담점", "서비스,산업 > 전문대행 > 공간대여")), new Meta(false)));
 
-        assertThat(service.searchAll("명동성당")).extracting(PlaceDto::id, PlaceDto::category)
+        assertThat(service.searchAll("m", "명동성당")).extracting(PlaceDto::id, PlaceDto::category)
                 .containsExactly(tuple("10", "성당"), tuple("11", "공간대여"));
         verify(kakao, never()).search("명동성당", 2);
-        assertThatThrownBy(() -> service.searchAll("가")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.searchAll("m", "가")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -63,7 +70,7 @@ class PlaceSearchServiceTest {
                 IntStream.range(0, 10).mapToObj(i -> doc("h" + i, "호텔" + i, "여행 > 숙박 > 호텔")).toList(),
                 new Meta(false)));
 
-        assertThat(service.searchVenues("호텔")).hasSize(10);
+        assertThat(service.searchVenues("m", "호텔")).hasSize(10);
         verify(kakao, never()).search("호텔", 3);
     }
 
@@ -73,13 +80,13 @@ class PlaceSearchServiceTest {
         Document noAddress = new Document("2", "웨딩홀", "가정,생활 > 결혼 > 웨딩홀", null, "", " ", "127", "37", null);
         when(kakao.search("웨딩홀", 1)).thenReturn(new KeywordPage(List.of(noCoords, noAddress), new Meta(true)));
 
-        assertThat(service.searchVenues("웨딩홀")).isEmpty();
+        assertThat(service.searchVenues("m", "웨딩홀")).isEmpty();
     }
 
     @Test
     void rejectsTooShortOrTooLongQueries_withoutCallingKakao() {
-        assertThatThrownBy(() -> service.searchVenues(" 가 ")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.searchVenues("가".repeat(51))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.searchVenues("m", " 가 ")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.searchVenues("m", "가".repeat(51))).isInstanceOf(IllegalArgumentException.class);
         verify(kakao, never()).search(anyString(), anyInt());
     }
 }

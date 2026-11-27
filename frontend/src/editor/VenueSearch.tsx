@@ -94,10 +94,10 @@ export function VenueSearch({ content, onPick, onManualAddress }: {
                   </li>
                 ))}
               </ul>)}
-          {results && (
+          {(results || error) && (
             <div className="venue-fallback">
-              <span>찾는 곳이 없나요?</span>
-              {scope === 'venue' && <button type="button" disabled={loading} onClick={() => void search('all')}>모든 장소에서 찾기 (성당·레스토랑 등)</button>}
+              <span>{results ? '찾는 곳이 없나요?' : '검색이 안 되면'}</span>
+              {results && scope === 'venue' && <button type="button" disabled={loading} onClick={() => void search('all')}>모든 장소에서 찾기 (성당·레스토랑 등)</button>}
               {!manual && <button type="button" onClick={typeAddress}>주소 직접 입력</button>}
             </div>
           )}
