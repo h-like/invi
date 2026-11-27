@@ -76,21 +76,23 @@ private JsonNode pageData;
 
 - `type`: `hero | gallery | rsvp | map | account | guestbook | countdown` (아키텍처 문서 03번)
 - 모든 블록은 `id`, `type`, `order`, `visible`, `content`, `style`을 공통으로 갖는다. `content`의 내부 구조만 타입별로 다르다.
-- 백엔드는 이 구조를 검증하지 않고 그대로 저장/반환한다(자유도 우선). 검증이 필요해지면 프론트 Zod 스키마를 우선 기준으로 삼고 백엔드는 최소한의 sanity check만 추가한다.
+- 백엔드는 이 구조를 검증하지 않고 그대로 저장/반환한다(자유도 우선). 지금 계약의 기준은 프론트 `src/api/types.ts`의 TS 타입과 `src/editor/model.ts`의 정규화 함수다 — 런타임 스키마 라이브러리(Zod 등)는 아직 쓰지 않는다. 검증이 필요해지면 프론트에 런타임 스키마를 먼저 만들어 기준으로 삼고 백엔드는 최소한의 sanity check만 추가한다.
 - 예외: 하객에게 나가는 응답은 숨긴 블록(`visible`이 `true`가 아닌 블록)을 서버에서 뺀다 — 공개 JSON은 누구나 읽을 수 있어서 렌더러에서 거르는 것만으로는 숨긴 계좌·혼주 정보가 노출되기 때문이다. `GuestPageView` 한 곳에서 처리하며 공개 청첩장(`/slug/**`), 확인 링크(`/review/*`), 링크 미리보기, `langVariants`에 같은 규칙을 쓴다. 저장본과 편집용 응답은 그대로다. 숨긴 RSVP·방명록은 신규 제출을 403으로 막고 기존 응답은 보존하며, 하객용 방명록 조회는 빈 목록을 돌려준다.
 - 편집기는 모르는 필드를 지우지 않는다(이전 버전 탭이 새 편집기의 설정을 날리지 않게). 최상위·블록·`content`는 펼쳐 복사하고, `design`은 `withDesign()`이 아는 필드만 정규화하고 나머지는 그대로 둔다(`look`은 보안상 `sanitizeLook` 결과만 남긴다). 갤러리 `images`는 `splitGalleryImages()`/`withGalleryImages()`로 편집기가 보여줄 수 있는 http(s) 주소만 고치고, 그 밖의 항목(향후 객체형 항목 등)은 뒤에 그대로 붙인다.
 - `Invitation.langVariants`도 같은 JSONB 방식. 블록별로 언어 코드(`ko`/`en`)를 키로 갖는 텍스트 오버라이드만 저장한다.
 - `hero.content` 선택 필드: 혼주 `groomFather`·`groomMother`·`groomRelation`·`brideFather`·`brideMother`·`brideRelation`(부모 이름이 하나도 없으면 표시 안 함, 관계가 비면 아들/딸), 실링 이니셜 `monogram`(영문·`&`·공백 최대 5자, 비면 "&", 봉투 인트로가 있는 테마만 사용, 숨긴 hero(`visible: false`)의 값은 쓰지 않고 "&"). 읽기·정규화는 `frontend/src/blocks/heroDetails.ts` 한 곳에서 한다.
 
-## 데이터 모델 (Phase 0 범위)
+## 데이터 모델
 
 | 엔티티 | 테이블 | 핵심 필드 | 비고 |
 |---|---|---|---|
-| `Member` | `member` | provider(KAKAO/GOOGLE), providerId, email, name | providerId+provider로 유니크 |
-| `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt, version | slug는 서브도메인과 1:1. `version`은 아래 "저장 충돌" 참고 |
+| `Member` | `member` | provider(LOCAL/KAKAO/GOOGLE), providerId, email, name, passwordHash | providerId+provider로 유니크. `LOCAL`(이메일 가입)은 providerId가 이메일이고 `passwordHash`를 쓴다. 소셜 계정은 `passwordHash`가 비어 있다 |
+| `Invitation` | `invitation` | member, slug(unique), template, weddingDate, plan(FREE/PAID), status(DRAFT/PUBLISHED/ARCHIVED), pageData(jsonb), langVariants(jsonb), expiresAt, version, reviewToken(unique, nullable) | slug는 서브도메인과 1:1. `version`은 위 "저장 충돌", `reviewToken`(V4)은 위 "확인 링크와 비공개 전환" 참고. `expiresAt`은 만료 배치가 쓰지 않는다(`docs/INVITATION_EXPIRY.md`) |
 | `Template` | `template` | code(unique), name, category, defaultPageData(jsonb), thumbnailUrl | 프리셋 원본은 `frontend/src/editor/themes.json` 하나 — 에디터 `DESIGN_PRESETS`가 import하고, `backend/build.gradle`이 `presets/themes.json`으로 복사해 `TemplateSeeder`가 읽는다(Dockerfile도 이 파일을 복사). `code` = `category` = `design.theme`. 시더는 `pageData.design`을 직접 저장한다. 부팅마다 `code` 기준으로 없으면 생성·다르면 맞춤(UUID는 DB마다 다름). 목록에서 빠진 행은 청첩장이 참조하므로 지우지 않는다 |
 | `Rsvp` | `rsvp_response` | invitation, guestName, attending, guestCount, message, side(GROOM/BRIDE), meal(YES/NO/UNDECIDED) | 로그인 없이 제출. side·meal은 nullable(이전 응답·이전 클라이언트 호환), 불참이면 meal은 저장하지 않음. 값 종류를 늘리면 새 Flyway 마이그레이션에서 CHECK 제약을 다시 만든다 |
 | `GuestbookEntry` | `guestbook_entry` | invitation, author, message, deletedAt | 관리자 소프트 삭제 |
+| `MediaAsset` | `media_asset` | invitation, r2Key, type(GALLERY/OG/COVER), sortOrder | 업로드 attach 시 생성. 청첩장 만료 시 실제 삭제 |
+| `TrackedMediaObject` | `tracked_media_object` | bucket, r2Key, state(ACTIVE/DELETING/DELETED), unreferencedSince, safeAfter, objectEtag, deletedAt | bucket+r2Key로 유니크. R2 잔여 파일 정리용 추적 표(`docs/MEDIA_CLEANUP.md`) |
 
 RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽고 DTO에 `createdAt`을 담는다 — `ORDER BY`가 없으면 PostgreSQL이 순서를 보장하지 않아 목록이 읽을 때마다 섞일 수 있다.
 
@@ -133,7 +135,10 @@ RSVP·방명록 목록은 항상 최신순(`createdAt desc, id desc`)으로 읽�
 
 ## 프론트엔드 컨벤션 (frontend/)
 
-- Vite + React + TypeScript + `react-router-dom`(`/`, `/oauth/callback`, `/e/:id`, `/i/:slug`, `/r/:token`)
+- Vite + React + TypeScript + `react-router-dom` Data Router(`src/App.tsx`). 라우트를 추가·삭제하면 이 목록도 고친다.
+  - 공개: `/`, `/templates`, `/templates/:id`, `/login`, `/oauth/callback`, `/privacy`, `/terms`
+  - 로그인 필요(`RequireAuth`): `/create`, `/invitations`, `/e/:id`(편집기), `/e/:id/guests`(응답 관리)
+  - 하객용(공통 레이아웃 밖): `/i/:slug`(공개 청첩장), `/r/:token`(확인 링크)
 - 청첩장 웹폰트는 npm 패키지로 자체 호스팅한다(`@fontsource/noto-serif-kr` = serif, `pretendard` = sans, 둘 다 OFL). 폰트 CDN을 쓰지 않는다 — 하객 기기에서 제3자 요청이 나가지 않게. `src/blocks/fonts.ts`가 `design.fontFamily`에 맞는 CSS를 `PageRenderer`에서 지연 import하고, unicode-range 분할이라 화면에 쓰인 글자 구간의 woff2만 받는다. 폰트를 추가할 때도 같은 방식(테마별 지연 로딩, 시스템 폰트 폴백 스택 유지)을 따른다.
 - 템플릿의 생김새는 데이터다. `themes.json` 프리셋마다 `design` 옆에 `parts`(슬롯별 선택, 허용값은 `editor/model.ts`의 `PART_OPTIONS`)·`tokens`(`TOKEN_VARS`의 CSS 변수)·`fonts`(`blocks/fonts.ts`의 `FONT_FACES`)를 둔다. `PageRenderer`가 기본값이 아닌 파츠마다 `part-<slot>-<value>` 클래스를 붙이고, `invitation.css`는 이 클래스만 스타일링한다 — 테마 이름 셀렉터(`invitation-theme-*`)는 쓰지 않는다(테스트가 막는다). 새 테마는 JSON만으로, 새 디자인 요소는 슬롯 값 + CSS로 추가한다. `parts`/`tokens`/`fonts`는 `design`에 넣지 않는다 — 시더가 `design`을 페이지에 복사하므로, 프리셋에서 읽어야 기존 청첩장도 템플릿 개선을 받는다. 사용자의 세부 꾸미기는 `pageData.design.look`(`{ parts, tokens }`)에 템플릿과 다른 값만 저장하고 `pageLook(design)`이 프리셋 위에 겹친다. look 토큰은 인라인 CSS 변수가 되므로 `sanitizeLook`이 허용값(hex 색, 정해진 자간)만 남긴다 — `url()` 등 외부 요청이 생기는 값은 받지 않는다. 다른 템플릿을 고르면 look은 비운다. 봉투(`envelope` 파츠가 켜진 페이지만)는 `envelopeFlap`·`envelopeMaterial`·`envelopeLiner`·`sealColor`·`sealEmblem`·`envelopeDecor` 슬롯과 `envelopeColor` 토큰(없으면 강조색)으로 꾸민다. 그림은 `blocks/envelopeArt.tsx` 한 곳에서 그리고 하객 화면 `EnvelopeIntro`와 편집기 `EnvelopePreview`가 공유한다. SVG id는 `EnvelopeIds`로 봉투마다 접두어를 붙인다.
 - 로그인 상태는 `src/auth/AuthContext.tsx`(Context) + `src/auth/token.ts`(localStorage 저장)로 관리한다. `api/client.ts`의 모든 요청이 토큰이 있으면 자동으로 `Authorization` 헤더를 붙인다.
